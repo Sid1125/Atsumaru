@@ -1,0 +1,14 @@
+{
+  "name": "atsumaru",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Atsumaru (集まる) — friendship-first group meetup app",
+  "scripts": {
+    "mobile": "npm start --prefix apps/mobile",
+    "mobile:android": "npm run android --prefix apps/mobile",
+    "server": "npm run dev --prefix server",
+    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix apps/mobile",
+    "test": "npm test --prefix server",
+    "setup": "npm install --prefix apps/mobile && npm install --prefix server"
+  }
+}

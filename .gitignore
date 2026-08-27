@@ -1,0 +1,40 @@
+# deps
+node_modules/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# builds
+dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# expo
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# native
+android/
+ios/
+
+# logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json

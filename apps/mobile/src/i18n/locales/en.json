@@ -1,0 +1,74 @@
+{
+  "common": {
+    "appName": "Atsumaru",
+    "retry": "Try again",
+    "loading": "Loading...",
+    "empty": "Nothing here yet",
+    "error": "Something went wrong",
+    "next": "Next",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "reconnecting": "Reconnecting..."
+  },
+  "auth": {
+    "tagline": "Not a dating app — friendship first.",
+    "continueWithLine": "Continue with LINE",
+    "continueWithGoogle": "Continue with Google",
+    "signOut": "Sign out"
+  },
+  "onboarding": {
+    "title": "Let's get to know you.",
+    "placeholder": "Type a message...",
+    "interests": "Interests",
+    "personality": "Personality",
+    "handle": "Handle",
+    "handleAvailable": "Available",
+    "handleTaken": "Already taken",
+    "displayName": "Display name",
+    "language": "Language",
+    "cta": "Find my people"
+  },
+  "discover": {
+    "subtitle": "Find your people nearby",
+    "forYou": "For you",
+    "nearby": "Nearby meetups",
+    "categories": {
+      "all": "All",
+      "food": "Food",
+      "gaming": "Games",
+      "arts": "Art",
+      "outdoor": "Outdoor"
+    },
+    "groupFit": "{{score}}% group fit",
+    "size": "{{current}}/{{max}} people",
+    "view": "View"
+  },
+  "meetup": {
+    "yourGroup": "Your group",
+    "whyThisGroup": "Why this group?",
+    "groupChat": "Group chat",
+    "join": "Join group",
+    "leave": "Leave group",
+    "openChat": "Open chat",
+    "messagePlaceholder": "Message your group..."
+  },
+  "feedback": {
+    "title": "How was the meetup?",
+    "ratings": {
+      "meh": "Meh",
+      "good": "Good",
+      "fire": "Great vibe"
+    },
+    "rejoin": "Rejoin this group?",
+    "yes": "Yes",
+    "no": "No",
+    "connectPrompt": "Who would you like to stay connected with?",
+    "submitPrivately": "Submit privately",
+    "privacyNote": "Your choices stay private. Nobody sees who you picked."
+  },
+  "connection": {
+    "mutualTitle": "It's a mutual connection!",
+    "mutualBody": "You and @{{handle}} both want to stay connected.",
+    "startChatting": "Start chatting"
+  }
+}

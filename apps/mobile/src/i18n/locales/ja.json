@@ -1,0 +1,74 @@
+{
+  "common": {
+    "appName": "集まる",
+    "retry": "もう一度",
+    "loading": "読み込み中...",
+    "empty": "まだ何もありません",
+    "error": "問題が発生しました",
+    "next": "次へ",
+    "submit": "送信",
+    "cancel": "キャンセル",
+    "reconnecting": "再接続中..."
+  },
+  "auth": {
+    "tagline": "恋活アプリじゃない。まずは友達から。",
+    "continueWithLine": "LINEでつづける",
+    "continueWithGoogle": "Googleでつづける",
+    "signOut": "ログアウト"
+  },
+  "onboarding": {
+    "title": "あなたのことを教えてください。",
+    "placeholder": "メッセージを入力...",
+    "interests": "興味",
+    "personality": "性格",
+    "handle": "ハンドル",
+    "handleAvailable": "使用できます",
+    "handleTaken": "使用されています",
+    "displayName": "表示名",
+    "language": "言語",
+    "cta": "仲間をさがす"
+  },
+  "discover": {
+    "subtitle": "近くの仲間をさがす",
+    "forYou": "あなたにおすすめ",
+    "nearby": "近くの集まり",
+    "categories": {
+      "all": "すべて",
+      "food": "グルメ",
+      "gaming": "ゲーム",
+      "arts": "アート",
+      "outdoor": "アウトドア"
+    },
+    "groupFit": "グループ相性 {{score}}%",
+    "size": "{{current}}/{{max}}人",
+    "view": "見る"
+  },
+  "meetup": {
+    "yourGroup": "あなたのグループ",
+    "whyThisGroup": "このグループの理由",
+    "groupChat": "グループチャット",
+    "join": "参加する",
+    "leave": "参加をやめる",
+    "openChat": "チャットを開く",
+    "messagePlaceholder": "グループにメッセージ..."
+  },
+  "feedback": {
+    "title": "集まりはどうでした？",
+    "ratings": {
+      "meh": "ふつう",
+      "good": "よかった",
+      "fire": "最高だった"
+    },
+    "rejoin": "またこのグループに参加する？",
+    "yes": "はい",
+    "no": "いいえ",
+    "connectPrompt": "つながりたい人はいますか？",
+    "submitPrivately": "非公開で送信",
+    "privacyNote": "選んだ内容は非公開です。相手には知られません。"
+  },
+  "connection": {
+    "mutualTitle": "お互いにつながりました！",
+    "mutualBody": "@{{handle}}さんとお互いにつながりを希望しました。",
+    "startChatting": "チャットをはじめる"
+  }
+}
