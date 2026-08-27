@@ -2,6 +2,10 @@ import Groq from "groq-sdk";
 import { z } from "zod";
 
 import { env, hasGroq } from "../config/env.js";
+import type { Language } from "../types.js";
+
+/** `preference_vector` is `vector(384)` in schema.sql (MiniLM all-MiniLM-L6-v2). */
+export const EMBEDDING_DIMS = 384;
 
 const SYSTEM_PROMPT = `You are the onboarding host for Atsumaru, a friendship-first
 group meetup app in Japan. Have a short, warm conversation (3-4 exchanges) to learn
@@ -28,6 +32,13 @@ const extractionSchema = z.object({
 export type OnboardingTurn = { role: "user" | "assistant"; content: string };
 export type OnboardingResult = z.infer<typeof extractionSchema>;
 
+/** Shown when the model returns something unusable, in the user's own language. */
+const RETRY_REPLY: Record<Language, string> = {
+  en: "Sorry, could you say that again?",
+  ja: "すみません、もう一度お願いできますか？",
+  zh: "抱歉，可以再说一次吗？",
+};
+
 let groq: Groq | null = null;
 
 function client(): Groq {
@@ -38,7 +49,7 @@ function client(): Groq {
 
 export async function onboardingChat(
   messages: OnboardingTurn[],
-  language?: string
+  language?: Language
 ): Promise<OnboardingResult> {
   const completion = await client().chat.completions.create({
     model: env.GROQ_MODEL,
@@ -53,15 +64,24 @@ export async function onboardingChat(
     ],
   });
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
-  const parsed = extractionSchema.safeParse(JSON.parse(raw));
+  const retry: OnboardingResult = {
+    reply: RETRY_REPLY[language ?? "en"],
+    done: false,
+  };
 
-  if (!parsed.success) {
-    // Never forward unvalidated model output to the client.
-    return { reply: "Sorry, could you say that again?", done: false };
+  // Model output is untrusted: malformed JSON must not surface as a 500.
+  let raw: unknown;
+
+  try {
+    raw = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
+  } catch {
+    return retry;
   }
 
-  return parsed.data;
+  const parsed = extractionSchema.safeParse(raw);
+
+  // Never forward unvalidated model output to the client.
+  return parsed.success ? parsed.data : retry;
 }
 
 /** MiniLM embedding via the HuggingFace inference API (docs/AI.md §4). */
@@ -87,6 +107,14 @@ export async function embed(text: string): Promise<number[]> {
   }
 
   const data = (await response.json()) as number[] | number[][];
+  const vector = Array.isArray(data[0]) ? (data as number[][])[0]! : (data as number[]);
 
-  return Array.isArray(data[0]) ? (data as number[][])[0]! : (data as number[]);
+  // The column is vector(384); a different width would fail deep inside Postgres.
+  if (vector.length !== EMBEDDING_DIMS) {
+    throw new Error(
+      `Embedding has ${vector.length} dims, expected ${EMBEDDING_DIMS}.`
+    );
+  }
+
+  return vector;
 }

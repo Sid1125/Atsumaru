@@ -40,18 +40,23 @@ npm run typecheck   # both packages
 
 ## Current state
 
-Working: API skeleton with the `{ success, data }` contract, Supabase JWT auth
-middleware, Socket.io rooms (`group:{event_id}`, `dm:{connection_id}`), Groq-backed
-`POST /api/onboarding/chat` with validated extraction, matching/feedback math with
-tests, and the full mobile shell (navigation, API client, socket service, i18n
-JP/EN/ZH, theme, Login → AI chat → profile confirm → Discover → Meetup → feedback).
+Working: the full API against Supabase — auth middleware, users, onboarding chat +
+handle suggestion/availability + profile completion (with embedding), events
+(nearby/detail/create/mine/join/leave/members/match-preview), group chat, private
+feedback with reputation + preference-vector learning and mutual-only connection
+unlock, DMs, and Socket.io rooms (`group:{event_id}`, `dm:{connection_id}`,
+`user:{user_id}`) that check membership and persist before broadcast. Matching and
+feedback math have unit tests. The mobile shell is complete (navigation, API client,
+socket service, i18n JP/EN/ZH, theme, Login → AI chat → profile confirm → Discover →
+Meetup → feedback).
 
-Not wired yet — each returns `501 NOT_IMPLEMENTED` with a `TODO` at the route:
+Not wired yet:
 
-- Supabase-backed events, members, join/leave, match preview, messages, feedback, connections
-- Handle suggestion/availability and `POST /onboarding/complete` (needs `embed()` + DB)
-- LINE/Google OAuth redirect + callback (the client currently shows a "not wired" alert)
+- LINE/Google OAuth redirect + callback — `501 NOT_IMPLEMENTED`; the client shows a "not wired" alert
 - BullMQ + Upstash feedback-reminder job and Expo push notifications
+
+Data routes answer `503 DB_UNAVAILABLE` until `server/.env` has Supabase keys, and
+onboarding chat answers `503 AI_UNAVAILABLE` without `GROQ_API_KEY`.
 
 The map renders a placeholder until `EXPO_PUBLIC_MAPBOX_TOKEN` is set **and** the app
 runs in a dev build — `@rnmapbox/maps` needs native code and does not work in Expo Go.

@@ -93,6 +93,172 @@ create or replace view event_sizes as
   left join group_members gm on gm.event_id = e.id
   group by e.id;
 
+-- Nearby events for the map. PostGIS distance filtering cannot be expressed
+-- through the supabase-js query builder, so the API calls this via rpc().
+create or replace function events_nearby(
+  p_lat double precision,
+  p_lng double precision,
+  p_radius double precision default 5000,
+  p_category text default null
+)
+returns table (
+  id uuid,
+  host_id uuid,
+  title text,
+  category text,
+  description text,
+  venue_name text,
+  lat double precision,
+  lng double precision,
+  start_time timestamptz,
+  max_size int,
+  current_size bigint,
+  status text,
+  distance_m double precision
+)
+language sql
+stable
+as $$
+  select
+    e.id,
+    e.host_id,
+    e.title,
+    e.category,
+    e.description,
+    e.venue_name,
+    st_y(e.location::geometry) as lat,
+    st_x(e.location::geometry) as lng,
+    e.start_time,
+    e.max_size,
+    coalesce(s.current_size, 0) as current_size,
+    e.status,
+    st_distance(e.location, st_point(p_lng, p_lat)::geography) as distance_m
+  from events e
+  left join event_sizes s on s.event_id = e.id
+  where st_dwithin(e.location, st_point(p_lng, p_lat)::geography, p_radius)
+    and (p_category is null or e.category = p_category)
+    and e.status in ('open', 'full', 'ongoing')
+  order by distance_m asc
+$$;
+
+-- Single event with its computed size, in the same shape as events_nearby.
+create or replace function event_detail(p_event_id uuid)
+returns table (
+  id uuid,
+  host_id uuid,
+  title text,
+  category text,
+  description text,
+  venue_name text,
+  lat double precision,
+  lng double precision,
+  start_time timestamptz,
+  max_size int,
+  current_size bigint,
+  status text
+)
+language sql
+stable
+as $$
+  select
+    e.id,
+    e.host_id,
+    e.title,
+    e.category,
+    e.description,
+    e.venue_name,
+    st_y(e.location::geometry) as lat,
+    st_x(e.location::geometry) as lng,
+    e.start_time,
+    e.max_size,
+    coalesce(s.current_size, 0) as current_size,
+    e.status
+  from events e
+  left join event_sizes s on s.event_id = e.id
+  where e.id = p_event_id
+$$;
+
+-- Events the caller hosts or has joined.
+create or replace function events_for_user(p_user_id uuid)
+returns table (
+  id uuid,
+  host_id uuid,
+  title text,
+  category text,
+  description text,
+  venue_name text,
+  lat double precision,
+  lng double precision,
+  start_time timestamptz,
+  max_size int,
+  current_size bigint,
+  status text
+)
+language sql
+stable
+as $$
+  select d.*
+  from events e
+  cross join lateral event_detail(e.id) d
+  where e.host_id = p_user_id
+     or exists (
+       select 1 from group_members gm
+       where gm.event_id = e.id and gm.user_id = p_user_id
+     )
+  order by e.start_time asc
+$$;
+
+-- Joining must be atomic: two people racing for the last seat would both pass a
+-- read-then-insert check in the API. The row lock serialises joins per event.
+create or replace function join_event(p_event_id uuid, p_user_id uuid)
+returns table (status text, current_size bigint)
+language plpgsql
+as $$
+declare
+  v_max int;
+  v_status text;
+  v_size bigint;
+begin
+  select e.max_size, e.status into v_max, v_status
+  from events e where e.id = p_event_id
+  for update;
+
+  if v_max is null then
+    raise exception 'EVENT_NOT_FOUND';
+  end if;
+
+  select count(*) into v_size from group_members gm where gm.event_id = p_event_id;
+
+  -- Already a member: report the current state instead of failing.
+  if exists (
+    select 1 from group_members gm
+    where gm.event_id = p_event_id and gm.user_id = p_user_id
+  ) then
+    return query
+      select case when v_size >= v_max then 'matched' else 'joined' end, v_size;
+    return;
+  end if;
+
+  if v_status <> 'open' then
+    raise exception 'EVENT_CLOSED';
+  end if;
+
+  if v_size >= v_max then
+    raise exception 'EVENT_FULL';
+  end if;
+
+  insert into group_members (event_id, user_id) values (p_event_id, p_user_id);
+  v_size := v_size + 1;
+
+  if v_size >= v_max then
+    update events set status = 'full' where id = p_event_id;
+  end if;
+
+  return query
+    select case when v_size >= v_max then 'matched' else 'joined' end, v_size;
+end;
+$$;
+
 -- The API uses the service-role key and enforces access in code; RLS stays on so
 -- anon/authenticated keys cannot read these tables directly.
 alter table users enable row level security;

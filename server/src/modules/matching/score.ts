@@ -95,3 +95,27 @@ export function centroid(vectors: number[][]): number[] {
 
   return sum.map((value) => value / vectors.length);
 }
+
+export type Rating = "meh" | "good" | "fire";
+
+/**
+ * Reputation tracks participation and reliability, not popularity (docs/AI.md §7):
+ * submitting feedback at all earns credit, ratings received nudge it a little.
+ */
+export const REPUTATION_DELTA = {
+  submittedFeedback: 2,
+  fire: 3,
+  good: 1,
+  meh: -2,
+} as const;
+
+export function ratingDelta(rating: Rating): number {
+  return REPUTATION_DELTA[rating];
+}
+
+export function applyReputation(current: number, delta: number): number {
+  return Math.min(100, Math.max(0, current + delta));
+}
+
+/** `good` is a mild positive signal, so it moves the vector at half rate. */
+export const GOOD_RATING_LR_FACTOR = 0.5;

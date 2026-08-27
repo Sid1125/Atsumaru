@@ -224,3 +224,14 @@ Potential Phase 2+ features already identified:
 - recurring interest circles
 - venue partnerships
 - premium tier
+
+
+
+
+## Codex Review
+
+All work produced, will be thoroughly reviewed by **Codex**.
+
+Codex will review the implementation for correctness, code quality, architecture, security, UI/UX consistency, adherence to the project documentation, and potential bugs or regressions.
+
+Any issues identified during the review will be addressed before the implementation is considered finalized.

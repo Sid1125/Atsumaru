@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  applyReputation,
   centroid,
   cosineSimilarity,
   groupBalance,
   matchScore,
   normalizeReputation,
+  ratingDelta,
   updatePreferenceVector,
 } from "./score.ts";
 
@@ -57,4 +59,12 @@ test("feedback pulls the preference vector toward liked profiles", () => {
 test("centroid averages member vectors", () => {
   assert.deepEqual(centroid([[0, 2], [2, 0]]), [1, 1]);
   assert.deepEqual(centroid([]), []);
+});
+
+test("reputation moves by rating and stays inside 0..100", () => {
+  assert.equal(ratingDelta("fire"), 3);
+  assert.equal(ratingDelta("meh"), -2);
+  assert.equal(applyReputation(99, 3), 100);
+  assert.equal(applyReputation(1, -5), 0);
+  assert.equal(applyReputation(50, 2), 52);
 });

@@ -5,6 +5,7 @@ import type {
   MatchPreview,
   MeetupEvent,
   Message,
+  MessagePage,
 } from "../../types/api";
 
 export const eventsApi = {
@@ -42,7 +43,7 @@ export const eventsApi = {
     api.get<MatchPreview>(`/events/${id}/match-preview`),
 
   messages: (id: string, page = 1, limit = 30) =>
-    api.get<{ messages: Message[] }>(`/events/${id}/messages`, { page, limit }),
+    api.get<MessagePage>(`/events/${id}/messages`, { page, limit }),
 
   sendMessage: (id: string, message: string) =>
     api.post<{ message: Message }>(`/events/${id}/messages`, { message }),

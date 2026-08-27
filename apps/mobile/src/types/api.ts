@@ -21,7 +21,6 @@ export interface User {
   interests: string[];
   personality: string[];
   reputation_score: number;
-  location: Coords | null;
   created_at: string;
 }
 
@@ -92,8 +91,9 @@ export interface OnboardingChatResult {
   };
 }
 
-export interface Paginated<T> {
-  items: T[];
+/** Message list responses keep their `messages` key plus the paging envelope. */
+export interface MessagePage {
+  messages: Message[];
   page: number;
   limit: number;
   total: number;

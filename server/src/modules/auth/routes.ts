@@ -2,8 +2,8 @@ import { Router } from "express";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
-import { supabase } from "../../db/supabase.js";
-import { HttpError, notImplemented, ok } from "../../utils/response.js";
+import { db, PUBLIC_USER_COLUMNS, type PublicUser } from "../../db/queries.js";
+import { dbError, HttpError, notImplemented, ok } from "../../utils/response.js";
 
 export const authRouter = Router();
 
@@ -13,23 +13,15 @@ authRouter.get(
   "/me",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const client = supabase();
-
-    if (!client) {
-      throw new HttpError(503, "DB_UNAVAILABLE", "Supabase is not configured.");
-    }
-
-    const { data, error } = await client
+    // Unlike /users/me this may legitimately be empty: the row appears only once
+    // onboarding completes, and the client uses `user: null` to route there.
+    const { data, error } = await db()
       .from("users")
-      .select(
-        "id, handle, display_name, avatar_url, language, interests, personality, reputation_score, created_at"
-      )
+      .select(PUBLIC_USER_COLUMNS)
       .eq("id", req.userId!)
-      .maybeSingle();
+      .maybeSingle<PublicUser>();
 
-    if (error) {
-      throw new HttpError(500, "DB_ERROR", error.message);
-    }
+    if (error) throw dbError(error);
 
     return ok(res, { user: data ?? null });
   })

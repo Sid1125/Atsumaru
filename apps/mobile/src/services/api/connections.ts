@@ -1,11 +1,11 @@
 import { api } from "./client";
-import type { Connection, Message } from "../../types/api";
+import type { Connection, Message, MessagePage } from "../../types/api";
 
 export const connectionsApi = {
   list: () => api.get<{ connections: Connection[] }>("/connections"),
 
   messages: (id: string, page = 1, limit = 30) =>
-    api.get<{ messages: Message[] }>(`/connections/${id}/messages`, {
+    api.get<MessagePage>(`/connections/${id}/messages`, {
       page,
       limit,
     }),

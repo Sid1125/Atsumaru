@@ -26,3 +26,13 @@ export class HttpError extends Error {
 
 export const notImplemented = (feature: string) =>
   new HttpError(501, "NOT_IMPLEMENTED", `${feature} is not implemented yet.`);
+
+/**
+ * Postgres messages can name columns, constraints, and policies, so they are logged
+ * rather than returned. Callers `throw dbError(error)` on any supabase-js failure.
+ */
+export function dbError(error: { message: string; code?: string }): HttpError {
+  console.error("Database error:", error);
+
+  return new HttpError(500, "DB_ERROR", "Database request failed.");
+}
