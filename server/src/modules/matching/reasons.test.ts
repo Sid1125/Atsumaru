@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { matchReasons } from "./reasons.ts";
+import { matchReasons } from "./reasons.js";
 
 const base = {
   sharedInterests: ["ramen"],

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { pageParams } from "./request.ts";
+import { pageParams } from "./request.js";
 
 test("page params default and clamp", () => {
   assert.deepEqual(pageParams({}), { page: 1, limit: 30 });

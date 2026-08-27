@@ -7,6 +7,7 @@
     "mobile": "npm start --prefix apps/mobile",
     "mobile:android": "npm run android --prefix apps/mobile",
     "server": "npm run dev --prefix server",
+    "seed": "npm run seed --prefix server --",
     "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix apps/mobile",
     "test": "npm test --prefix server",
     "setup": "npm install --prefix apps/mobile && npm install --prefix server"

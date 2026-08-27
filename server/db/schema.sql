@@ -35,6 +35,10 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
+-- Added after the first release; the sweep in src/jobs stamps both.
+alter table events add column if not exists feedback_reminder_sent_at timestamptz;
+alter table events add column if not exists reputation_settled_at timestamptz;
+
 create index if not exists events_location_idx on events using gist (location);
 create index if not exists events_start_time_idx on events (start_time);
 
@@ -86,12 +90,47 @@ create table if not exists connections (
   check (user_a < user_b)
 );
 
+-- OAuth bridge (docs/TRD.md §5). LINE is not a native Supabase provider, so the API
+-- exchanges the code itself and maps the provider subject to a Supabase auth user.
+create table if not exists oauth_identities (
+  provider text not null check (provider in ('line', 'google')),
+  provider_sub text not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (provider, provider_sub)
+);
+
+-- Expo push targets for meetup/feedback notifications (docs/TRD.md §14).
+create table if not exists push_tokens (
+  user_id uuid not null references users (id) on delete cascade,
+  token text not null,
+  platform text,
+  created_at timestamptz not null default now(),
+  unique (user_id, token)
+);
+
 -- current_size for the API's Event model.
 create or replace view event_sizes as
   select e.id as event_id, count(gm.id) as current_size
   from events e
   left join group_members gm on gm.event_id = e.id
   group by e.id;
+
+-- A meetup becomes 'ongoing' at its start time and 'completed' two hours later. The
+-- API never recomputes this: reads go through the functions below, and the sweep in
+-- src/jobs writes the same transition back to events.status.
+create or replace function event_status(p_stored text, p_start timestamptz)
+returns text
+language sql
+stable
+as $$
+  select case
+    when p_stored = 'completed' then 'completed'
+    when now() >= p_start + interval '2 hours' then 'completed'
+    when now() >= p_start then 'ongoing'
+    else p_stored
+  end
+$$;
 
 -- Nearby events for the map. PostGIS distance filtering cannot be expressed
 -- through the supabase-js query builder, so the API calls this via rpc().
@@ -131,13 +170,13 @@ as $$
     e.start_time,
     e.max_size,
     coalesce(s.current_size, 0) as current_size,
-    e.status,
+    event_status(e.status, e.start_time) as status,
     st_distance(e.location, st_point(p_lng, p_lat)::geography) as distance_m
   from events e
   left join event_sizes s on s.event_id = e.id
   where st_dwithin(e.location, st_point(p_lng, p_lat)::geography, p_radius)
     and (p_category is null or e.category = p_category)
-    and e.status in ('open', 'full', 'ongoing')
+    and event_status(e.status, e.start_time) in ('open', 'full', 'ongoing')
   order by distance_m asc
 $$;
 
@@ -172,7 +211,7 @@ as $$
     e.start_time,
     e.max_size,
     coalesce(s.current_size, 0) as current_size,
-    e.status
+    event_status(e.status, e.start_time) as status
   from events e
   left join event_sizes s on s.event_id = e.id
   where e.id = p_event_id
@@ -217,9 +256,10 @@ as $$
 declare
   v_max int;
   v_status text;
+  v_start timestamptz;
   v_size bigint;
 begin
-  select e.max_size, e.status into v_max, v_status
+  select e.max_size, e.status, e.start_time into v_max, v_status, v_start
   from events e where e.id = p_event_id
   for update;
 
@@ -239,7 +279,9 @@ begin
     return;
   end if;
 
-  if v_status <> 'open' then
+  -- Derived status, so a meetup that has already started is closed even if the
+  -- sweep has not written the transition yet.
+  if event_status(v_status, v_start) <> 'open' then
     raise exception 'EVENT_CLOSED';
   end if;
 
@@ -267,3 +309,5 @@ alter table group_members enable row level security;
 alter table messages enable row level security;
 alter table feedback enable row level security;
 alter table connections enable row level security;
+alter table oauth_identities enable row level security;
+alter table push_tokens enable row level security;

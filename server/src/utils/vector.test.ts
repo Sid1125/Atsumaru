@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseVector, serializeVector } from "./vector.ts";
+import { parseVector, serializeVector } from "./vector.js";
 
 test("parseVector accepts arrays and pgvector strings", () => {
   assert.deepEqual(parseVector([0.1, 0.2]), [0.1, 0.2]);

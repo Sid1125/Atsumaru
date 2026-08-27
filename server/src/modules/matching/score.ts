@@ -100,10 +100,12 @@ export type Rating = "meh" | "good" | "fire";
 
 /**
  * Reputation tracks participation and reliability, not popularity (docs/AI.md §7):
- * submitting feedback at all earns credit, ratings received nudge it a little.
+ * submitting feedback at all earns credit, skipping it costs a little, and ratings
+ * received nudge it.
  */
 export const REPUTATION_DELTA = {
   submittedFeedback: 2,
+  missedFeedback: -2,
   fire: 3,
   good: 1,
   meh: -2,

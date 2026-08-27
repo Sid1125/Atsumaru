@@ -10,7 +10,7 @@ import {
   normalizeReputation,
   ratingDelta,
   updatePreferenceVector,
-} from "./score.ts";
+} from "./score.js";
 
 test("cosine similarity handles identical, orthogonal and degenerate input", () => {
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);

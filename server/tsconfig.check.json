@@ -1,0 +1,11 @@
+{
+  // Type-checks everything, including tests and scripts, which the build config leaves
+  // out (`rootDir: src`, no test files in `dist`).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["dist"]
+}

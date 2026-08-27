@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { db, publicUser } from "../../db/queries.js";
+import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import { LANGUAGES } from "../../types.js";
@@ -52,6 +53,40 @@ usersRouter.patch(
     if (error) throw dbError(error);
 
     return ok(res, { user: await publicUser(req.userId!) });
+  })
+);
+
+const pushTokenSchema = z.object({
+  token: z.string().regex(EXPO_PUSH_TOKEN_RE, "Expected an Expo push token."),
+  platform: z.enum(["android", "ios"]).optional(),
+});
+
+// Not in docs/API_STRUCTURE.md: the contract describes the notification but not where
+// the device registers. Needed for the feedback reminder (docs/TRD.md §14).
+usersRouter.post(
+  "/me/push-token",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const parsed = pushTokenSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const { error } = await db()
+      .from("push_tokens")
+      .upsert(
+        {
+          user_id: req.userId!,
+          token: parsed.data.token,
+          platform: parsed.data.platform ?? null,
+        },
+        { onConflict: "user_id,token" }
+      );
+
+    if (error) throw dbError(error);
+
+    return ok(res, { success: true });
   })
 );
 

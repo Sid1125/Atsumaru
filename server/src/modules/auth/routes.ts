@@ -1,14 +1,29 @@
 import { Router } from "express";
+import { z } from "zod";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { db, PUBLIC_USER_COLUMNS, type PublicUser } from "../../db/queries.js";
-import { dbError, HttpError, notImplemented, ok } from "../../utils/response.js";
+import { env } from "../../config/env.js";
+import { dbError, HttpError, ok } from "../../utils/response.js";
+import { param } from "../../utils/request.js";
+import {
+  authorizeUrl,
+  identityFromCode,
+  isProvider,
+  providerConfigured,
+  signState,
+  verifyState,
+} from "./oauth.js";
+import {
+  claimSession,
+  sessionForIdentity,
+  stashSession,
+  type AuthSession,
+} from "./session.js";
 
 export const authRouter = Router();
 
-// OAuth is handled by Supabase on the client (LINE + Google, no phone OTP).
-// These routes exist so the app has a single place to resolve/end its session.
 authRouter.get(
   "/me",
   requireAuth,
@@ -30,17 +45,111 @@ authRouter.get(
 authRouter.post(
   "/logout",
   requireAuth,
-  asyncRoute(async (_req, res) => ok(res, { success: true }))
+  asyncRoute(async (req: AuthedRequest, res) => {
+    // Revoke the refresh token upstream; the client also clears SecureStore.
+    const token = req.headers.authorization!.slice("Bearer ".length);
+    const { error } = await db().auth.admin.signOut(token);
+
+    if (error) {
+      console.warn("Sign-out could not be confirmed upstream:", error.message);
+    }
+
+    return ok(res, { success: true });
+  })
 );
 
-authRouter.get("/line", () => {
-  throw notImplemented("LINE OAuth redirect");
-});
+authRouter.get(
+  "/callback",
+  asyncRoute(async (req, res) => {
+    // A provider-side denial arrives as ?error, not as a code.
+    if (typeof req.query.error === "string") {
+      throw new HttpError(400, "OAUTH_DENIED", "Sign-in was cancelled.");
+    }
 
-authRouter.get("/google", () => {
-  throw notImplemented("Google OAuth redirect");
-});
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = verifyState(
+      typeof req.query.state === "string" ? req.query.state : ""
+    );
 
-authRouter.get("/callback", () => {
-  throw notImplemented("OAuth callback");
-});
+    if (!code || !state) {
+      throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
+    }
+
+    if (!providerConfigured(state.provider)) {
+      throw new HttpError(
+        503,
+        "AUTH_PROVIDER_UNAVAILABLE",
+        `${state.provider} OAuth is not configured on this server.`
+      );
+    }
+
+    let session: AuthSession;
+
+    try {
+      const identity = await identityFromCode(state.provider, code, state.nonce);
+      session = await sessionForIdentity(identity);
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+
+      // Provider payloads can carry tokens, so only the message is logged.
+      console.error("OAuth exchange failed:", (error as Error).message);
+      throw new HttpError(502, "AUTH_PROVIDER_ERROR", "Sign-in failed. Please retry.");
+    }
+
+    if (!state.app) return ok(res, session);
+
+    // Tokens never travel in a URL: the app trades this code for them.
+    const handoff = new URL(env.APP_AUTH_REDIRECT);
+    handoff.searchParams.set("code", stashSession(session));
+
+    return res.redirect(handoff.toString());
+  })
+);
+
+const sessionSchema = z.object({ code: z.string().min(1).max(200) });
+
+/** Second half of the deep-link flow; single use, 60-second window. */
+authRouter.post(
+  "/session",
+  asyncRoute(async (req, res) => {
+    const parsed = sessionSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", "code is required.");
+    }
+
+    const session = claimSession(parsed.data.code);
+
+    if (!session) {
+      throw new HttpError(400, "INVALID_CODE", "That sign-in code is no longer valid.");
+    }
+
+    return ok(res, session);
+  })
+);
+
+/**
+ * `GET /auth/line` and `GET /auth/google` (docs/API_STRUCTURE.md §3.1). Add
+ * `?redirect_to=app` to come back through the app deep link instead of JSON.
+ * Declared last so the parameter cannot shadow `/me`, `/callback`, or `/session`.
+ */
+authRouter.get(
+  "/:provider",
+  asyncRoute(async (req, res, next) => {
+    const provider = param(req, "provider");
+
+    if (!isProvider(provider)) return next();
+
+    if (!providerConfigured(provider)) {
+      throw new HttpError(
+        503,
+        "AUTH_PROVIDER_UNAVAILABLE",
+        `${provider} OAuth is not configured on this server.`
+      );
+    }
+
+    const { state, nonce } = signState(provider, req.query.redirect_to === "app");
+
+    return res.redirect(authorizeUrl(provider, state, nonce));
+  })
+);

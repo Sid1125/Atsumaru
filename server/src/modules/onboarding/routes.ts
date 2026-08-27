@@ -7,6 +7,7 @@ import { db, publicUser } from "../../db/queries.js";
 import { embed, onboardingChat } from "../../services/ai.js";
 import { hasGroq } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
+import { createRateLimiter } from "../../utils/rateLimit.js";
 import { serializeVector } from "../../utils/vector.js";
 import { LANGUAGES } from "../../types.js";
 
@@ -35,12 +36,15 @@ const completeSchema = z.object({
 
 export const onboardingRouter = Router();
 
+/** Groq is on a free tier; 30 turns an hour is far more than onboarding needs. */
+const chatLimiter = createRateLimiter({ limit: 30, windowMs: 60 * 60 * 1000 });
+
 // Onboarding runs after OAuth, so every route here is authenticated: it keeps the
 // Groq budget and the handle list from being probed anonymously.
 onboardingRouter.post(
   "/chat",
   requireAuth,
-  asyncRoute(async (req, res) => {
+  asyncRoute(async (req: AuthedRequest, res) => {
     const parsed = chatSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -49,6 +53,11 @@ onboardingRouter.post(
 
     if (!hasGroq) {
       throw new HttpError(503, "AI_UNAVAILABLE", "GROQ_API_KEY is not configured.");
+    }
+
+    if (!chatLimiter.take(req.userId!)) {
+      res.setHeader("Retry-After", chatLimiter.retryAfter(req.userId!));
+      throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
     }
 
     const result = await onboardingChat(parsed.data.messages, parsed.data.language);

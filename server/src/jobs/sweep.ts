@@ -1,0 +1,175 @@
+/**
+ * Everything that has to happen after a meetup, on a timer: close it out, remind the
+ * members to leave feedback (docs/TRD.md §14), and settle reputation for the people who
+ * never did (docs/IDEA.md §6). Every pass is idempotent, so running it twice is safe.
+ */
+
+import { db } from "../db/queries.js";
+import { applyReputation, REPUTATION_DELTA } from "../modules/matching/score.js";
+import { feedbackMessage, pushTargets, sendPush } from "../services/push.js";
+import { dbError } from "../utils/response.js";
+
+/** Matches `event_status()` in schema.sql; the two must stay in step. */
+export const MEETUP_DURATION_MS = 2 * 60 * 60 * 1000;
+
+/** Feedback is asked for roughly an hour into the meetup (docs/API_STRUCTURE.md §8). */
+export const REMINDER_DELAY_MS = 60 * 60 * 1000;
+
+export interface SweepEvent {
+  id: string;
+  start_time: string;
+  feedback_reminder_sent_at: string | null;
+  reputation_settled_at: string | null;
+}
+
+export function dueForReminder(event: SweepEvent, now: number): boolean {
+  if (event.feedback_reminder_sent_at) return false;
+
+  return now >= Date.parse(event.start_time) + REMINDER_DELAY_MS;
+}
+
+export function dueForSettlement(event: SweepEvent, now: number): boolean {
+  if (event.reputation_settled_at) return false;
+
+  return now >= Date.parse(event.start_time) + MEETUP_DURATION_MS;
+}
+
+/** Members with no feedback row of their own for this event — the ghosts. */
+export function membersMissingFeedback(
+  memberIds: string[],
+  submitters: string[]
+): string[] {
+  const submitted = new Set(submitters);
+
+  return memberIds.filter((id) => !submitted.has(id));
+}
+
+export interface SweepResult {
+  completed: number;
+  remindersSent: number;
+  eventsSettled: number;
+}
+
+export async function runSweep(now = Date.now()): Promise<SweepResult> {
+  const result: SweepResult = { completed: 0, remindersSent: 0, eventsSettled: 0 };
+  const cutoff = new Date(now - MEETUP_DURATION_MS).toISOString();
+
+  // 1. Stored status catches up with what event_status() already reports.
+  const { data: closed, error: closeError } = await db()
+    .from("events")
+    .update({ status: "completed" })
+    .lte("start_time", cutoff)
+    .neq("status", "completed")
+    .select("id");
+
+  if (closeError) throw dbError(closeError);
+
+  result.completed = (closed ?? []).length;
+
+  // 2 & 3. Only events that are past their reminder time can need either pass.
+  const { data: events, error: eventsError } = await db()
+    .from("events")
+    .select("id, start_time, feedback_reminder_sent_at, reputation_settled_at")
+    .lte("start_time", new Date(now - REMINDER_DELAY_MS).toISOString())
+    .or("feedback_reminder_sent_at.is.null,reputation_settled_at.is.null");
+
+  if (eventsError) throw dbError(eventsError);
+
+  for (const event of (events ?? []) as SweepEvent[]) {
+    if (dueForReminder(event, now)) {
+      result.remindersSent += await remind(event);
+    }
+
+    if (dueForSettlement(event, now)) {
+      await settle(event);
+      result.eventsSettled += 1;
+    }
+  }
+
+  return result;
+}
+
+async function memberIds(eventId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from("group_members")
+    .select("user_id")
+    .eq("event_id", eventId);
+
+  if (error) throw dbError(error);
+
+  return ((data ?? []) as { user_id: string }[]).map((row) => row.user_id);
+}
+
+async function submitterIds(eventId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from("feedback")
+    .select("from_user")
+    .eq("event_id", eventId);
+
+  if (error) throw dbError(error);
+
+  return ((data ?? []) as { from_user: string }[]).map((row) => row.from_user);
+}
+
+/** Nudges everyone who has not submitted yet, then marks the event as reminded. */
+async function remind(event: SweepEvent): Promise<number> {
+  const members = await memberIds(event.id);
+
+  // A solo group has nobody to rate, so there is nothing worth a notification.
+  if (members.length < 2) {
+    await stamp(event.id, { feedback_reminder_sent_at: new Date().toISOString() });
+    return 0;
+  }
+
+  const pending = membersMissingFeedback(members, await submitterIds(event.id));
+  const targets = await pushTargets(pending);
+
+  const sent = await sendPush(
+    targets.map((target) => feedbackMessage(target.token, event.id, target.language))
+  );
+
+  // Stamped even when nobody had a device registered: the window has passed either way.
+  await stamp(event.id, { feedback_reminder_sent_at: new Date().toISOString() });
+
+  return sent;
+}
+
+/**
+ * Reputation reflects reliability, so skipping feedback costs a little. Applied once
+ * per event, after the meetup window closes.
+ */
+async function settle(event: SweepEvent) {
+  const members = await memberIds(event.id);
+  const ghosts = membersMissingFeedback(members, await submitterIds(event.id));
+
+  if (ghosts.length > 0) {
+    const { data, error } = await db()
+      .from("users")
+      .select("id, reputation_score")
+      .in("id", ghosts);
+
+    if (error) throw dbError(error);
+
+    for (const row of (data ?? []) as { id: string; reputation_score: number }[]) {
+      const next = applyReputation(
+        Number(row.reputation_score),
+        REPUTATION_DELTA.missedFeedback
+      );
+
+      const { error: updateError } = await db()
+        .from("users")
+        .update({ reputation_score: next })
+        .eq("id", row.id);
+
+      if (updateError) throw dbError(updateError);
+    }
+  }
+
+  await stamp(event.id, { reputation_settled_at: new Date().toISOString() });
+}
+
+async function stamp(eventId: string, patch: Record<string, string>) {
+  const { error } = await db().from("events").update(patch).eq("id", eventId);
+
+  if (error) throw dbError(error);
+}
