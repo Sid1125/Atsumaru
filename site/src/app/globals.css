@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #FAF7F2;
+  --color-bg-dark: #0E0E0E;
+  --color-bg-warm: #1A1714;
+  --color-text: #1A1A1A;
+  --color-text-light: #FAF7F2;
+  --color-text-muted: #6B6560;
+  --color-text-muted-light: rgba(250,247,242,0.6);
+  --color-accent: #E8634D;
+  --color-accent-soft: #F4A69A;
+  --color-accent-light: #FFF0ED;
+  --color-sage: #7A9E7E;
+  --color-sage-light: #E8F0E9;
+  --color-surface: #FFFFFF;
+  --color-surface-dark: #1E1E1E;
+  --color-border: #E8E4DF;
+  --color-border-light: #F0EDE6;
+  --color-border-dark: #333;
+
+  --font-sans: "Inter", "Noto Sans JP", system-ui, sans-serif;
+  --font-jp: "Noto Sans JP", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Realistic Phone Mockup ───────────────────────── */
+
+.phone-realistic {
+  position: relative;
+  width: 280px;
+  height: 570px;
+  border-radius: 42px;
+  background: #1a1a1a;
+  padding: 8px;
+  box-shadow:
+    /* inner bezel highlight */
+    inset 0 0 0 1px rgba(255,255,255,0.08),
+    /* realistic device shadow */
+    0 2px 4px rgba(0,0,0,0.2),
+    0 8px 16px rgba(0,0,0,0.2),
+    0 20px 40px rgba(0,0,0,0.25),
+    0 40px 80px rgba(0,0,0,0.3);
+}
+
+.phone-realistic::before {
+  /* Dynamic Island */
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 28px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 20;
+}
+
+.phone-realistic::after {
+  /* Glass reflection */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 42px;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.12) 0%,
+    rgba(255,255,255,0.05) 30%,
+    transparent 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 15;
+}
+
+.phone-realistic-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 34px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Phone tilted perspective container */
+.phone-tilt-wrapper {
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+}
+
+.phone-tilt {
+  transform-style: preserve-3d;
+  transform: rotateY(-25deg) rotateX(8deg) rotateZ(-2deg);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.phone-tilt:hover {
+  transform: rotateY(-20deg) rotateX(5deg) rotateZ(-1deg);
+}
+
+/* Phone side edge — visible when tilted */
+.phone-side {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  right: -1px;
+  width: 10px;
+  transform-origin: left center;
+  transform: rotateY(90deg);
+  background: linear-gradient(
+    180deg,
+    #2a2a2a 0%,
+    #3d3d3d 15%,
+    #4a4a4a 30%,
+    #3d3d3d 50%,
+    #4a4a4a 70%,
+    #3d3d3d 85%,
+    #2a2a2a 100%
+  );
+  border-radius: 0 2px 2px 0;
+  box-shadow:
+    inset 0 0 2px rgba(255,255,255,0.06),
+    1px 0 3px rgba(0,0,0,0.3);
+}
+
+/* Bottom edge — visible with rotateX */
+.phone-bottom {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 10px;
+  transform-origin: top center;
+  transform: rotateX(90deg);
+  background: linear-gradient(
+    90deg,
+    #2a2a2a 0%,
+    #3d3d3d 20%,
+    #4a4a4a 50%,
+    #3d3d3d 80%,
+    #2a2a2a 100%
+  );
+  border-radius: 0 0 2px 2px;
+  box-shadow:
+    inset 0 0 2px rgba(255,255,255,0.06),
+    0 1px 3px rgba(0,0,0,0.3);
+}
+
+@media (min-width: 768px) {
+  .phone-realistic {
+    width: 320px;
+    height: 650px;
+    border-radius: 48px;
+    padding: 10px;
+  }
+  .phone-realistic::before {
+    width: 110px;
+    height: 32px;
+    top: 16px;
+  }
+  .phone-realistic::after {
+    border-radius: 48px;
+  }
+  .phone-realistic-screen {
+    border-radius: 38px;
+  }
+}
+
+/* ── Floating Labels ─────────────────────────────── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
+}
+
+.float-pill {
+  animation: float 4s ease-in-out infinite;
+}
+
+.float-pill:nth-child(2) { animation-delay: 0.6s; animation-duration: 3.5s; }
+.float-pill:nth-child(3) { animation-delay: 1.2s; animation-duration: 4.5s; }
+.float-pill:nth-child(4) { animation-delay: 1.8s; animation-duration: 3.8s; }
+
+/* ── Activity Card Hover ─────────────────────────── */
+
+.activity-card {
+  overflow: hidden;
+}
+
+.activity-card img {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.activity-card:hover img {
+  transform: scale(1.08);
+}
+
+/* ── Grid Pattern ────────────────────────────────── */
+
+.grid-pattern {
+  background-image:
+    linear-gradient(var(--color-border-light) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border-light) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* ── Dark Grid ───────────────────────────────────── */
+
+.grid-pattern-dark {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* ── Noise ───────────────────────────────────────── */
+
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Photo Overlay ───────────────────────────────── */
+
+.photo-overlay {
+  position: relative;
+}
+
+.photo-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%);
+  pointer-events: none;
+}
+
+/* ── Gather Dots ─────────────────────────────────── */
+
+@keyframes gather {
+  0% { transform: translate(var(--dx), var(--dy)); opacity: 0.4; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+
+/* ── Score Ring ──────────────────────────────────── */
+
+.score-ring {
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.score-ring.animate {
+  stroke-dashoffset: calc(283 - (283 * var(--score) / 100));
+}
