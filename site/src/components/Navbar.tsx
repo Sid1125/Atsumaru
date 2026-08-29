@@ -45,7 +45,7 @@ export function Navbar() {
                   {link.label}
                 </a>
               ))}
-              <a href="#cta" className="h-10 px-5 text-sm font-semibold rounded-full bg-accent text-white hover:bg-accent/90 transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-accent/20 inline-flex items-center">
+              <a href="#cta" className="h-10 px-5 text-sm font-semibold rounded-full bg-accent-strong text-white hover:bg-accent-strong/90 transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-accent/20 inline-flex items-center">
                 Get early access
               </a>
             </div>
@@ -79,7 +79,7 @@ export function Navbar() {
               {link.label}
             </a>
           ))}
-          <a href="#cta" onClick={() => setMobileOpen(false)} className="mt-4 h-12 px-8 text-base font-semibold rounded-full bg-accent text-white">
+          <a href="#cta" onClick={() => setMobileOpen(false)} className="mt-4 h-12 px-8 text-base font-semibold rounded-full bg-accent-strong text-white">
             Get early access
           </a>
         </div>

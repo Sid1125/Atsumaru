@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import { GSAPProvider } from "@/components/GSAPProvider";
+import { Preloader } from "@/components/Preloader";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -55,7 +56,16 @@ export default function RootLayout({
       className={`${inter.variable} ${notoSansJP.variable} antialiased`}
     >
       <body className="min-h-screen bg-bg text-text">
-        <GSAPProvider>{children}</GSAPProvider>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-white focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-text"
+        >
+          Skip to content
+        </a>
+        <GSAPProvider>
+          <Preloader />
+          <main id="main-content">{children}</main>
+        </GSAPProvider>
       </body>
     </html>
   );

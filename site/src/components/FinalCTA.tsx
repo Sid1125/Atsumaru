@@ -11,6 +11,8 @@ export function FinalCTA() {
           src={PHOTOS.cta}
           alt=""
           className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
@@ -37,7 +39,7 @@ export function FinalCTA() {
             </Reveal>
             <Reveal delay={0.3}>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-                <a href="#" className="magnetic-btn h-16 px-10 text-base font-semibold rounded-full bg-accent text-white hover:bg-accent/90 transition-shadow duration-200 shadow-xl shadow-accent/30 hover:shadow-accent/40 inline-flex items-center gap-2">
+                <a href="#" className="magnetic-btn h-16 px-10 text-base font-semibold rounded-full bg-accent-strong text-white hover:bg-accent-strong/90 transition-shadow duration-200 shadow-xl shadow-accent/30 hover:shadow-accent/40 inline-flex items-center gap-2">
                   Join Atsumaru
                   <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
                     <path d="M3 8h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

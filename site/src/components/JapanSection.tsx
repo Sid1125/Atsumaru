@@ -1,6 +1,7 @@
 "use client";
 
 import { Reveal } from "@/components/ui/Reveal";
+import { Highlight } from "@/components/ui/Highlight";
 import { PHOTOS, LANGUAGES } from "@/lib/constants";
 
 export function JapanSection() {
@@ -12,13 +13,8 @@ export function JapanSection() {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <div>
             <Reveal>
-              <p className="text-sm font-medium tracking-widest uppercase text-accent mb-4">
-                Made for Japan
-              </p>
-            </Reveal>
-            <Reveal delay={0.1}>
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text leading-[0.95]">
-                Different languages.<br />Same reason to<br /><span className="text-accent">gather.</span>
+                Different languages.<br />Same reason to<br /><Highlight>gather.</Highlight>
               </h2>
             </Reveal>
             <Reveal delay={0.2}>
@@ -64,6 +60,8 @@ export function JapanSection() {
                 src={PHOTOS.tokyo}
                 alt="Tokyo cityscape"
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-bg-dark/40 to-transparent" />
 

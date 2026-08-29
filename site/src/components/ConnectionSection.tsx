@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Palette, Gamepad2, Soup, PartyPopper, MessageCircle } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
+import { Highlight } from "@/components/ui/Highlight";
 
 const members = [
-  { handle: "@haru", emoji: "🎨" },
-  { handle: "@kenji", emoji: "🎮" },
-  { handle: "@yuki", emoji: "🍜" },
+  { handle: "@haru", icon: Palette, color: "#8B5E3C" },
+  { handle: "@kenji", icon: Gamepad2, color: "#7A9E7E" },
+  { handle: "@yuki", icon: Soup, color: "#F08A5D" },
 ];
 
 const stageKeys = ["select", "mutual", "unlock"] as const;
@@ -25,13 +27,8 @@ export function ConnectionSection() {
           {/* Left: Copy */}
           <div>
             <Reveal>
-              <p className="text-sm font-medium tracking-widest uppercase text-accent mb-4">
-                Connection
-              </p>
-            </Reveal>
-            <Reveal delay={0.1}>
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text leading-[0.95]">
-                Connection comes after the meetup.
+                Connection comes after the <Highlight>meetup</Highlight>.
               </h2>
             </Reveal>
             <Reveal delay={0.2}>
@@ -57,7 +54,7 @@ export function ConnectionSection() {
                 {stageKeys.map((s, i) => (
                   <div key={s} className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
-                      stage === s ? "bg-accent text-white scale-110 shadow-lg shadow-accent/30" :
+                      stage === s ? "bg-accent-strong text-white scale-110 shadow-lg shadow-accent/30" :
                       i < stageKeys.indexOf(stage) ? "bg-sage text-white" : "bg-bg-dark/10 text-text-muted"
                     }`}>
                       {i < stageKeys.indexOf(stage) ? "✓" : i + 1}
@@ -84,10 +81,10 @@ export function ConnectionSection() {
                           onClick={() => setStage("mutual")}
                           className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-accent/30 hover:bg-accent-light/30 transition-all duration-200 cursor-pointer group"
                         >
-                          <span className="flex items-center gap-3">
-                            <span className="text-xl group-hover:scale-110 transition-transform">{m.emoji}</span>
-                            <span className="text-base font-medium text-text">{m.handle}</span>
-                          </span>
+                          <span className="flex items-center gap-3 group-hover:scale-110 transition-transform" style={{ color: m.color }}>
+                          <m.icon size={20} />
+                        </span>
+                        <span className="text-base font-medium text-text">{m.handle}</span>
                           <div className="w-6 h-6 rounded-full border-2 border-accent bg-accent flex items-center justify-center">
                             <span className="text-white text-xs">✓</span>
                           </div>
@@ -101,13 +98,15 @@ export function ConnectionSection() {
                 {/* Mutual */}
                 {stage === "mutual" && (
                   <div className="text-center">
-                    <div className="text-5xl mb-4">🎉</div>
+                    <div className="text-5xl mb-4 flex justify-center">
+                    <PartyPopper size={42} color="#E8634D" />
+                  </div>
                     <p className="text-xl font-bold text-text mb-2">It&apos;s a mutual connection!</p>
                     <p className="text-base text-text-muted mb-2">You picked @haru</p>
                     <p className="text-base text-text-muted mb-6">@haru picked you</p>
                     <button
                       onClick={() => setStage("unlock")}
-                      className="h-12 px-8 text-sm font-semibold rounded-full bg-accent text-white hover:bg-accent/90 transition-all duration-200 cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-accent/20"
+                      className="h-12 px-8 text-sm font-semibold rounded-full bg-accent-strong text-white hover:bg-accent-strong/90 transition-all duration-200 cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-accent/20"
                     >
                       Start chatting
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -121,16 +120,21 @@ export function ConnectionSection() {
                 {stage === "unlock" && (
                   <div className="text-center">
                     <div className="w-20 h-20 rounded-2xl bg-sage-light flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">💬</span>
+                      <MessageCircle size={30} color="#5D8A66" />
                     </div>
                     <p className="text-xl font-bold text-text mb-2">1:1 chat unlocked</p>
                     <p className="text-base text-text-muted mb-6">Your private conversation with @haru is ready.</p>
                     <div className="bg-bg rounded-xl p-4 border border-border max-w-sm mx-auto">
                       <div className="flex items-center gap-3 text-left">
-                        <span className="text-2xl">🎨</span>
+                        <span className="w-10 h-10 rounded-full bg-bg-dark/5 flex items-center justify-center">
+                          <Palette size={20} color="#8B5E3C" />
+                        </span>
                         <div>
                           <p className="text-sm font-bold text-text">@haru</p>
-                          <p className="text-xs text-text-muted">Hey! Loved the art walk too 🎨</p>
+                          <p className="text-xs text-text-muted">
+                            Hey! Loved the art walk too{" "}
+                            <Palette size={11} className="inline-block align-[-1px]" color="#8B5E3C" />
+                          </p>
                         </div>
                       </div>
                     </div>

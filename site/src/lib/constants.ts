@@ -1,3 +1,5 @@
+import { Soup, Gamepad2, Footprints, Coffee, Palette, Clapperboard, Music, Camera } from "lucide-react";
+
 export const SITE = {
   name: "Atsumaru",
   nameJp: "集まる",
@@ -15,7 +17,7 @@ export const NAV_LINKS = [
 ] as const;
 
 export const PHOTOS = {
-  hero: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1400&q=80",
+  hero: "https://images.unsplash.com/photo-1713970943504-04e8a3e3abac?fm=jpg&q=80&w=1600&auto=format&fit=crop",
   ramen: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&q=80",
   gaming: "https://images.unsplash.com/photo-1611371805429-8b5c1b2c34ba?w=800&q=80",
   hiking: "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80",
@@ -34,14 +36,14 @@ export const PHOTOS = {
 } as const;
 
 export const ACTIVITIES = [
-  { emoji: "🍜", label: "Ramen nights", color: "bg-orange-50", photo: PHOTOS.ramen },
-  { emoji: "🎮", label: "Board games", color: "bg-purple-50", photo: PHOTOS.gaming },
-  { emoji: "🥾", label: "Weekend hikes", color: "bg-green-50", photo: PHOTOS.hiking },
-  { emoji: "☕", label: "Café hopping", color: "bg-amber-50", photo: PHOTOS.cafe },
-  { emoji: "🎨", label: "Art & design", color: "bg-pink-50", photo: PHOTOS.art },
-  { emoji: "🎬", label: "Anime / movies", color: "bg-red-50", photo: PHOTOS.music },
-  { emoji: "🎵", label: "Music", color: "bg-indigo-50", photo: PHOTOS.photo },
-  { emoji: "📷", label: "Photography", color: "bg-cyan-50", photo: PHOTOS.friends },
+  { icon: Soup, label: "Ramen nights", photo: PHOTOS.ramen },
+  { icon: Gamepad2, label: "Board games", photo: PHOTOS.gaming },
+  { icon: Footprints, label: "Weekend hikes", photo: PHOTOS.hiking },
+  { icon: Coffee, label: "Café hopping", photo: PHOTOS.cafe },
+  { icon: Palette, label: "Art & design", photo: PHOTOS.art },
+  { icon: Clapperboard, label: "Anime / movies", photo: PHOTOS.music },
+  { icon: Music, label: "Music", photo: PHOTOS.photo },
+  { icon: Camera, label: "Photography", photo: PHOTOS.friends },
 ] as const;
 
 export const HOW_STEPS = [

@@ -9,6 +9,7 @@
   --color-text-muted: #6B6560;
   --color-text-muted-light: rgba(250,247,242,0.6);
   --color-accent: #E8634D;
+  --color-accent-strong: #C4422D;
   --color-accent-soft: #F4A69A;
   --color-accent-light: #FFF0ED;
   --color-sage: #7A9E7E;
@@ -39,6 +40,14 @@ body {
 ::selection {
   background: var(--color-accent-light);
   color: var(--color-accent);
+}
+
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -283,4 +292,90 @@ body {
 
 .score-ring.animate {
   stroke-dashoffset: calc(283 - (283 * var(--score) / 100));
+}
+
+/* ── Blob Drift ──────────────────────────────────── */
+
+@keyframes blob-drift-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(12%, 8%) scale(1.2); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes blob-drift-b {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-10%, -12%) scale(1.25); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* ── Hero · cinematic composition ────────────────── */
+
+.hero-heading {
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.hero-phone-scale {
+  --hs: 0.78;
+  transform: scale(var(--hs));
+  transform-origin: center;
+  will-change: transform;
+}
+
+@media (min-width: 640px) {
+  .hero-phone-scale { --hs: 0.82; }
+}
+@media (min-width: 768px) {
+  /* phone never pushes hero past viewport (md/lg py = 7rem slack) */
+  .hero-phone-scale { --hs: min(0.82, calc((100dvh - 7rem) / 650px)); }
+}
+@media (min-width: 1024px) {
+  .hero-phone-scale { --hs: min(0.92, calc((100dvh - 7rem) / 650px)); }
+}
+@media (min-width: 1280px) {
+  /* stage = 100dvh-4rem, phone = 100dvh-8rem → phone sits lower, never extends hero */
+  .hero-phone-scale { --hs: min(1.16, calc((100dvh - 8rem) / 650px)); }
+}
+
+.hero-phone-scene .phone-tilt {
+  transform: rotateY(-24deg) rotateX(7deg) rotateZ(5deg);
+}
+
+.hero-phone-scene .phone-tilt:hover {
+  transform: rotateY(-17deg) rotateX(4deg) rotateZ(4deg);
+}
+
+/* pills pick their resting rotation from --r */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50%      { transform: translateY(-10px) rotate(calc(var(--r, 0deg) + 2deg)); }
+}
+
+/* activity pill placement — desktop stage is 520×754 (xl+); % layout below */
+.hp-pill {
+  --pill-accent-rgb: 232, 99, 77;
+  color: rgb(var(--pill-accent-rgb));
+  background: radial-gradient(120% 140% at 20% 0%, rgb(var(--pill-accent-rgb) / 0.6), rgba(22, 18, 16, 0.82) 60%);
+  border-color: rgb(var(--pill-accent-rgb) / 0.7);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.55);
+}
+.hp-pill.hp-a { --pill-accent-rgb: 248, 138, 93; --r: -7deg; animation-duration: 4.8s; animation-delay: 0.4s; }
+.hp-pill.hp-b { --pill-accent-rgb: 172, 206, 176; --r: 5deg;  animation-duration: 5.4s; animation-delay: 1.1s; }
+.hp-pill.hp-c { --pill-accent-rgb: 228, 194, 92; --r: -5deg; animation-duration: 4.2s; animation-delay: 1.7s; }
+.hp-pill.hp-d { --pill-accent-rgb: 139, 94, 60; --r: 6deg;  animation-duration: 5s;   animation-delay: 2.2s; }
+
+@media (min-width: 1280px) {
+  /* phone is bottom-anchored and shorter than stage by --hp-gap; pills track it */
+  .hero-stage { --hp-gap: calc(min(754px, calc(100dvh - 4rem)) - min(754px, calc(100dvh - 8rem))); }
+  .hp-connects { transform: translateY(var(--hp-gap)); }
+  .hp-pill.hp-a { top: calc(24px + var(--hp-gap));  left: -14px; }
+  .hp-pill.hp-b { top: calc(318px + var(--hp-gap)); left: -12px; }
+  .hp-pill.hp-c { top: calc(440px + var(--hp-gap)); left: 424px; }
+  .hp-pill.hp-d { top: calc(132px + var(--hp-gap)); left: 448px; }
+}
+
+@media (max-width: 1279px) {
+  .hp-pill.hp-a { top: 1%;   left: -3%;  }
+  .hp-pill.hp-b { top: 42%;  right: -3%; left: auto; }
+  .hp-pill.hp-c { top: 79%;  left: -4%;  }
+  .hp-pill.hp-d { top: auto; bottom: -4%; left: auto; right: 8%; }
 }

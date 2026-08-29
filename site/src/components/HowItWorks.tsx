@@ -1,6 +1,7 @@
 "use client";
 
 import { Reveal } from "@/components/ui/Reveal";
+import { Highlight } from "@/components/ui/Highlight";
 import { HOW_STEPS } from "@/lib/constants";
 
 export function HowItWorks() {
@@ -10,14 +11,9 @@ export function HowItWorks() {
 
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8">
         <Reveal>
-          <p className="text-sm font-medium tracking-widest uppercase text-accent mb-4">
-            How it works
-          </p>
-        </Reveal>
-        <Reveal delay={0.1}>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[0.95]">
             Five steps to your<br />
-            <span className="text-accent">next gathering</span>
+            <Highlight>next gathering</Highlight>
           </h2>
         </Reveal>
 
@@ -32,7 +28,7 @@ export function HowItWorks() {
                 <div className="relative grid md:grid-cols-[80px_1fr_1fr] gap-6 md:gap-12 items-center py-12 md:py-16 border-b border-border-dark/50 last:border-b-0">
                   {/* Step number */}
                   <div className="hidden md:flex relative z-10">
-                    <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center text-lg font-bold text-white">
+                    <div className="w-16 h-16 rounded-2xl bg-accent-strong flex items-center justify-center text-lg font-bold text-white">
                       {step.num}
                     </div>
                   </div>
@@ -50,6 +46,8 @@ export function HowItWorks() {
                       src={step.photo}
                       alt={step.title}
                       className="w-full h-full object-cover opacity-80 hover:opacity-100 hover:scale-105 transition-all duration-700"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-bg-dark/40 to-transparent" />
                   </div>

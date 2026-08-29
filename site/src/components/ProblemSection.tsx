@@ -1,24 +1,29 @@
 "use client";
 
+import { Square, Gem, Circle } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
+import { Highlight } from "@/components/ui/Highlight";
 
 const approaches = [
   {
     label: "Swipe",
     style: "photo-first · 1:1 · appearance",
-    visual: "⬜",
+    visual: Square,
+    color: "#A8A29E",
     dim: true,
   },
   {
     label: "Serious",
     style: "marriage · commitment · pressure",
-    visual: "💎",
+    visual: Gem,
+    color: "#8B7EC8",
     dim: true,
   },
   {
     label: "Atsumaru",
     style: "gather first · shared interests · real activities",
-    visual: "🔴",
+    visual: Circle,
+    color: "#E8634D",
     dim: false,
   },
 ];
@@ -28,13 +33,8 @@ export function ProblemSection() {
     <section id="why" className="py-24 md:py-32 bg-bg">
       <div className="max-w-7xl mx-auto px-5 sm:px-8">
         <Reveal>
-          <p className="text-sm font-medium tracking-widest uppercase text-accent mb-4">
-            The gap
-          </p>
-        </Reveal>
-        <Reveal delay={0.1}>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text leading-[0.95] max-w-3xl">
-            Dating apps picked two extremes.
+            Dating apps picked <Highlight>two extremes</Highlight>.
           </h2>
         </Reveal>
         <Reveal delay={0.15}>
@@ -54,7 +54,9 @@ export function ProblemSection() {
                   {!a.dim && <div className="absolute -left-4 top-0 bottom-0 w-1 bg-accent rounded-full" />}
 
                   <div className="pl-6">
-                    <span className="text-3xl mb-4 block">{a.visual}</span>
+                    <span className="mb-4 block">
+                    <a.visual size={30} style={{ color: a.color }} />
+                  </span>
                     <h3 className={`text-2xl md:text-3xl font-bold ${a.dim ? "text-text/40" : "text-text"}`}>
                       {a.label}
                     </h3>

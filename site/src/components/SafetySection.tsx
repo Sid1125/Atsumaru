@@ -19,6 +19,8 @@ export function SafetySection() {
           src={PHOTOS.groupCafe}
           alt="Friends at a café"
           className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/20" />
 
