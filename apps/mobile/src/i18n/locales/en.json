@@ -8,13 +8,15 @@
     "next": "Next",
     "submit": "Submit",
     "cancel": "Cancel",
-    "reconnecting": "Reconnecting..."
+    "reconnecting": "Reconnecting...",
+    "send": "Send"
   },
   "auth": {
     "tagline": "Not a dating app — friendship first.",
     "continueWithLine": "Continue with LINE",
     "continueWithGoogle": "Continue with Google",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "demoNote": "Demo mode — no server needed. Either button signs you in."
   },
   "onboarding": {
     "title": "Let's get to know you.",
@@ -26,7 +28,12 @@
     "handleTaken": "Already taken",
     "displayName": "Display name",
     "language": "Language",
-    "cta": "Find my people"
+    "cta": "Find my people",
+    "opener": "Tell me what you actually enjoy — no forms, just chat.",
+    "confirmTitle": "Here is what I heard",
+    "confirmLede": "Edit anything that is not quite you.",
+    "displayNamePlaceholder": "What should people call you?",
+    "privacyHint": "Your real name is never shown to anyone."
   },
   "discover": {
     "subtitle": "Find your people nearby",
@@ -41,7 +48,15 @@
     },
     "groupFit": "{{score}}% group fit",
     "size": "{{current}}/{{max}} people",
-    "view": "View"
+    "view": "View",
+    "yourMeetups": "Your meetups",
+    "leaveFeedback": "Leave feedback",
+    "status": {
+      "open": "Open",
+      "full": "Full",
+      "ongoing": "Happening now",
+      "completed": "Finished"
+    }
   },
   "meetup": {
     "yourGroup": "Your group",
@@ -50,7 +65,9 @@
     "join": "Join group",
     "leave": "Leave group",
     "openChat": "Open chat",
-    "messagePlaceholder": "Message your group..."
+    "messagePlaceholder": "Message your group...",
+    "chatEmpty": "No messages yet. Say hello 👋",
+    "groupFitLabel": "group fit"
   },
   "feedback": {
     "title": "How was the meetup?",
@@ -64,11 +81,36 @@
     "no": "No",
     "connectPrompt": "Who would you like to stay connected with?",
     "submitPrivately": "Submit privately",
-    "privacyNote": "Your choices stay private. Nobody sees who you picked."
+    "privacyNote": "Your choices stay private. Nobody sees who you picked.",
+    "thanksTitle": "Thanks — that stays private"
   },
   "connection": {
     "mutualTitle": "It's a mutual connection!",
     "mutualBody": "You and @{{handle}} both want to stay connected.",
-    "startChatting": "Start chatting"
+    "startChatting": "Start chatting",
+    "title": "Connections",
+    "subtitle": "People you both chose to stay in touch with.",
+    "empty": "No connections yet. They unlock after a meetup.",
+    "messagePlaceholder": "Message @{{handle}}..."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "reputation": "Reputation {{score}}/100",
+    "privacyNote": "Your real name is never shown to other members."
+  },
+  "createEvent": {
+    "title": "Host a meetup",
+    "short": "Host",
+    "name": "What are you doing?",
+    "namePlaceholder": "Ramen & Retro Games",
+    "venue": "Where?",
+    "venuePlaceholder": "Nonbei Yokocho",
+    "description": "Anything else?",
+    "descriptionPlaceholder": "Come hungry. Beginners welcome.",
+    "category": "Category",
+    "size": "Group size",
+    "startsIn": "Starts in (hours)",
+    "submit": "Create meetup"
   }
 }

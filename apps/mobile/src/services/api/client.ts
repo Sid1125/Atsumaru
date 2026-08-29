@@ -1,18 +1,11 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 
-import { API_URL } from "../../config/env";
+import { API_URL, DEMO_MODE } from "../../config/env";
 import { getAccessToken } from "../storage/session";
+import { ApiError } from "./errors";
+import { demoRequest } from "./demo";
 
-export class ApiError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status?: number
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+export { ApiError };
 
 type Envelope<T> =
   | { success: true; data: T }
@@ -37,6 +30,16 @@ axiosInstance.interceptors.request.use(async (config) => {
 // Single place that unwraps the { success, data } contract (docs/API_STRUCTURE.md §1).
 // Screens never call fetch/axios directly (docs/RULES.md §5).
 async function request<T>(config: AxiosRequestConfig): Promise<T> {
+  // Demo mode swaps the transport, not the contract: everything above this line —
+  // query keys, hooks, screens — is identical in both modes (see demo/index.ts).
+  if (DEMO_MODE) {
+    return demoRequest<T>(
+      (config.method ?? "GET").toUpperCase() as "GET" | "POST" | "PATCH" | "DELETE",
+      config.url ?? "",
+      config.params ?? config.data
+    );
+  }
+
   try {
     const response = await axiosInstance.request<Envelope<T>>(config);
     const body = response.data;

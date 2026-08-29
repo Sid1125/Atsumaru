@@ -11,5 +11,12 @@
     "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix apps/mobile",
     "test": "npm test --prefix server",
     "setup": "npm install --prefix apps/mobile && npm install --prefix server"
+  },
+  "dependencies": {
+    "expo": "^57.0.18"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
   }
 }

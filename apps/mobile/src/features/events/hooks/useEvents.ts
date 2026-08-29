@@ -17,6 +17,20 @@ export function useNearbyEvents(coords: Coords | null, category?: string | null)
   });
 }
 
+/**
+ * Meetups the user hosts or joined, including finished ones. `/events/mine` and
+ * `eventsApi.mine()` both existed with nothing rendering them, which left a completed
+ * meetup reachable only through the feedback push — and therefore unreachable at all
+ * on a device that cannot receive one.
+ */
+export function useMyEvents() {
+  return useQuery({
+    queryKey: ["events", "mine"],
+    queryFn: () => eventsApi.mine(),
+    staleTime: 30_000,
+  });
+}
+
 export function useEvent(id: string) {
   return useQuery({
     queryKey: ["events", id],

@@ -46,9 +46,15 @@ export interface GroupMember {
   joined_at: string;
 }
 
+/**
+ * Group and DM history share one table server-side; exactly one of `event_id` /
+ * `connection_id` is set (enforced by a CHECK constraint in schema.sql), so both are
+ * nullable here. Typing `event_id` as a plain string made DM messages unassignable.
+ */
 export interface Message {
   id: string;
-  event_id: string;
+  event_id: string | null;
+  connection_id: string | null;
   sender_id: string;
   message: string;
   created_at: string;

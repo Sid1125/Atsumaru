@@ -2,7 +2,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "./Button";
-import { colors, spacing, typography } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 
 interface ScreenStateProps {
   status: "loading" | "error" | "empty";
@@ -10,12 +10,22 @@ interface ScreenStateProps {
   onRetry?: () => void;
 }
 
-/** Loading / error / empty in one place so no screen ever renders blank (docs/RULES.md §14). */
+const GLYPH: Record<ScreenStateProps["status"], string> = {
+  loading: "",
+  error: "⚠",
+  empty: "🗺",
+};
+
+/**
+ * Loading / error / empty in one place so no screen ever renders blank
+ * (docs/RULES.md §14). Each state answers "what happened" and, where there is
+ * one, "what can I do" — feedback with a path forward rather than a dead end.
+ */
 export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessibilityLiveRegion="polite">
       {status === "loading" ? (
         <>
           <ActivityIndicator color={colors.primary} />
@@ -23,12 +33,17 @@ export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
         </>
       ) : (
         <>
-          <Text style={styles.text}>
+          <Text style={styles.glyph}>{GLYPH[status]}</Text>
+          <Text style={styles.title}>
             {message ??
               (status === "error" ? t("common.error") : t("common.empty"))}
           </Text>
           {status === "error" && onRetry ? (
-            <Button label={t("common.retry")} onPress={onRetry} variant="secondary" />
+            <Button
+              label={t("common.retry")}
+              onPress={onRetry}
+              variant="secondary"
+            />
           ) : null}
         </>
       )}
@@ -38,11 +53,14 @@ export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.md,
-    padding: spacing.lg,
+    gap: spacing.sm,
+    padding: spacing.xl,
+    minHeight: 180,
   },
-  text: { ...typography.body, color: colors.textMuted, textAlign: "center" },
+  glyph: { fontSize: 30, opacity: 0.5 },
+  title: { ...type.callout, color: colors.textMuted, textAlign: "center" },
+  text: { ...type.footnote, color: colors.textMuted, textAlign: "center" },
 });

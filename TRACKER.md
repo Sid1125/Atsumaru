@@ -1,6 +1,6 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-08-27.
+Status of the build against `docs/`. Updated 2026-08-29.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
@@ -74,18 +74,23 @@ unreachable Redis, fake LINE credentials).
 
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
-- [ ] Login screen: open `/api/auth/{line,google}?redirect_to=app`, handle the `atsumaru://auth` deep link, exchange the code, store the token in SecureStore
-- [ ] Route `is_new` / `user: null` into onboarding, everyone else to Discover
-- [ ] Connections list + DM thread screens (`useConnections`, `connectionsApi` already exist, nothing renders them)
-- [ ] `match:unlocked` → celebration state, then route into the new 1:1 chat
-- [ ] Extract a shared `ChatThread` from `GroupChat` for group + DM reuse
-- [ ] Register the Expo push token after login; deep-link the feedback notification
-- [ ] Debounced refetch on map region change (docs/FRONTEND.md §9) — currently one-shot only
+Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
+(`EXPO_PUBLIC_DEMO_MODE=1`). See `context.md` for the full defect list and run log.
+
+- [x] Login screen: opens `/api/auth/{line,google}?redirect_to=app`, handles the `atsumaru://auth` deep link, exchanges the code, stores the token in SecureStore (`useOAuthLogin`)
+- [x] Route `is_new` / `user: null` into onboarding, everyone else to Discover — **this was structurally impossible before**: the gate tested `!user.handle`, but `handle` is `not null` and `/auth/me` returns `user: null` pre-onboarding, so the onboarding stack was dead code
+- [x] Connections list + DM thread screens
+- [x] `match:unlocked` → celebration state, then route into the new 1:1 chat
+- [x] Extract a shared `ChatThread` from `GroupChat` for group + DM reuse (`GroupChat.tsx` deleted)
+- [x] Register the Expo push token after login (Expo Go cannot receive Android push — gated, never crashes)
+- [ ] Debounced refetch on map region change (docs/FRONTEND.md §9) — still one-shot
+- [ ] Deep-link the feedback notification — `linking.ts` is wired but `atsumaru://` does not route in Expo Go; needs a dev build
 
 ### 3. Mobile — P1 features
 
-- [ ] Create-event screen (`POST /events` exists, FR-13)
-- [ ] Settings: language override → `PATCH /users/me`, sign out (`auth.signOut` unused today)
+- [x] Create-event screen (FR-13) — posts a fixed Shibuya point; a venue picker is still to do
+- [x] Settings: language override → `PATCH /users/me`, sign out
+- [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
 - [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `BottomSheet`, `LoadingSkeleton` (docs/DESIGN.md §7)
 - [ ] Infinite scroll on message history now that the paging envelope is returned
 - [ ] Mapbox: real pins need `EXPO_PUBLIC_MAPBOX_TOKEN` plus a native dev build
@@ -112,4 +117,6 @@ premium tier.
 | Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
+| Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. Ship builds must have it off |
+| Mobile loop verified only in demo mode | The full loop passes on-device against the demo layer, not yet against a real API; §1 still gates that |
 

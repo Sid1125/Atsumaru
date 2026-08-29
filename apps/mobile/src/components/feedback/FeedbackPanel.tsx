@@ -7,7 +7,7 @@ import { Chip } from "../common/Chip";
 import { ScreenState } from "../common/ScreenState";
 import { useFeedbackForm } from "../../features/feedback/hooks/useFeedbackForm";
 import { feedbackApi } from "../../services/api/feedback";
-import { colors, radius, spacing, typography } from "../../theme";
+import { colors, elevation, radius, sectionHeader, spacing, type } from "../../theme";
 import type { Connection, Rating } from "../../types/api";
 
 const RATINGS: { value: Rating; emoji: string }[] = [
@@ -16,7 +16,13 @@ const RATINGS: { value: Rating; emoji: string }[] = [
   { value: "fire", emoji: "🔥" },
 ];
 
-export function FeedbackPanel({ eventId }: { eventId: string }) {
+interface FeedbackPanelProps {
+  eventId: string;
+  /** Routes into the new 1:1 thread once a mutual connection unlocks. */
+  onOpenConnection?: (connection: Connection) => void;
+}
+
+export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps) {
   const { t } = useTranslation();
   const query = useFeedbackForm(eventId);
 
@@ -52,17 +58,30 @@ export function FeedbackPanel({ eventId }: { eventId: string }) {
   if (query.isError)
     return <ScreenState status="error" onRetry={() => query.refetch()} />;
 
-  // Only mutual picks come back from the server; non-matches are never revealed.
+  // Only mutual picks come back from the server; non-matches are never revealed —
+  // the no-unlock branch says nothing about who did or did not pick the user.
   if (unlocked) {
     return (
       <View style={styles.card}>
         {unlocked.length > 0 ? (
           <>
-            <Text style={styles.title}>{t("connection.mutualTitle")}</Text>
+            <Text style={styles.title}>🎉 {t("connection.mutualTitle")}</Text>
             <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+            {onOpenConnection
+              ? unlocked.map((connection) => (
+                  <Button
+                    key={connection.id}
+                    label={t("connection.startChatting")}
+                    onPress={() => onOpenConnection(connection)}
+                  />
+                ))
+              : null}
           </>
         ) : (
-          <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+          <>
+            <Text style={styles.title}>{t("feedback.thanksTitle")}</Text>
+            <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+          </>
         )}
       </View>
     );
@@ -140,17 +159,18 @@ export function FeedbackPanel({ eventId }: { eventId: string }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.md,
+    ...elevation.low,
   },
-  title: { ...typography.heading, color: colors.text },
-  subTitle: { ...typography.body, fontWeight: "600", color: colors.text },
-  row: { gap: spacing.xs },
-  handle: { ...typography.body, color: colors.text },
+  title: { ...type.title2, color: colors.text },
+  subTitle: { ...sectionHeader, color: colors.textMuted, marginTop: spacing.xs },
+  row: { gap: spacing.sm },
+  handle: { ...type.bodyEmphasized, color: colors.text },
   ratingRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  note: { ...typography.caption, color: colors.textMuted },
-  error: { ...typography.caption, color: colors.danger },
+  note: { ...type.caption, color: colors.textMuted },
+  error: { ...type.footnote, color: colors.danger },
 });

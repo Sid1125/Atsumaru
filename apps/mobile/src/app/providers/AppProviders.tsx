@@ -1,6 +1,8 @@
 import { useEffect } from "react";
+import { StyleSheet } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import i18n, { setLanguage } from "../../i18n";
 import { useUiStore } from "../../store";
@@ -21,10 +23,18 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>{children}</SafeAreaProvider>
-    </QueryClientProvider>
+    // Gesture handler must own the root view, or nothing below it receives the
+    // pan/pinch gestures the map and sheet are built on.
+    <GestureHandlerRootView style={styles.root}>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>{children}</SafeAreaProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 export { queryClient };

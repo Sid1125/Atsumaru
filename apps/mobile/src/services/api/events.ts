@@ -23,6 +23,8 @@ export const eventsApi = {
   create: (payload: {
     title: string;
     category: string;
+    /** Optional server-side (`createSchema` in modules/events/routes.ts). */
+    description?: string;
     venue_name: string;
     location: Coords;
     start_time: string;

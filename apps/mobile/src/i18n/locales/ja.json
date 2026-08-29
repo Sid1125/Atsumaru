@@ -8,13 +8,15 @@
     "next": "次へ",
     "submit": "送信",
     "cancel": "キャンセル",
-    "reconnecting": "再接続中..."
+    "reconnecting": "再接続中...",
+    "send": "送信"
   },
   "auth": {
     "tagline": "恋活アプリじゃない。まずは友達から。",
     "continueWithLine": "LINEでつづける",
     "continueWithGoogle": "Googleでつづける",
-    "signOut": "ログアウト"
+    "signOut": "ログアウト",
+    "demoNote": "デモモード — サーバー不要。どちらのボタンでもログインできます。"
   },
   "onboarding": {
     "title": "あなたのことを教えてください。",
@@ -26,7 +28,12 @@
     "handleTaken": "使用されています",
     "displayName": "表示名",
     "language": "言語",
-    "cta": "仲間をさがす"
+    "cta": "仲間をさがす",
+    "opener": "好きなことを教えてください。フォームはありません、会話だけ。",
+    "confirmTitle": "こう受け取りました",
+    "confirmLede": "違うところは自由に直してください。",
+    "displayNamePlaceholder": "何と呼ばれたいですか？",
+    "privacyHint": "本名が他の人に表示されることはありません。"
   },
   "discover": {
     "subtitle": "近くの仲間をさがす",
@@ -41,7 +48,15 @@
     },
     "groupFit": "グループ相性 {{score}}%",
     "size": "{{current}}/{{max}}人",
-    "view": "見る"
+    "view": "見る",
+    "yourMeetups": "参加中の集まり",
+    "leaveFeedback": "フィードバックを送る",
+    "status": {
+      "open": "募集中",
+      "full": "満員",
+      "ongoing": "開催中",
+      "completed": "終了"
+    }
   },
   "meetup": {
     "yourGroup": "あなたのグループ",
@@ -50,7 +65,9 @@
     "join": "参加する",
     "leave": "参加をやめる",
     "openChat": "チャットを開く",
-    "messagePlaceholder": "グループにメッセージ..."
+    "messagePlaceholder": "グループにメッセージ...",
+    "chatEmpty": "まだメッセージはありません。あいさつしてみましょう 👋",
+    "groupFitLabel": "グループ相性"
   },
   "feedback": {
     "title": "集まりはどうでした？",
@@ -64,11 +81,36 @@
     "no": "いいえ",
     "connectPrompt": "つながりたい人はいますか？",
     "submitPrivately": "非公開で送信",
-    "privacyNote": "選んだ内容は非公開です。相手には知られません。"
+    "privacyNote": "選んだ内容は非公開です。相手には知られません。",
+    "thanksTitle": "ありがとうございます — 内容は非公開です"
   },
   "connection": {
     "mutualTitle": "お互いにつながりました！",
     "mutualBody": "@{{handle}}さんとお互いにつながりを希望しました。",
-    "startChatting": "チャットをはじめる"
+    "startChatting": "チャットをはじめる",
+    "title": "つながり",
+    "subtitle": "お互いに選んだ相手です。",
+    "empty": "まだつながりはありません。集まりのあとに解放されます。",
+    "messagePlaceholder": "@{{handle}} にメッセージ..."
+  },
+  "settings": {
+    "title": "設定",
+    "language": "言語",
+    "reputation": "信頼スコア {{score}}/100",
+    "privacyNote": "本名が他のメンバーに表示されることはありません。"
+  },
+  "createEvent": {
+    "title": "集まりを主催する",
+    "short": "主催",
+    "name": "何をしますか？",
+    "namePlaceholder": "ラーメンとレトロゲーム",
+    "venue": "どこで？",
+    "venuePlaceholder": "のんべい横丁",
+    "description": "ひとこと",
+    "descriptionPlaceholder": "お腹を空かせてきてね。初心者歓迎。",
+    "category": "カテゴリー",
+    "size": "グループの人数",
+    "startsIn": "開始まで（時間）",
+    "submit": "集まりをつくる"
   }
 }

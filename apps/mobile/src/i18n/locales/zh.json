@@ -8,13 +8,15 @@
     "next": "下一步",
     "submit": "提交",
     "cancel": "取消",
-    "reconnecting": "正在重新连接..."
+    "reconnecting": "正在重新连接...",
+    "send": "发送"
   },
   "auth": {
     "tagline": "不是约会软件——先做朋友。",
     "continueWithLine": "使用 LINE 继续",
     "continueWithGoogle": "使用 Google 继续",
-    "signOut": "退出登录"
+    "signOut": "退出登录",
+    "demoNote": "演示模式 — 无需服务器，点任意按钮即可登录。"
   },
   "onboarding": {
     "title": "先聊聊你吧。",
@@ -26,7 +28,12 @@
     "handleTaken": "已被占用",
     "displayName": "昵称",
     "language": "语言",
-    "cta": "找到我的同好"
+    "cta": "找到我的同好",
+    "opener": "聊聊你真正喜欢的事 — 不用填表，聊天就好。",
+    "confirmTitle": "我听到的是这些",
+    "confirmLede": "有不合适的地方可以修改。",
+    "displayNamePlaceholder": "希望大家怎么称呼你？",
+    "privacyHint": "你的真实姓名不会展示给任何人。"
   },
   "discover": {
     "subtitle": "发现附近的同好",
@@ -41,7 +48,15 @@
     },
     "groupFit": "小组契合度 {{score}}%",
     "size": "{{current}}/{{max}} 人",
-    "view": "查看"
+    "view": "查看",
+    "yourMeetups": "你的聚会",
+    "leaveFeedback": "留下反馈",
+    "status": {
+      "open": "开放中",
+      "full": "已满",
+      "ongoing": "进行中",
+      "completed": "已结束"
+    }
   },
   "meetup": {
     "yourGroup": "你的小组",
@@ -50,7 +65,9 @@
     "join": "加入小组",
     "leave": "退出小组",
     "openChat": "打开聊天",
-    "messagePlaceholder": "给小组发消息..."
+    "messagePlaceholder": "给小组发消息...",
+    "chatEmpty": "还没有消息，打个招呼吧 👋",
+    "groupFitLabel": "小组契合度"
   },
   "feedback": {
     "title": "这次聚会怎么样？",
@@ -64,11 +81,36 @@
     "no": "不想",
     "connectPrompt": "你想和谁保持联系？",
     "submitPrivately": "私密提交",
-    "privacyNote": "你的选择保持私密，对方不会知道。"
+    "privacyNote": "你的选择保持私密，对方不会知道。",
+    "thanksTitle": "谢谢 — 你的选择保持私密"
   },
   "connection": {
     "mutualTitle": "你们互相选择了！",
     "mutualBody": "你和 @{{handle}} 都想保持联系。",
-    "startChatting": "开始聊天"
+    "startChatting": "开始聊天",
+    "title": "联系人",
+    "subtitle": "你们互相选择的人。",
+    "empty": "还没有联系人。聚会之后才会解锁。",
+    "messagePlaceholder": "给 @{{handle}} 发消息..."
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "reputation": "信誉分 {{score}}/100",
+    "privacyNote": "你的真实姓名不会展示给其他成员。"
+  },
+  "createEvent": {
+    "title": "发起聚会",
+    "short": "发起",
+    "name": "想做什么？",
+    "namePlaceholder": "拉面与复古游戏",
+    "venue": "在哪里？",
+    "venuePlaceholder": "吞兵卫横丁",
+    "description": "还有什么补充？",
+    "descriptionPlaceholder": "空着肚子来，欢迎新手。",
+    "category": "分类",
+    "size": "小组人数",
+    "startsIn": "距开始（小时）",
+    "submit": "创建聚会"
   }
 }

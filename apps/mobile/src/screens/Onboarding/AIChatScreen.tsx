@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import {
-  FlatList,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,27 +12,43 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
-import { Button } from "../../components/common/Button";
+import { PressableScale } from "../../components/ui/PressableScale";
 import { onboardingApi } from "../../services/api/onboarding";
 import { useOnboardingDraft, useUiStore } from "../../store";
-import { colors, radius, spacing, typography } from "../../theme";
+import {
+  colors,
+  elevation,
+  radius,
+  spacing,
+  type,
+  useReducedMotion,
+} from "../../theme";
 import type { ChatTurn } from "../../types/api";
 import type { OnboardingStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<OnboardingStackParamList, "AIChat">;
 
+/**
+ * Conversational onboarding. Bubbles enter from the side they belong to, which
+ * is what makes a transcript read as a conversation rather than a list
+ * (skill §7 — things emerge from where they came).
+ */
 export function AIChatScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const language = useUiStore((s) => s.language);
   const setExtracted = useOnboardingDraft((s) => s.setExtracted);
+  const reducedMotion = useReducedMotion();
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const listRef = useRef<FlatList<ChatTurn>>(null);
+  const listRef = useRef<ScrollView>(null);
 
   async function send() {
     const content = draft.trim();
@@ -64,21 +81,50 @@ export function AIChatScreen() {
     }
   }
 
+  const progress = Math.min(3, turns.filter((x) => x.role === "user").length);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={insets.top + 44}
     >
-      <Text style={styles.title}>{t("onboarding.title")}</Text>
+      <View style={styles.head}>
+        <Text style={styles.title}>{t("onboarding.title")}</Text>
+        {/* Three ticks: where am I in this, and how much is left */}
+        <View style={styles.progress}>
+          {[0, 1, 2].map((step) => (
+            <View
+              key={step}
+              style={[styles.tick, step < progress && styles.tickDone]}
+            />
+          ))}
+        </View>
+      </View>
 
-      <FlatList
+      <ScrollView
         ref={listRef}
-        data={turns}
-        keyExtractor={(_, index) => String(index)}
         contentContainerStyle={styles.list}
-        onContentSizeChange={() => listRef.current?.scrollToEnd()}
-        renderItem={({ item }) => (
-          <View
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {turns.length === 0 ? (
+          <Animated.View
+            entering={reducedMotion ? undefined : FadeIn.duration(320)}
+            style={styles.opener}
+          >
+            <Text style={styles.openerGlyph}>👋</Text>
+            <Text style={styles.openerText}>{t("onboarding.opener")}</Text>
+          </Animated.View>
+        ) : null}
+
+        {turns.map((item, index) => (
+          <Animated.View
+            key={index}
+            entering={
+              reducedMotion ? undefined : FadeInDown.duration(260).springify()
+            }
             style={[
               styles.bubble,
               item.role === "user" ? styles.userBubble : styles.aiBubble,
@@ -92,13 +138,23 @@ export function AIChatScreen() {
             >
               {item.content}
             </Text>
+          </Animated.View>
+        ))}
+
+        {sending ? (
+          <View style={[styles.bubble, styles.aiBubble, styles.typing]}>
+            <ActivityIndicator size="small" color={colors.textMuted} />
           </View>
-        )}
-      />
+        ) : null}
+      </ScrollView>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.error} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.sm }]}>
         <TextInput
           accessibilityLabel={t("onboarding.placeholder")}
           placeholder={t("onboarding.placeholder")}
@@ -108,37 +164,112 @@ export function AIChatScreen() {
           onSubmitEditing={send}
           style={styles.input}
           multiline
+          returnKeyType="send"
+          blurOnSubmit
         />
-        <Button label={t("common.next")} onPress={send} loading={sending} />
+        <PressableScale
+          accessibilityLabel={t("common.send")}
+          onPress={send}
+          disabled={!draft.trim() || sending}
+          scaleTo={0.9}
+          style={[
+            styles.sendButton,
+            (!draft.trim() || sending) && styles.sendDisabled,
+          ]}
+        >
+          <Text style={styles.sendGlyph}>↑</Text>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-  title: { ...typography.title, color: colors.text, marginBottom: spacing.md },
-  list: { gap: spacing.sm, paddingBottom: spacing.md },
+  container: { flex: 1, backgroundColor: colors.background },
+  head: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.md },
+  title: { ...type.title1, color: colors.text, maxWidth: 320 },
+  progress: { flexDirection: "row", gap: spacing.xs + 2 },
+  tick: {
+    flex: 1,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+  },
+  tickDone: { backgroundColor: colors.primary },
+
+  list: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  opener: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  openerGlyph: { fontSize: 34 },
+  openerText: {
+    ...type.callout,
+    color: colors.textMuted,
+    textAlign: "center",
+    maxWidth: 280,
+  },
+
   bubble: {
-    maxWidth: "85%",
-    padding: spacing.md,
+    maxWidth: "86%",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
     borderRadius: radius.lg,
   },
-  aiBubble: { alignSelf: "flex-start", backgroundColor: colors.surface },
-  userBubble: { alignSelf: "flex-end", backgroundColor: colors.accent },
-  bubbleText: { ...typography.body, color: colors.text },
-  userBubbleText: { color: colors.primaryText },
-  error: { ...typography.caption, color: colors.danger, marginBottom: spacing.sm },
-  composer: { gap: spacing.sm },
-  input: {
-    minHeight: 48,
-    maxHeight: 120,
+  aiBubble: {
+    alignSelf: "flex-start",
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderBottomLeftRadius: radius.xs,
+    ...elevation.low,
+  },
+  userBubble: {
+    alignSelf: "flex-end",
+    backgroundColor: colors.accent,
+    borderBottomRightRadius: radius.xs,
+  },
+  bubbleText: { ...type.body, color: colors.text },
+  userBubbleText: { color: colors.textOnColor },
+  typing: { paddingVertical: spacing.md },
+
+  error: {
+    ...type.footnote,
+    color: colors.danger,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  composer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+    backgroundColor: colors.background,
+  },
+  input: {
+    flex: 1,
+    minHeight: 46,
+    maxHeight: 120,
+    ...type.body,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.sm + 2,
     color: colors.text,
   },
+  sendButton: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendDisabled: { backgroundColor: colors.border },
+  sendGlyph: { fontSize: 22, color: colors.primaryText, fontWeight: "700" },
 });
