@@ -279,14 +279,16 @@ begin
     return;
   end if;
 
+  -- Capacity before status: filling the last seat flips status to 'full', so testing
+  -- status first would report a full event as merely EVENT_CLOSED.
+  if v_size >= v_max then
+    raise exception 'EVENT_FULL';
+  end if;
+
   -- Derived status, so a meetup that has already started is closed even if the
   -- sweep has not written the transition yet.
   if event_status(v_status, v_start) <> 'open' then
     raise exception 'EVENT_CLOSED';
-  end if;
-
-  if v_size >= v_max then
-    raise exception 'EVENT_FULL';
   end if;
 
   insert into group_members (event_id, user_id) values (p_event_id, p_user_id);
