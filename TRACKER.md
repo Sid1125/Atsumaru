@@ -95,6 +95,20 @@ API, so re-applying needs no browser.
       **Blocked on the sweep atomicity issue below** — two drivers can currently
       double-notify
 
+### 1c. Keeping the free-tier project alive
+
+Supabase pauses a free project after ~7 days of inactivity, and restoring it is a manual
+dashboard action — which would silently break every demo.
+
+- [x] `keepalive` table + `ping_keepalive()` RPC (`migrations/003`). `security definer`,
+      so the anon key can call the function while the table itself stays revoked from
+      `anon` — the deny-all RLS posture is unchanged
+- [x] `.github/workflows/keepalive.yml` — one request a day at 03:17 UTC, three attempts
+      with backoff, plus `workflow_dispatch` for a manual run. Verified locally with the
+      exact CI script: `ping_count` incremented, exit 0
+- [x] Repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY` set. **Only the anon key is in
+      CI** — the service-role key never leaves `server/.env`
+
 ### 1b. Found by running it (fixed)
 
 Every one of these was invisible without live credentials.
