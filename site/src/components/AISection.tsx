@@ -4,66 +4,77 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Reveal } from "@/components/ui/Reveal";
-import { Highlight } from "@/components/ui/Highlight";
-import { AI_FLOW } from "@/lib/constants";
+import { AI_FLOW, COPY } from "@/lib/constants";
 import { AIChatDemo } from "@/components/ui/ai-chat-demo";
 
 gsap.registerPlugin(ScrollTrigger);
 
 export function AISection() {
+  const sectionRef = useRef<HTMLElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const chipsEl = chipsRef.current;
-    if (chipsEl) {
-      const chips = gsap.utils.toArray<HTMLElement>(chipsEl.querySelectorAll(".ai-chip"));
-      gsap.set(chips, { opacity: 0, scale: 0.7, y: 15 });
-      gsap.to(chips, {
-        opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(1.7)", stagger: 0.1,
-        scrollTrigger: { trigger: chipsEl, start: "top 80%", toggleActions: "play none none none" },
-      });
-    }
+    const section = sectionRef.current;
+    if (!section) return;
 
-    const scoreEl = scoreRef.current;
-    if (scoreEl) {
-      const numEl = scoreEl.querySelector<HTMLElement>(".score-num");
-      if (numEl) {
-        const obj = { val: 0 };
-        gsap.to(obj, {
-          val: AI_FLOW.match.score,
-          duration: 2,
-          ease: "power2.out",
-          onUpdate: () => { numEl.textContent = `${Math.round(obj.val)}%`; },
-          scrollTrigger: { trigger: scoreEl, start: "top 80%", toggleActions: "play none none none" },
+    const ctx = gsap.context(() => {
+      const chipsEl = chipsRef.current;
+      if (chipsEl) {
+        const chips = gsap.utils.toArray<HTMLElement>(chipsEl.querySelectorAll(".ai-chip"));
+        gsap.set(chips, { opacity: 0, scale: 0.7, y: 15 });
+        gsap.to(chips, {
+          opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(1.7)", stagger: 0.1,
+          scrollTrigger: { trigger: chipsEl, start: "top 80%", toggleActions: "play none none none" },
         });
       }
-      const ring = scoreEl.querySelector<HTMLElement>(".score-ring");
-      if (ring) {
-        gsap.to(ring, {
-          strokeDashoffset: 283 - (283 * AI_FLOW.match.score / 100),
-          duration: 2,
-          ease: "power2.out",
-          scrollTrigger: { trigger: scoreEl, start: "top 80%", toggleActions: "play none none none" },
-        });
+
+      const scoreEl = scoreRef.current;
+      if (scoreEl) {
+        const numEl = scoreEl.querySelector<HTMLElement>(".score-num");
+        if (numEl) {
+          const obj = { val: 0 };
+          gsap.to(obj, {
+            val: AI_FLOW.match.score,
+            duration: 2,
+            ease: "power2.out",
+            onUpdate: () => { numEl.textContent = `${Math.round(obj.val)}%`; },
+            scrollTrigger: { trigger: scoreEl, start: "top 80%", toggleActions: "play none none none" },
+          });
+        }
+        const ring = scoreEl.querySelector<HTMLElement>(".score-ring");
+        if (ring) {
+          gsap.to(ring, {
+            strokeDashoffset: 283 - (283 * AI_FLOW.match.score / 100),
+            duration: 2,
+            ease: "power2.out",
+            scrollTrigger: { trigger: scoreEl, start: "top 80%", toggleActions: "play none none none" },
+          });
+        }
       }
-    }
+    }, section);
+
+    return () => {
+      ctx.revert();
+    };
   }, []);
 
   return (
-    <section className="py-24 md:py-32 bg-bg-dark text-text-light relative overflow-hidden">
-      <div className="absolute inset-0 grid-pattern-dark" />
-
+    <section ref={sectionRef} className="ambient-surface-dark py-24 md:py-32 text-text-light relative overflow-hidden">
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8">
         <Reveal>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[0.95]">
-            AI that gets<br />the <Highlight>vibe</Highlight>.
+          <span className="sticker-badge sticker-lilac">Two-minute chat</span>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <h2 className="mt-5 text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text-light leading-[0.95]">
+            {COPY.ai.heading}<br />
+            <span className="marker text-[#09090B]" style={{ ["--marker-color" as string]: "#00F0FF" }}>
+              {COPY.ai.headingAccent}
+            </span>
           </h2>
         </Reveal>
         <Reveal delay={0.15}>
-          <p className="mt-6 text-lg text-text-muted-light max-w-xl">
-            Not a generic algorithm. A short conversation that understands who you are and what you&apos;re looking for.
-          </p>
+          <p className="mt-6 text-lg text-text-muted-light max-w-xl">{COPY.ai.sub}</p>
         </Reveal>
 
         <div className="mt-16 md:mt-24 grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
@@ -85,7 +96,7 @@ export function AISection() {
             <Reveal from="left" delay={0.1}>
               <div ref={chipsRef} className="flex flex-wrap gap-2">
                 {AI_FLOW.extracted.map((chip) => (
-                  <span key={chip} className="ai-chip inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-accent/15 text-accent text-sm font-medium border border-accent/20">
+                  <span key={chip} className="ai-chip sticker-badge sticker-cyan">
                     {chip}
                   </span>
                 ))}
@@ -108,7 +119,10 @@ export function AISection() {
                     <p className="text-sm text-text-muted-light mt-1">Shibuya · Sat 7 PM</p>
                     <div className="mt-4 space-y-2">
                       {AI_FLOW.match.reasons.map((r) => (
-                        <p key={r} className="text-sm text-text-muted-light">{r}</p>
+                        <div key={r} className="flex items-center gap-2 text-sm text-text-muted-light">
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                          <span>{r}</span>
+                        </div>
                       ))}
                     </div>
                   </div>

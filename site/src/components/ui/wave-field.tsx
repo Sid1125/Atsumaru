@@ -21,7 +21,12 @@ export function WaveField({
 
     const pointerRef = useRef({ x: -2000, y: -2000, targetX: -2000, targetY: -2000 });
     const isRunningRef = useRef(isRunning);
-    isRunningRef.current = isRunning;
+
+    // Mirrored in an effect, not during render: the animation loop reads the ref, and
+    // writing refs while rendering is what React's rules forbid.
+    useEffect(() => {
+        isRunningRef.current = isRunning;
+    }, [isRunning]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -121,18 +126,20 @@ export function WaveField({
         >
             <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full cursor-crosshair" />
             <div className="relative z-20 flex h-full w-full flex-col justify-between p-6 md:p-8">
-                <header className="flex w-full items-center justify-between font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
+                <div className="flex w-full items-center justify-between font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
                     <button
+                        type="button"
                         onClick={() => setIsRunning(!isRunning)}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-100/80 px-2.5 py-1.5 backdrop-blur-md transition-colors hover:bg-zinc-200 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:bg-zinc-800"
+                        className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-100/80 px-2.5 py-1.5 backdrop-blur-md transition-colors hover:bg-zinc-200 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:bg-zinc-800 cursor-pointer"
+                        aria-label={isRunning ? "Pause wave animation" : "Resume wave animation"}
                     >
                         {isRunning ? <Pause className="size-3" /> : <Play className="size-3" />}
                         <span>{isRunning ? "FREEZE" : "RUN"}</span>
                     </button>
-                </header>
-                <main className="pointer-events-none flex flex-col items-center justify-center text-center text-black dark:text-white">
-                    <h1 className="font-mono text-5xl font-black tracking-tighter uppercase sm:text-6xl md:text-7xl">{headline}</h1>
-                </main>
+                </div>
+                <div className="pointer-events-none flex flex-col items-center justify-center text-center text-black dark:text-white">
+                    <span className="font-mono text-5xl font-black tracking-tighter uppercase sm:text-6xl md:text-7xl">{headline}</span>
+                </div>
                 <div />
             </div>
         </div>

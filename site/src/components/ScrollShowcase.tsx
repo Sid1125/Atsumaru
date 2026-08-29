@@ -5,6 +5,11 @@ import gsap from "gsap";
 import { Soup, Gamepad2, Footprints, Coffee, Palette, PartyPopper, Calendar } from "lucide-react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { PhoneScreenUI } from "@/components/ui/PhoneScreenUI";
+import { matchColor } from "@/lib/match";
+import { openWaitlistModal } from "@/components/WaitlistModal";
+import confettiLib from "canvas-confetti";
+
+const confetti = ((confettiLib as unknown as { default?: typeof confettiLib }).default) ?? confettiLib;
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -22,6 +27,8 @@ const BUDDIES = [
   { icon: Palette, color: "#8B7EC8", name: "Rei" },
 ];
 
+const CONFETTI_COLORS = ["#E8634D", "#7A9E7E", "#E8867A", "#F2A65A", "#F7D5CA"];
+
 export function ScrollShowcase() {
   const sectionRef = useRef<HTMLElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
@@ -35,56 +42,83 @@ export function ScrollShowcase() {
     const overlay = overlayRef.current;
     if (!section || !phone || !popup || !overlay) return;
 
-    const banner = popup.querySelector<HTMLElement>(".match-banner");
-    const head = popup.querySelector<HTMLElement>(".match-head");
-    const avatars = popup.querySelectorAll<HTMLElement>(".buddy-avatar");
-    const card = popup.querySelector<HTMLElement>(".match-card");
+    let firedConfetti = false;
 
-    gsap.set(phone, { rotateY: -28, rotateX: 55, scale: 1.15, x: 80, y: 90, z: -120 });
-    gsap.set(overlay, { opacity: 0, y: 60 });
-    gsap.set(popup, { opacity: 0, scale: 0.75, y: 80 });
-    if (banner) gsap.set(banner, { y: -30, opacity: 0 });
-    if (head) gsap.set(head, { scale: 0.6, opacity: 0, y: 30 });
-    gsap.set(avatars, { scale: 0, opacity: 0, x: (i) => (i % 2 === 0 ? -30 : 30) });
-    if (card) gsap.set(card, { y: 40, opacity: 0 });
+    const ctx = gsap.context(() => {
+      const banner = popup.querySelector<HTMLElement>(".match-banner");
+      const head = popup.querySelector<HTMLElement>(".match-head");
+      const avatars = popup.querySelectorAll<HTMLElement>(".buddy-avatar");
+      const card = popup.querySelector<HTMLElement>(".match-card");
 
-    // Canvas-confetti burst — fires when scroll crosses midpoint of the zoom phase
+      gsap.set(phone, { rotateY: -28, rotateX: 55, scale: 1.15, x: 80, y: 90, z: -120 });
+      gsap.set(overlay, { opacity: 0, y: 60 });
+      gsap.set(popup, { opacity: 0, scale: 0.75, y: 80 });
+      if (banner) gsap.set(banner, { y: -30, opacity: 0 });
+      if (head) gsap.set(head, { scale: 0.6, opacity: 0, y: 30 });
+      gsap.set(avatars, { scale: 0, opacity: 0, x: (i) => (i % 2 === 0 ? -30 : 30) });
+      if (card) gsap.set(card, { y: 40, opacity: 0 });
 
-    const tl = gsap.timeline({
-      scrollTrigger: {
-        trigger: section,
-        start: "top top",
-        end: "+=250%",
-        pin: true,
-        scrub: 0.6,
-      },
-    });
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "+=250%",
+          pin: true,
+          scrub: 0.6,
+          onUpdate: (self) => {
+            if (self.progress >= 0.42 && !firedConfetti) {
+              firedConfetti = true;
+              try {
+                // Dual cannon celebratory burst
+                confetti({
+                  particleCount: 45,
+                  spread: 60,
+                  origin: { x: 0.25, y: 0.55 },
+                  colors: CONFETTI_COLORS,
+                  disableForReducedMotion: true,
+                });
+                confetti({
+                  particleCount: 45,
+                  spread: 60,
+                  origin: { x: 0.75, y: 0.55 },
+                  colors: CONFETTI_COLORS,
+                  disableForReducedMotion: true,
+                });
+              } catch {
+                // Ignore if confetti not supported
+              }
+            } else if (self.progress < 0.35) {
+              firedConfetti = false;
+            }
+          },
+        },
+      });
 
-    // Phase 1 — pick the phone up off the surface (both tilts unwind)
-    tl.to(phone, { rotateY: 0, rotateX: 0, x: 0, y: 0, z: 0, duration: 3, ease: "power1.inOut" }, 0);
+      // Phase 1 — pick the phone up off the surface (both tilts unwind)
+      tl.to(phone, { rotateY: 0, rotateX: 0, x: 0, y: 0, z: 0, duration: 3, ease: "power1.inOut" }, 0);
 
-    // Phase 2 — zoom in; screen fills viewport
-    tl.to(phone, { scale: 1.6, duration: 5, ease: "power1.inOut" }, 1.5);
+      // Phase 2 — zoom in; screen fills viewport
+      tl.to(phone, { scale: 1.6, duration: 5, ease: "power1.inOut" }, 1.5);
 
-    // Phase 3 — match popup
-    tl.to(popup, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.5)" }, 3.6);
+      // Phase 3 — match popup
+      tl.to(popup, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.5)" }, 3.6);
 
-    if (banner) tl.to(banner, { y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.6)" }, 3.9);
-    if (head) tl.to(head, { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.7)" }, 4.0);
+      if (banner) tl.to(banner, { y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.6)" }, 3.9);
+      if (head) tl.to(head, { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.7)" }, 4.0);
 
-    tl.to(avatars, {
-      scale: 1, opacity: 1, x: 0, duration: 0.45, ease: "back.out(1.9)", stagger: 0.08,
-    }, 4.2);
+      tl.to(avatars, {
+        scale: 1, opacity: 1, x: 0, duration: 0.45, ease: "back.out(1.9)", stagger: 0.08,
+      }, 4.2);
 
-    if (card) tl.to(card, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.5)" }, 4.5);
+      if (card) tl.to(card, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.5)" }, 4.5);
 
-    // Phase 4 — popup gives way to text overlay
-    tl.to(popup, { opacity: 0, scale: 0.9, duration: 1.2, ease: "power1.in" }, 5.6);
-    tl.to(overlay, { opacity: 1, y: 0, duration: 3, ease: "power1.out" }, 6);
+      // Phase 4 — popup gives way to text overlay
+      tl.to(popup, { opacity: 0, scale: 0.9, duration: 1.2, ease: "power1.in" }, 5.6);
+      tl.to(overlay, { opacity: 1, y: 0, duration: 3, ease: "power1.out" }, 6);
+    }, section);
 
     return () => {
-      tl.kill();
-      ScrollTrigger.getAll().forEach((s) => s.kill());
+      ctx.revert();
     };
   }, []);
 
@@ -171,14 +205,18 @@ export function ScrollShowcase() {
           <div
             className="match-banner inline-flex items-center gap-1.5 rounded-full px-4 py-1.5"
             style={{
-              background: "rgba(232,99,77,0.14)",
-              border: "1px solid rgba(232,99,77,0.3)",
+              // 91% is a good-fit score, so it takes the amber step of the ramp.
+              background: "rgba(185,138,0,0.14)",
+              border: "1px solid rgba(185,138,0,0.32)",
             }}
           >
             <span className="text-[13px]">
-                  <PartyPopper size={13} color="#E8634D" />
+                  <PartyPopper size={13} color={matchColor(91)} />
                 </span>
-            <span className="text-[13px] font-extrabold uppercase tracking-wide text-accent">
+            <span
+              className="text-[13px] font-extrabold uppercase tracking-wide"
+              style={{ color: matchColor(91) }}
+            >
               91% Group match
             </span>
           </div>
@@ -298,12 +336,13 @@ export function ScrollShowcase() {
             ))}
           </div>
 
-          <a
-            href="#cta"
-            className="mt-10 inline-flex items-center h-12 px-7 text-sm font-semibold rounded-full bg-accent-strong text-white shadow-lg shadow-accent/30"
+          <button
+            type="button"
+            onClick={openWaitlistModal}
+            className="mt-10 inline-flex items-center h-12 px-7 text-sm font-semibold rounded-full bg-accent-strong text-white shadow-lg shadow-accent/30 hover:bg-accent-strong/90 transition-all cursor-pointer"
           >
             Join the waitlist
-          </a>
+          </button>
         </div>
       </div>
 

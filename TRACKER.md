@@ -95,14 +95,41 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 - [ ] Infinite scroll on message history now that the paging envelope is returned
 - [ ] Mapbox: real pins need `EXPO_PUBLIC_MAPBOX_TOKEN` plus a native dev build
 
-### 4. Polish and hardening
+### 4. Marketing site (`site/`)
+
+Gen-Z pop pass done 2026-08-30: electric palette (`--color-neon` / `lilac` / `hotpink`
+/ `cyan`) layered over the existing editorial base, sticker + tape badge system,
+highlighter `.marker` headline treatment, dual-direction kinetic tape tickers, the
+interactive Vibe Check squad-pass toy, draggable hero stickers, and punchier copy
+(all of it in `src/lib/constants.ts`).
+
+- [x] Palette, sticker/tape/marker utilities, reduced-motion handling for the marquees
+- [x] `MarqueeTicker` (two rows, opposite directions, hover-pause, clipped so it adds no horizontal scroll)
+- [x] `VibeCheckToy` — pick up to 3 vibes, deterministic squad pass, opt-in SFX
+- [x] `DraggableSticker` — grab, toss with momentum, springs home
+- [x] `StickerSheet` + `Decal` — die-cut vinyl decals (white cut line, gloss, squircle/round/rounded-square), one per gathering type, with dashed empty slots for the roadmap badges
+- [x] `StickerArt` — drawn SVG stickers (ramen, arcade, café, trail, 35mm, vinyl, torii, 集 hanko) pasted through Problem / HowItWorks / Activities / Japan / CTA and across the sheet
+- [x] Activity photos corrected: anime/movies → cinema, music → concert, photography → camera
+- [x] Hero phone reads as a held device — thick lit side rails with power/volume buttons, bottom rail with speaker slot, yaw raised to 28°
+- [x] Match-score colour ramp centralised in `src/lib/match.ts` (≥95 green, 90–94 amber, <90 red) and applied to every mock-up
+- [x] Footer parallax reveal per Awwwards scroll reference 66 (inner starts at −35%, lands at 0 exactly as the footer bottoms out; no layout change)
+- [ ] WebGL hero phone: attempted with react-three-fiber/drei and reverted — the device body and rails rendered well, but projecting the live `PhoneScreenUI` DOM onto the glass via drei `<Html transform>` needs per-camera scale calibration. Revisit by baking the screen to a texture instead of hosting DOM in 3D
+- [x] Opt-in Web Audio SFX with a persisted `SoundToggle` in the navbar (silent by default)
+- [x] Copy pass: "Dating apps are cooked", "escape the group chat ghost town", "passes the vibe check", "Zero 1-on-1 cringe"
+- [x] Hero left column nudged down at `xl` so the 集まる line clears the fixed navbar
+- [x] `suppressHydrationWarning` on `<body>` — Grammarly-class extensions add attributes before hydration
+- [x] Cleared the 4 pre-existing React-compiler lint errors (`ai-chat-demo`, `wave-field`)
+- [ ] Remaining lint warnings are all `next/image` advice on deliberate `<img>` use — `next.config.ts` needs `remotePatterns` for Unsplash before that can change
+- [ ] Copy still says "sample plans"; swap the ticker to real meetups once the API is live
+
+### 5. Polish and hardening
 
 - [ ] Accessibility pass: emoji ratings need text equivalents, touch targets, no colour-only state (docs/DESIGN.md §10)
 - [ ] Sweep only reads events past their reminder window; add an index on `events (start_time, status)` if the table grows
 - [ ] Move OAuth handoff codes out of memory if the API ever runs more than one instance
 - [ ] Rotate `AUTH_STATE_SECRET` per deployment (the dev default warns in production)
 
-### 5. Out of scope for the appathon (docs/IDEA.md §10)
+### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
 AI icebreakers, conversational feedback, women-only groups and safety layer, LINE
 messaging integration, gamification, vibe recap, recurring circles, venue partnerships,

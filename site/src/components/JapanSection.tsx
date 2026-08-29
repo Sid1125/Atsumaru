@@ -2,12 +2,15 @@
 
 import { Reveal } from "@/components/ui/Reveal";
 import { Highlight } from "@/components/ui/Highlight";
+import { StickerArt } from "@/components/ui/StickerArt";
 import { PHOTOS, LANGUAGES } from "@/lib/constants";
 
 export function JapanSection() {
   return (
-    <section id="japan" className="py-24 md:py-32 bg-bg relative overflow-hidden">
-      <div className="absolute inset-0 grid-pattern opacity-30" />
+    <section id="japan" className="py-24 md:py-32 bg-bg relative overflow-hidden scroll-mt-24 ambient-surface">
+      {/* Stuck-on decals */}
+      <StickerArt name="torii" size={104} tilt={-9} className="pointer-events-none absolute left-[-28px] top-24 hidden lg:block" />
+      <StickerArt name="hanko" size={88} tilt={11} className="pointer-events-none absolute bottom-16 left-[6%] hidden lg:block" />
 
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">

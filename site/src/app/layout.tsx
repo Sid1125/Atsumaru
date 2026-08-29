@@ -3,6 +3,9 @@ import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import { GSAPProvider } from "@/components/GSAPProvider";
 import { Preloader } from "@/components/Preloader";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { WaitlistModal } from "@/components/WaitlistModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -55,18 +58,27 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${notoSansJP.variable} antialiased`}
     >
-      <body className="min-h-screen bg-bg text-text">
+      {/* Browser extensions (Grammarly and friends) add attributes to <body> before
+          React hydrates, which otherwise logs a hydration mismatch we cannot fix. */}
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-bg text-text selection:bg-accent-light selection:text-accent"
+      >
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-white focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-text"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[400] focus:rounded-xl focus:bg-white focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-text shadow-xl"
         >
           Skip to content
         </a>
         <GSAPProvider>
           <Preloader />
+          <Navbar />
           <main id="main-content">{children}</main>
+          <Footer />
+          <WaitlistModal />
         </GSAPProvider>
       </body>
     </html>
   );
 }
+

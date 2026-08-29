@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Soup, Gamepad2, Footprints, Coffee } from "lucide-react";
-import { PHOTOS } from "@/lib/constants";
+import { COPY, HERO_STICKERS, PHOTOS } from "@/lib/constants";
 import { PhoneScreenUI } from "@/components/ui/PhoneScreenUI";
+import { DraggableSticker } from "@/components/ui/DraggableSticker";
+import { openWaitlistModal } from "@/components/WaitlistModal";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,12 +35,13 @@ const SOCIAL = [
 function HeroCtas({ className }: { className: string }) {
   return (
     <div className={`hero-fade flex flex-wrap items-center gap-3.5 ${className}`}>
-      <a
-        href="#cta"
-        className="inline-flex h-12 items-center px-8 text-sm font-semibold rounded-full bg-accent-strong text-white ring-1 ring-white/15 shadow-[0_12px_34px_-10px_rgba(232,99,77,0.75)] hover:bg-accent-strong/90 hover:shadow-[0_14px_38px_-8px_rgba(232,99,77,0.9)] transition-all duration-300"
+      <button
+        type="button"
+        onClick={openWaitlistModal}
+        className="inline-flex h-12 items-center px-8 text-sm font-semibold rounded-full bg-accent-strong text-white ring-1 ring-white/15 shadow-[0_12px_34px_-10px_rgba(232,99,77,0.75)] hover:bg-accent-strong/90 hover:shadow-[0_14px_38px_-8px_rgba(232,99,77,0.9)] transition-all duration-300 cursor-pointer"
       >
         Join the waitlist
-      </a>
+      </button>
       <a
         href="#how-it-works"
         className="inline-flex h-12 items-center gap-2 px-6 text-sm font-medium rounded-full text-text-light/85 border border-white/20 hover:border-white/45 hover:text-text-light transition-all duration-300"
@@ -62,87 +65,87 @@ export function Hero() {
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const bg = section.querySelector<HTMLElement>(".hero-bg-pan");
-    const bgImg = section.querySelector<HTMLElement>(".hero-bg-img");
-    const brand = section.querySelector<HTMLElement>(".hero-brand");
-    const innerLines = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-line .hero-inner"));
-    const underline = section.querySelector<SVGPathElement>(".hero-underline path");
-    const doodles = gsap.utils.toArray<SVGPathElement>(section.querySelectorAll(".hero-doodle"));
-    const heart = section.querySelector<SVGPathElement>(".hero-heart path");
-    const copy = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-fade"));
-    const phone = section.querySelector<HTMLElement>(".hero-phone-float");
-    const halo = section.querySelector<HTMLElement>(".hero-phone-halo");
-    const brush = section.querySelector<HTMLElement>(".hero-brush");
-    const shadow = section.querySelector<HTMLElement>(".hero-phone-shadow");
-    const pills = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hp-pill"));
-    const dots = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-dot"));
-    const connects = section.querySelectorAll<SVGPathElement>(".hp-connects path");
-    const strip = section.querySelector<HTMLElement>(".hero-edge-strip");
+    const ctx = gsap.context(() => {
+      const bg = section.querySelector<HTMLElement>(".hero-bg-pan");
+      const bgImg = section.querySelector<HTMLElement>(".hero-bg-img");
+      const brand = section.querySelector<HTMLElement>(".hero-brand");
+      const innerLines = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-line .hero-inner"));
+      const underline = section.querySelector<SVGPathElement>(".hero-underline path");
+      const doodles = gsap.utils.toArray<SVGPathElement>(section.querySelectorAll(".hero-doodle"));
+      const heart = section.querySelector<SVGPathElement>(".hero-heart path");
+      const copy = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-fade"));
+      const phone = section.querySelector<HTMLElement>(".hero-phone-float");
+      const halo = section.querySelector<HTMLElement>(".hero-phone-halo");
+      const brush = section.querySelector<HTMLElement>(".hero-brush");
+      const shadow = section.querySelector<HTMLElement>(".hero-phone-shadow");
+      const pills = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hp-pill"));
+      const dots = gsap.utils.toArray<HTMLElement>(section.querySelectorAll(".hero-dot"));
+      const connects = section.querySelectorAll<SVGPathElement>(".hp-connects path");
+      const strip = section.querySelector<HTMLElement>(".hero-edge-strip");
 
-    if (reduce) {
-      gsap.set([bgImg, brand, innerLines, copy, phone, pills, dots, halo, brush, shadow], { opacity: 1, y: 0, scale: 1 });
-      return;
-    }
+      if (reduce) {
+        gsap.set([bgImg, brand, innerLines, copy, phone, pills, dots, halo, brush, shadow], { opacity: 1, y: 0, scale: 1 });
+        return;
+      }
 
-    gsap.set(bgImg, { scale: 1.12, opacity: 0 });
-    gsap.set(bg, { yPercent: 4 });
-    gsap.set(brand, { opacity: 0, y: 22 });
-    gsap.set(innerLines, { yPercent: 112 });
-    gsap.set(copy, { opacity: 0, y: 22 });
-    gsap.set(phone, { opacity: 0, y: 130, scale: 0.82, rotateY: -34, rotateX: 10 });
-    gsap.set(halo, { opacity: 0, scale: 0.7 });
-    gsap.set(brush, { opacity: 0, scale: 0.7 });
-    gsap.set(shadow, { opacity: 0, scaleX: 0.4 });
-    gsap.set(pills, { opacity: 0, y: 26, scale: 0.82 });
-    gsap.set(dots, { opacity: 0, x: (i) => -10 - i * 6, y: 4 });
-    gsap.set(connects, { strokeDashoffset: 200 });
-    gsap.set(underline, { strokeDashoffset: 300 });
-    gsap.set(doodles, { strokeDashoffset: 160 });
-    gsap.set(heart, { strokeDashoffset: 160, opacity: 0 });
-    gsap.set(strip, { opacity: 0 });
+      gsap.set(bgImg, { scale: 1.12, opacity: 0 });
+      gsap.set(bg, { yPercent: 4 });
+      gsap.set(brand, { opacity: 0, y: 22 });
+      gsap.set(innerLines, { yPercent: 112 });
+      gsap.set(copy, { opacity: 0, y: 22 });
+      gsap.set(phone, { opacity: 0, y: 130, scale: 0.82, rotateY: -34, rotateX: 10 });
+      gsap.set(halo, { opacity: 0, scale: 0.7 });
+      gsap.set(brush, { opacity: 0, scale: 0.7 });
+      gsap.set(shadow, { opacity: 0, scaleX: 0.4 });
+      gsap.set(pills, { opacity: 0, y: 26, scale: 0.82 });
+      gsap.set(dots, { opacity: 0, x: (i) => -10 - i * 6, y: 4 });
+      gsap.set(connects, { strokeDashoffset: 200 });
+      gsap.set(underline, { strokeDashoffset: 300 });
+      gsap.set(doodles, { strokeDashoffset: 160 });
+      gsap.set(heart, { strokeDashoffset: 160, opacity: 0 });
+      gsap.set(strip, { opacity: 0 });
 
-    const tl = gsap.timeline({ delay: 0.25 });
+      const tl = gsap.timeline({ delay: 0.25 });
 
-    tl.to(bgImg, { scale: 1, opacity: 1, duration: 2.2, ease: "expo.out" }, 0)
-      .to(halo, { opacity: 1, scale: 1, duration: 1.6, ease: "expo.out" }, 0.4)
-      .to(brand, { opacity: 1, y: 0, duration: 0.9, ease: "expo.out" }, 0.45)
-      .to(innerLines, { yPercent: 0, duration: 1.25, ease: "expo.out", stagger: 0.09 }, 0.55)
-      .to(underline, { strokeDashoffset: 0, duration: 0.8, ease: "power2.out" }, 1.15)
-      .to(heart, { strokeDashoffset: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 1.35)
-      .to(copy, { opacity: 1, y: 0, duration: 0.9, ease: "expo.out", stagger: 0.09 }, "-=0.4")
-      .to(phone, { opacity: 1, y: 0, scale: 1, rotateY: 0, rotateX: 0, duration: 1.9, ease: "expo.out" }, 0.9)
-      .to(shadow, { opacity: 1, scaleX: 1, duration: 1.2, ease: "expo.out" }, 1.4)
-      .to(brush, { opacity: 1, scale: 1, duration: 1.4, ease: "expo.out" }, 1.5)
-      .to(pills, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "back.out(1.6)", stagger: 0.1 }, "-=1.1")
-      .to(connects, { strokeDashoffset: 0, duration: 1.3, ease: "power1.inOut", stagger: 0.2 }, "-=0.9")
-      .to(dots, { opacity: 1, x: 0, y: 0, duration: 0.8, ease: "power2.out", stagger: 0.12 }, "-=0.7")
-      .to(doodles, { strokeDashoffset: 0, duration: 1.1, ease: "power1.inOut" }, "-=0.8")
-      .to(strip, { opacity: 1, duration: 1.2, ease: "power1.out" }, "-=0.8");
+      tl.to(bgImg, { scale: 1, opacity: 1, duration: 2.2, ease: "expo.out" }, 0)
+        .to(halo, { opacity: 1, scale: 1, duration: 1.6, ease: "expo.out" }, 0.4)
+        .to(brand, { opacity: 1, y: 0, duration: 0.9, ease: "expo.out" }, 0.45)
+        .to(innerLines, { yPercent: 0, duration: 1.25, ease: "expo.out", stagger: 0.09 }, 0.55)
+        .to(underline, { strokeDashoffset: 0, duration: 0.8, ease: "power2.out" }, 1.15)
+        .to(heart, { strokeDashoffset: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 1.35)
+        .to(copy, { opacity: 1, y: 0, duration: 0.9, ease: "expo.out", stagger: 0.09 }, "-=0.4")
+        .to(phone, { opacity: 1, y: 0, scale: 1, rotateY: 0, rotateX: 0, duration: 1.9, ease: "expo.out" }, 0.9)
+        .to(shadow, { opacity: 1, scaleX: 1, duration: 1.2, ease: "expo.out" }, 1.4)
+        .to(brush, { opacity: 1, scale: 1, duration: 1.4, ease: "expo.out" }, 1.5)
+        .to(pills, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "back.out(1.6)", stagger: 0.1 }, "-=1.1")
+        .to(connects, { strokeDashoffset: 0, duration: 1.3, ease: "power1.inOut", stagger: 0.2 }, "-=0.9")
+        .to(dots, { opacity: 1, x: 0, y: 0, duration: 0.8, ease: "power2.out", stagger: 0.12 }, "-=0.7")
+        .to(doodles, { strokeDashoffset: 0, duration: 1.1, ease: "power1.inOut" }, "-=0.8")
+        .to(strip, { opacity: 1, duration: 1.2, ease: "power1.out" }, "-=0.8");
 
-    const bgScroll = gsap.timeline({
-      scrollTrigger: { trigger: section, start: "top top", end: "bottom top", scrub: true },
-    }).to(bg, { yPercent: -8, ease: "none" }, 0);
+      gsap.timeline({
+        scrollTrigger: { trigger: section, start: "top top", end: "bottom top", scrub: true },
+      }).to(bg, { yPercent: -8, ease: "none" }, 0);
 
-    const pointerX = gsap.quickTo(phone, "x", { duration: 0.7, ease: "power3.out" });
-    const pointerRy = gsap.quickTo(phone, "rotationY", { duration: 0.7, ease: "power3.out" });
-    const pointerRx = gsap.quickTo(phone, "rotationX", { duration: 0.7, ease: "power3.out" });
-    function onMove(e: PointerEvent) {
-      if (window.innerWidth < 1024) return;
-      const r = host.getBoundingClientRect();
-      const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
-      const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
-      pointerX(nx * 14);
-      pointerRy(nx * -7);
-      pointerRx(ny * 4);
-    }
+      const pointerX = gsap.quickTo(phone, "x", { duration: 0.7, ease: "power3.out" });
+      const pointerRy = gsap.quickTo(phone, "rotationY", { duration: 0.7, ease: "power3.out" });
+      const pointerRx = gsap.quickTo(phone, "rotationX", { duration: 0.7, ease: "power3.out" });
 
-    host.addEventListener("pointermove", onMove, { passive: true });
+      function onMove(e: PointerEvent) {
+        if (window.innerWidth < 1024) return;
+        const r = host.getBoundingClientRect();
+        const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+        const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
+        pointerX(nx * 14);
+        pointerRy(nx * -7);
+        pointerRx(ny * 4);
+      }
+
+      host.addEventListener("pointermove", onMove, { passive: true });
+    }, section);
 
     return () => {
-      host.removeEventListener("pointermove", onMove);
-      bgScroll.kill();
-      tl.kill();
-      ScrollTrigger.getAll().forEach((s) => s.kill());
+      ctx.revert();
     };
   }, []);
 
@@ -193,7 +196,9 @@ export function Hero() {
       <div className="relative z-10 mx-auto w-full max-w-7xl px-5 py-20 sm:px-8 md:py-14 xl:py-8">
         <div className="grid items-center gap-14 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-8">
           {/* ── Left · typographic column ── */}
-          <div className="max-w-2xl">
+          {/* The fixed navbar sits over the hero, and at xl the section is height-locked
+              (py-8), so the column is nudged down to clear the wordmark. */}
+          <div className="max-w-2xl xl:mt-16">
             {/* brand detail */}
             <div className="hero-brand flex items-baseline gap-3">
               <span className="font-jp text-[26px] font-bold tracking-tight text-accent md:text-[30px]">
@@ -209,8 +214,14 @@ export function Hero() {
               </svg>
             </div>
 
+            {/* sticker kicker */}
+            <div className="hero-fade mt-4 flex flex-wrap items-center gap-2.5">
+              <span className="sticker-badge">{COPY.hero.kicker}</span>
+              <span className="sticker-badge sticker-lilac">Friendship first</span>
+            </div>
+
             {/* headline */}
-            <h1 className="hero-heading mt-6 font-bold uppercase leading-[0.9] tracking-tight text-text-light md:mt-8"
+            <h1 className="hero-heading mt-4 font-bold uppercase leading-[0.9] tracking-tight text-text-light md:mt-5"
               style={{ fontSize: "clamp(2.5rem, 6.6vw, 5.4rem)" }}>
               <span className="hero-line block overflow-hidden">
                 <span className="hero-inner inline-block pb-[0.3em]">Meet people.</span>
@@ -222,7 +233,7 @@ export function Hero() {
                       Not
                     </span>
                     <svg className="hero-underline absolute -bottom-[0.2em] left-0 w-[0.9em] overflow-visible" viewBox="0 0 120 16" fill="none" aria-hidden="true">
-                      <path d="M5 11 C 22 4, 40 13, 58 9 S 92 5, 115 10" stroke="#E8634D" strokeWidth="7" strokeLinecap="round" />
+                      <path d="M5 11 C 22 4, 40 13, 58 9 S 92 5, 115 10" stroke="#C8FF00" strokeWidth="7" strokeLinecap="round" />
                     </svg>
                   </span>
                 </span>
@@ -233,19 +244,17 @@ export function Hero() {
             </h1>
 
             {/* supporting copy */}
-            <p className="hero-fade mt-4 max-w-md text-base leading-relaxed text-text-muted-light md:text-lg">
-              Small groups. Real activities.
-              <br />
-              Low-pressure connections.
+            <p className="hero-fade mt-4 max-w-md text-base font-semibold leading-relaxed text-text-light md:text-lg">
+              {COPY.hero.sub}
             </p>
-            <p className="hero-fade mt-3 max-w-md text-sm leading-relaxed text-text-muted-light/75 md:text-base">
-              The social app that gets you out of your phone and into the world.
+            <p className="hero-fade mt-3 max-w-md text-sm leading-relaxed text-text-muted-light/80 md:text-base">
+              {COPY.hero.subQuiet}
             </p>
 
-            <HeroCtas className="mt-9 hidden md:flex" />
+            <HeroCtas className="mt-7 hidden md:flex" />
 
             {/* social proof */}
-            <div className="hero-fade mt-10 flex items-center gap-3.5 md:mt-12">
+            <div className="hero-fade mt-8 flex items-center gap-3.5 md:mt-9">
               <div className="flex -space-x-2">
                 {SOCIAL.map((s) => (
                   <span
@@ -303,7 +312,15 @@ export function Hero() {
                         <div className="phone-realistic-screen">
                           <PhoneScreenUI />
                         </div>
-                        <div className="phone-side" />
+                        {/* Extruded flanks with their physical buttons */}
+                        <div className="phone-side-left">
+                          <span className="phone-btn phone-btn-mute" />
+                          <span className="phone-btn phone-btn-vol-up" />
+                          <span className="phone-btn phone-btn-vol-down" />
+                        </div>
+                        <div className="phone-side">
+                          <span className="phone-btn phone-btn-power" />
+                        </div>
                         <div className="phone-bottom" />
                       </div>
                     </div>
@@ -329,6 +346,22 @@ export function Hero() {
                 <span className="text-xs font-semibold whitespace-nowrap text-text-light" style={{ fontSize: `${p.sz - 2}px` }}>
                   {p.label}
                 </span>
+              </div>
+            ))}
+
+            {/* draggable stickers — desktop only, where there is room to toss them */}
+            {HERO_STICKERS.map((sticker) => (
+              // The wrapper owns the entrance animation so GSAP never fights the
+              // sticker's own drag transform.
+              <div
+                key={sticker.text}
+                className={`hero-fade absolute z-30 hidden lg:block ${sticker.pos}`}
+              >
+                <DraggableSticker
+                  text={sticker.text}
+                  tone={sticker.tone}
+                  tilt={sticker.tilt}
+                />
               </div>
             ))}
 

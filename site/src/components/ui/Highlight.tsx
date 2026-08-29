@@ -11,7 +11,7 @@ export function Highlight({ children }: { children: ReactNode }) {
         preserveAspectRatio="none"
         aria-hidden="true"
       >
-        <path d="M5 11 C 22 4, 40 13, 58 9 S 92 5, 115 10" stroke="#E8634D" strokeWidth="7" strokeLinecap="round" />
+        <path d="M5 11 C 22 4, 40 13, 58 9 S 92 5, 115 10" stroke="var(--color-accent)" strokeWidth="7" strokeLinecap="round" />
       </svg>
     </span>
   );

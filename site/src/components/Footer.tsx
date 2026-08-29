@@ -12,27 +12,32 @@ export function Footer() {
   const innerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const footerEl = ref.current;
     const inner = innerRef.current;
-    if (!inner || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!footerEl || !inner || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const tween = gsap.fromTo(
-      inner,
-      { yPercent: -35 },
-      {
-        yPercent: 0,
-        ease: "none",
-        scrollTrigger: {
-          trigger: ref.current,
-          start: "top bottom",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      }
-    );
+    const ctx = gsap.context(() => {
+      // Parallax curtain reveal: the inner block starts a third of the way up and
+      // settles into place exactly as the footer's bottom meets the viewport bottom
+      // (Awwwards scroll reference 66). Layout is untouched — only the transform moves.
+      gsap.fromTo(
+        inner,
+        { yPercent: -35 },
+        {
+          yPercent: 0,
+          ease: "none",
+          scrollTrigger: {
+            trigger: footerEl,
+            start: "top bottom",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        }
+      );
+    }, footerEl);
 
     return () => {
-      tween.scrollTrigger?.kill();
-      tween.kill();
+      ctx.revert();
     };
   }, []);
 
@@ -64,7 +69,7 @@ export function Footer() {
             <ul className="space-y-2.5">
               {["Privacy", "Terms", "Contact"].map((l) => (
                 <li key={l}>
-                  <span className="text-sm text-text-muted-light/50 cursor-default">{l}</span>
+                  <span className="text-sm text-text-muted-light hover:text-text-light cursor-pointer transition-colors">{l}</span>
                 </li>
               ))}
             </ul>
@@ -72,11 +77,11 @@ export function Footer() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-border-dark flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-text-muted-light/40">
+          <p className="text-xs text-text-muted-light">
             &copy; {new Date().getFullYear()} Atsumaru. All rights reserved.
           </p>
-          <p className="text-xs text-text-muted-light/30">
-            Built for the WeLive Appathon
+          <p className="text-xs text-text-muted-light">
+            Built for the WeLive Appathon · Tokyo &amp; Kansai
           </p>
         </div>
       </div>

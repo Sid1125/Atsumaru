@@ -4,6 +4,7 @@ import { Reveal } from "@/components/ui/Reveal";
 import { Highlight } from "@/components/ui/Highlight";
 import { Footprints, Soup, Gamepad2, Coffee, Home, Compass, MessageCircle } from "lucide-react";
 import { PHOTOS } from "@/lib/constants";
+import { matchColor } from "@/lib/match";
 
 function OnboardingScreen() {
   return (
@@ -31,9 +32,9 @@ function OnboardingScreen() {
         <div className="flex items-end gap-1.5 max-w-[55%]">
           <img src={PHOTOS.hiking} alt="" className="w-4 h-4 rounded-full object-cover shrink-0 mb-1" />
           <div className="bg-bg-dark rounded-2xl rounded-bl-sm p-3.5">
-            <div className="flex gap-1">
+            <div className="flex gap-1.5 items-center">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="w-1.5 h-1.5 rounded-full bg-text-muted-light animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                <span key={i} className="w-1.5 h-1.5 rounded-full bg-accent typing-dot" style={{ animationDelay: `${i * 200}ms` }} />
               ))}
             </div>
           </div>
@@ -78,7 +79,7 @@ function DiscoverScreen() {
             <div className="flex items-center gap-1.5">
               <Soup size={13} color="#F08A5D" className="shrink-0" />
               <p className="text-[10px] font-bold text-text truncate flex-1">Ramen & Retro Games</p>
-              <span className="text-[10px] font-bold text-accent">91%</span>
+              <span className="text-[10px] font-bold" style={{ color: matchColor(91) }}>91%</span>
             </div>
             <p className="text-[9px] text-text-muted">Shibuya · Sat 7 PM</p>
             <div className="mt-1 flex items-center gap-1">
@@ -97,7 +98,7 @@ function DiscoverScreen() {
             <div className="flex items-center gap-1.5">
               <Footprints size={13} color="#B98A2E" className="shrink-0" />
               <p className="text-[10px] font-bold text-text truncate flex-1">Weekend Hike</p>
-              <span className="text-[10px] font-bold text-accent">95%</span>
+              <span className="text-[10px] font-bold" style={{ color: matchColor(95) }}>95%</span>
             </div>
             <p className="text-[9px] text-text-muted">Mt. Takao · Sun 9 AM</p>
             <div className="mt-1 flex items-center gap-1">
@@ -168,9 +169,7 @@ const screens = [
 
 export function AppPreview() {
   return (
-    <section className="py-24 md:py-32 bg-bg relative overflow-hidden">
-      <div className="absolute inset-0 grid-pattern opacity-30" />
-
+    <section className="py-24 md:py-32 bg-bg relative overflow-hidden ambient-surface">
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8">
         <Reveal>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text leading-[0.95]">

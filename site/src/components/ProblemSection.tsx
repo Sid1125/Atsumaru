@@ -2,75 +2,91 @@
 
 import { Square, Gem, Circle } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
-import { Highlight } from "@/components/ui/Highlight";
+import { StickerArt } from "@/components/ui/StickerArt";
+import { COPY } from "@/lib/constants";
 
 const approaches = [
   {
     label: "Swipe",
     style: "photo-first · 1:1 · appearance",
+    desc: "Infinite deck, shallow signals, total burnout.",
     visual: Square,
-    color: "#A8A29E",
-    dim: true,
+    color: "#78716C",
+    isTarget: false,
   },
   {
     label: "Serious",
     style: "marriage · commitment · pressure",
+    desc: "Long forms, high stakes, the answer decided before you meet.",
     visual: Gem,
-    color: "#8B7EC8",
-    dim: true,
+    color: "#6D5DA8",
+    isTarget: false,
   },
   {
     label: "Atsumaru",
-    style: "gather first · shared interests · real activities",
+    style: "gather first · shared interests · real plans",
+    desc: "Small groups doing the thing you were already going to do.",
     visual: Circle,
-    color: "#E8634D",
-    dim: false,
+    color: "#FF432A",
+    isTarget: true,
   },
 ];
 
 export function ProblemSection() {
   return (
-    <section id="why" className="py-24 md:py-32 bg-bg">
+    <section id="why" className="ambient-surface relative overflow-hidden py-24 md:py-32 scroll-mt-24">
+      <StickerArt name="ramen" size={112} tilt={9} className="pointer-events-none absolute right-[4%] top-24 hidden lg:block" />
+      {/* Kept above the card row: at `top-[52%]` the Atsumaru tile covered it. */}
+      <StickerArt name="coffee" size={88} tilt={-12} className="pointer-events-none absolute right-[19%] top-[9%] hidden xl:block" />
+
       <div className="max-w-7xl mx-auto px-5 sm:px-8">
         <Reveal>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-text leading-[0.95] max-w-3xl">
-            Dating apps picked <Highlight>two extremes</Highlight>.
+            {COPY.problem.heading}{" "}
+            <span className="marker" style={{ ["--marker-color" as string]: "#FF432A" }}>
+              <span className="text-white">{COPY.problem.headingAccent}</span>
+            </span>
+            .
           </h2>
         </Reveal>
         <Reveal delay={0.15}>
           <p className="mt-6 text-lg md:text-xl text-text-muted max-w-2xl leading-relaxed">
-            Swipe-first meets hook-up culture. Marriage-focused meets high pressure.
-            Nobody owns the low-stakes, activity-first middle.
+            {COPY.problem.sub}
           </p>
         </Reveal>
 
         {/* Editorial comparison */}
         <div className="mt-16 md:mt-24">
-          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-10">
             {approaches.map((a, i) => (
               <Reveal key={a.label} delay={i * 0.12}>
-                <div className={`relative ${a.dim ? "opacity-50" : ""}`}>
-                  {a.dim && <div className="absolute -left-4 top-0 bottom-0 w-0.5 bg-border" />}
-                  {!a.dim && <div className="absolute -left-4 top-0 bottom-0 w-1 bg-accent rounded-full" />}
-
-                  <div className="pl-6">
-                    <span className="mb-4 block">
-                    <a.visual size={30} style={{ color: a.color }} />
-                  </span>
-                    <h3 className={`text-2xl md:text-3xl font-bold ${a.dim ? "text-text/40" : "text-text"}`}>
-                      {a.label}
-                    </h3>
-                    <p className={`mt-2 text-sm md:text-base ${a.dim ? "text-text-muted/50" : "text-text-muted"}`}>
-                      {a.style}
-                    </p>
+                <div
+                  className={`jiggle-hover h-full rounded-3xl p-7 ${
+                    a.isTarget
+                      ? "bg-white border-2 border-black shadow-[6px_8px_0_rgba(9,9,11,0.9)]"
+                      : "bg-surface/60 border border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <a.visual size={28} style={{ color: a.color }} aria-hidden="true" />
+                    {a.isTarget ? (
+                      <span className="tape-badge">The middle</span>
+                    ) : (
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-text-muted">
+                        Traditional
+                      </span>
+                    )}
                   </div>
 
-                  {!a.dim && (
-                    <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20">
-                      <span className="w-2 h-2 rounded-full bg-accent" />
-                      <span className="text-sm font-medium text-accent">The difference</span>
-                    </div>
-                  )}
+                  <h3 className={`text-2xl md:text-3xl font-bold ${a.isTarget ? "text-text" : "text-text/80"}`}>
+                    {a.label}
+                  </h3>
+                  <p className="mt-2 font-mono text-[11px] md:text-xs uppercase tracking-wide text-text-muted">
+                    {a.style}
+                  </p>
+                  <p className="mt-3 text-sm text-text-muted leading-relaxed">
+                    {a.desc}
+                  </p>
                 </div>
               </Reveal>
             ))}
@@ -80,3 +96,4 @@ export function ProblemSection() {
     </section>
   );
 }
+

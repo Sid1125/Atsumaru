@@ -2,6 +2,7 @@
 
 import { Soup, Gamepad2, Footprints, Home, Compass, Users, MessageCircle, Coffee } from "lucide-react";
 import { PHOTOS } from "@/lib/constants";
+import { matchColor } from "@/lib/match";
 
 function Avatar({ src, size = "h-5 w-5" }: { src: string; size?: string }) {
   return (
@@ -21,8 +22,7 @@ const CARDS = [
     iconColor: "#F08A5D",
     title: "Ramen & Retro Games",
     meta: "Shibuya · Sat 7 PM",
-    fit: "91%",
-    fitColor: "#E8634D",
+    fit: 91,
     thumb: PHOTOS.ramen,
     avatars: [PHOTOS.hiking, PHOTOS.cafe, PHOTOS.art, PHOTOS.music],
     slots: "5/6",
@@ -32,8 +32,7 @@ const CARDS = [
     iconColor: "#7A9E7E",
     title: "Board Game Night",
     meta: "Daikanyama · Fri 8 PM",
-    fit: "87%",
-    fitColor: "#7A9E7E",
+    fit: 87,
     thumb: PHOTOS.gaming,
     avatars: [PHOTOS.cafe, PHOTOS.art, PHOTOS.friends],
     slots: "4/5",
@@ -43,8 +42,7 @@ const CARDS = [
     iconColor: "#B98A2E",
     title: "Weekend Hike",
     meta: "Mt. Takao · Sun 9 AM",
-    fit: "95%",
-    fitColor: "#B98A2E",
+    fit: 95,
     thumb: PHOTOS.hiking,
     avatars: [PHOTOS.friends, PHOTOS.music, PHOTOS.photo],
     slots: "6/8",
@@ -121,8 +119,11 @@ export function PhoneScreenUI() {
               <div className="flex items-center gap-1">
                 <c.icon size={11} color={c.iconColor} className="shrink-0" />
                 <p className="min-w-0 flex-1 truncate text-[10px] font-bold text-text">{c.title}</p>
-                <span className="shrink-0 text-[10px] font-bold" style={{ color: c.fitColor }}>
-                  {c.fit}
+                <span
+                  className="shrink-0 text-[10px] font-bold"
+                  style={{ color: matchColor(c.fit) }}
+                >
+                  {c.fit}%
                 </span>
               </div>
               <p className="text-[8.5px] text-text-muted">{c.meta}</p>

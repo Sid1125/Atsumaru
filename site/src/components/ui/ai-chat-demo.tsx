@@ -24,12 +24,12 @@ function ThinkingDots() {
         <Sparkles className="w-4 h-4 text-accent animate-pulse" />
         <span className="text-sm font-medium">AtsumaruAI is thinking</span>
       </div>
-      <div className="flex gap-1">
+      <div className="flex gap-1.5 items-center">
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-accent/60 animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }}
+            className="w-1.5 h-1.5 rounded-full bg-accent typing-dot"
+            style={{ animationDelay: `${i * 200}ms` }}
           />
         ))}
       </div>
@@ -39,22 +39,24 @@ function ThinkingDots() {
 
 function TypingBubble({ text, onDone }: { text: string; onDone: () => void }) {
   const [displayed, setDisplayed] = useState("");
-  const charIdx = useRef(0);
 
   useEffect(() => {
-    charIdx.current = 0;
-    setDisplayed("");
+    let index = 0;
+    let timer: ReturnType<typeof setTimeout>;
 
     function tick() {
-      if (charIdx.current < text.length) {
-        charIdx.current++;
-        setDisplayed(text.substring(0, charIdx.current));
-        setTimeout(tick, 18 + Math.random() * 22);
+      if (index < text.length) {
+        index += 1;
+        setDisplayed(text.substring(0, index));
+        timer = setTimeout(tick, 18 + Math.random() * 22);
       } else {
-        setTimeout(onDone, 2000);
+        timer = setTimeout(onDone, 2000);
       }
     }
+
     tick();
+
+    return () => clearTimeout(timer);
   }, [text, onDone]);
 
   return (
@@ -64,7 +66,7 @@ function TypingBubble({ text, onDone }: { text: string; onDone: () => void }) {
       </div>
       <div className="text-sm text-white/90 leading-relaxed max-w-md">
         {displayed}
-        {charIdx.current < text.length && (
+        {displayed.length < text.length && (
           <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
         )}
       </div>
@@ -76,7 +78,7 @@ export function AIChatDemo() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   const [typingIdx, setTypingIdx] = useState<number | null>(null);
-  const [visible, setVisible] = useState(false);
+  // A ref, not state: the script loop polls it and nothing renders from it.
   const visibleRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,7 +99,6 @@ export function AIChatDemo() {
         entries.forEach((e) => {
           if (e.isIntersecting && !visibleRef.current) {
             visibleRef.current = true;
-            setVisible(true);
             io.disconnect();
           }
         });

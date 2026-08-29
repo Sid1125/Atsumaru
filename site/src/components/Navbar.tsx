@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { NAV_LINKS, SITE } from "@/lib/constants";
+import { SoundToggle } from "@/components/ui/SoundToggle";
+import { openWaitlistModal } from "@/components/WaitlistModal";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -23,14 +25,14 @@ export function Navbar() {
     <>
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-bg-dark/95 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.05)]"
+          ? "bg-bg-dark/95 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.06)]"
           : "bg-transparent"
       }`}>
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className={`flex items-center justify-between transition-all duration-500 ${scrolled ? "h-16" : "h-20"}`}>
             {/* Logo */}
-            <a href="#" className="flex items-baseline gap-2 group">
-              <span className="text-lg font-bold text-text-light tracking-tight">
+            <a href="#" className="flex items-baseline gap-2 group" aria-label="Atsumaru home">
+              <span className="text-lg font-bold text-text-light tracking-tight group-hover:text-accent transition-colors">
                 {SITE.name}
               </span>
               <span className="text-sm text-text-muted-light font-medium">
@@ -45,15 +47,20 @@ export function Navbar() {
                   {link.label}
                 </a>
               ))}
-              <a href="#cta" className="h-10 px-5 text-sm font-semibold rounded-full bg-accent-strong text-white hover:bg-accent-strong/90 transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-accent/20 inline-flex items-center">
+              <SoundToggle />
+              <button
+                type="button"
+                onClick={openWaitlistModal}
+                className="h-10 px-5 text-sm font-bold rounded-full bg-neon text-[#09090B] border-2 border-black shadow-[3px_4px_0_rgba(0,0,0,0.85)] hover:-translate-y-0.5 transition-all duration-200 inline-flex items-center cursor-pointer"
+              >
                 Get early access
-              </a>
+              </button>
             </div>
 
             {/* Mobile toggle */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden p-2 -mr-2 text-text-light"
+              className="md:hidden p-2 -mr-2 text-text-light cursor-pointer"
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
             >
@@ -79,11 +86,20 @@ export function Navbar() {
               {link.label}
             </a>
           ))}
-          <a href="#cta" onClick={() => setMobileOpen(false)} className="mt-4 h-12 px-8 text-base font-semibold rounded-full bg-accent-strong text-white">
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              openWaitlistModal();
+            }}
+            className="mt-4 h-12 px-8 text-base font-bold rounded-full bg-neon text-[#09090B] border-2 border-black shadow-[3px_4px_0_rgba(0,0,0,0.85)] cursor-pointer"
+          >
             Get early access
-          </a>
+          </button>
+          <SoundToggle className="mt-2" />
         </div>
       </div>
     </>
   );
 }
+
