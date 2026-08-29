@@ -56,6 +56,13 @@ edit to `schema.sql`, so a fresh project gets the same result in one paste. Post
 pgvector live in the `extensions` schema, not `public` — `search_path` already covers it,
 so unqualified `st_dwithin` resolves, but an explicit cast needs `extensions.vector`.
 
+New functions are invisible to PostgREST until its schema cache reloads. After a
+migration that adds one, run `notify pgrst, 'reload schema'` or the REST call 404s with
+`PGRST202` while the function plainly exists in Postgres.
+
+A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` pings
+`ping_keepalive()` once a day with the anon key. Keep the service-role key out of CI.
+
 ## Server conventions
 
 - Server imports use the `.js` extension (NodeNext ESM), even from `.ts` files.

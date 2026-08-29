@@ -1,0 +1,66 @@
+# Supabase free-tier projects pause after ~7 days of inactivity, and a paused project
+# has to be restored by hand before the API works again. One request a day keeps it
+# awake — that is all this does.
+#
+# Uses the anon key, which can call ping_keepalive() and nothing else: the function is
+# security definer and the table itself is revoked from anon (see
+# server/db/migrations/003_keepalive.sql). The service-role key deliberately stays out
+# of CI.
+#
+# Setup: repo Settings -> Secrets and variables -> Actions -> New repository secret
+#   SUPABASE_URL       https://<ref>.supabase.co
+#   SUPABASE_ANON_KEY  the anon / publishable key (safe here; RLS is deny-all)
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    # 03:17 UTC daily. Off the hour on purpose — the top of the hour is when every
+    # other scheduled job on GitHub fires, and busy minutes get delayed or dropped.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping the database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_ANON_KEY must be set as repository secrets."
+            exit 1
+          fi
+
+          # Three attempts with backoff: a cold project can take a few seconds to answer,
+          # and a single failed curl would otherwise look like a dead database.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o response.json -w "%{http_code}" \
+              --max-time 30 \
+              -X POST "${SUPABASE_URL}/rest/v1/rpc/ping_keepalive" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+              -H "Content-Type: application/json" \
+              -d '{}' || echo "000")
+
+            if [ "$code" = "200" ]; then
+              echo "Database is awake. $(cat response.json)"
+              exit 0
+            fi
+
+            echo "Attempt ${attempt} returned HTTP ${code}: $(cat response.json 2>/dev/null || echo no body)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 10))
+          done
+
+          echo "::error::Database did not respond after 3 attempts — it may be paused."
+          exit 1
