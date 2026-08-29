@@ -1,285 +1,270 @@
-# context.md — working context for the Atsumaru rewire
+# context.md — working context for the Atsumaru backend wiring
 
 > Purpose: a durable record of *why* this work is happening and *what* was decided, so a
 > fresh session (or a context reset mid-task) can resume without re-deriving anything.
 > `CLAUDE.md` = how to work in this repo. `TRACKER.md` = what is built. **This file = the
 > live state of the current task.**
 >
-> Started 2026-08-29. Update the Change Log section as work lands.
+> Started 2026-08-30. Update the Change Log section as work lands.
+>
+> The previous task (the mobile rewire, D1–D13) is finished and recorded in
+> `TRACKER.md` §2–3; its detail is in git history up to `d50d19e`. This file has been
+> replaced with the task now in flight.
 
 ---
 
 ## 1. The ask
 
-Analyze the React Native app, find why functionality is breaking, rewire it end to end,
-and run it on a Pixel 9 Android emulator. Document everything; keep context durable.
+Stand the backend up against a real Supabase project, fix whatever that exposes, get all
+three dev servers running, and push the work to `feat-backend-app` without opening a PR.
+Then keep the free-tier project from pausing.
+
+`TRACKER.md` §1 opened with "blocks everything else", and it was right: the API was
+code-complete, unit-tested, and had never once spoken to a database.
 
 ## 2. Environment (verified, not assumed)
 
 | Fact | Value |
 |---|---|
-| Repo root | `C:\Projects\Personal\Atsumaru\Atsumaru` |
-| Node / npm | v22.19.0 / 10.9.3 |
-| adb | `C:\Users\rcyas\AppData\Local\Android\Sdk\platform-tools\adb.exe` (not on PATH) |
-| Emulator | `emulator-5554`, `sdk_gphone16k_x86_64`, Android 17, Pixel-class AVD |
-| System Java | 1.8.0_51 — **too old for a native build**; Android Studio's JBR is the fallback |
-| Android SDK env | `ANDROID_HOME` / `ANDROID_SDK_ROOT` both unset |
-| `server/.env` | **does not exist** (only `.env.example`) |
-| `apps/mobile/.env` | did not exist; created by this task (gitignored) |
-| Mobile deps | installed (555 pkgs); `server/` and `site/` deps NOT installed |
+| Repo root | `C:\Users\saksh\Documents\Japan\Atsumaru` |
+| Branch | `feat-backend-app`, cut from `main` at `d50d19e` |
+| Node / npm | v22.14.0 / 11.7.0 |
+| Supabase project | `ucxgvtcqoeazuhsgwbhf`, `ap-northeast-1` (Tokyo), ACTIVE_HEALTHY |
+| Postgres access | Management API via `scripts/sql.mjs`; `current_user` = `postgres` |
+| `psql` | present but unused — `C:\Program Files\PostgreSQL\18\bin\psql.exe` (not on PATH) |
+| DB password | never set or retrieved; the Management API covers DDL without it |
+| Extensions | `postgis` 3.3.7, `vector` 0.8.2 — installed into `extensions`, not `public` |
+| `server/.env` | **created by this task** (gitignored) |
+| `apps/mobile/.env` | **created by this task**, `EXPO_PUBLIC_DEMO_MODE=0` |
+| Credentials | Supabase (URL + anon + service-role + `sbp_` management), HuggingFace, Groq, GitHub `ghp_` — all in `access_token.txt` (gitignored) |
+| Deps | all three packages installed (`server`, `apps/mobile`, `site`) |
+| Redis | intentionally absent — the in-process timer is the driver under test (see §4) |
+| OAuth | no LINE or Google credentials; `seed --tokens` mints real sessions instead |
 
-Baseline before changes: `tsc --noEmit` clean, `expo-doctor` 20/21 (only `expo`
-57.0.17 vs `~57.0.18` patch drift), `expo export --platform android` succeeded
-(1123 modules → 2.7 MB Hermes bytecode), Metro served a dev bundle over HTTP 200.
-**The app compiled and bundled fine before this work — the breakage is logical, not
-build-level.**
+Baseline before changes: `tsc` exit 0 on both packages, 29/29 unit tests passing. **Every
+test was pure logic — nothing in the suite touched a database, which is why all nine
+defects below survived it.**
 
 ## 3. Root causes found (evidence, not guesses)
 
-### D1 — Onboarding is structurally unreachable *(critical)*
-`RootNavigator` gates onboarding on `needsOnboarding = !!user && !user.handle`.
-But `schema.sql` declares `handle text unique not null`, and `GET /auth/me`
-(`server/src/modules/auth/routes.ts`) returns `{ user: null }` until onboarding writes
-the row. So a non-null user *always* has a handle → the condition is never true →
-`OnboardingStack` is dead code. A new user lands on `!user` → `AuthStack` → Login,
-forever.
-**Fix:** track authentication separately from profile completion. Signed-in +
-`user === null` ⇒ onboarding.
+Numbered B1–B9 to keep them distinct from the mobile task's D1–D13.
 
-### D2 — Nothing can persist a session token *(critical)*
-`useAuthStore.signIn(token, user)` is the only writer to SecureStore and requires a
-non-null `User`, which OAuth does not have for new accounts. It is called only from
-`LoginScreen`, which is stubbed to an `Alert`. `authApi.session()` exists and is
-correct but is never called, and no `atsumaru://auth` deep-link listener is registered.
-**Fix:** `signIn(token, user | null)` + a real deep-link OAuth hook.
+### B1 — `verifyOtp()` poisons the service-role client *(critical)*
+`session.ts:78` called `client.auth.verifyOtp()` on the singleton from `db()`.
+supabase-js resolves PostgREST's `Authorization` header through `auth.getSession()` and
+only falls back to the supabase key when no session is held; `persistSession: false`
+suppresses *storage*, not the in-memory session. So after the first successful login,
+every `db().from(...)` in the process sent that user's JWT — straight into the deny-all
+RLS in `schema.sql:306`. `auth.admin.*` kept working because it uses the key explicitly,
+which is why login itself looked fine. First visible symptom is in the same request:
+`profileOrNull()` returns null, so `is_new` is wrong for returning users.
+**Fix:** an isolated `authClient()` / `authDb()` for session minting. Same bug in
+`seed.ts printTokens()`.
 
-### D3 — `localhost` is wrong inside an Android emulator *(critical for the target device)*
-`src/config/env.ts` defaults to `http://localhost:4000`. In an emulator that resolves to
-the emulator itself; the host machine is `10.0.2.2`. Every REST call and the Socket.io
-handshake would fail on the Pixel 9 even against a healthy server.
-**Fix:** platform-aware default (`10.0.2.2` on Android) + `.env` override.
+### B2 — HuggingFace embeddings had never worked *(critical, silent)*
+`ai.ts:94` posted to `api-inference.huggingface.co`, which HuggingFace retired — the host
+has no A record, so curl exits 6. `embed()` therefore threw on every call ever made.
+Invisible because `onboarding/routes.ts:154` treats embed failure as non-fatal:
+onboarding completed, `preference_vector` stayed null, `cosine` returned 0, and every
+match score was capped at the **0.40** ceiling of the two remaining terms. The scoring
+engine looked alive and was inert.
+**Fix:** `router.huggingface.co/hf-inference/models/{model}/pipeline/feature-extraction`,
+drop the unsupported `options.wait_for_model`. Also added the missing `hasEmbeddings`
+flag and a `503 EMBEDDING_UNAVAILABLE`, since this was the one integration with no
+`has*` flag — contrary to the convention in `CLAUDE.md`.
 
-### D4 — Match score never reaches the event cards
-`EventCard` accepts a `matchScore` prop; `DiscoverScreen` never passes it, so the
-"91% group fit" figure required by `docs/DESIGN.md` §4 never renders on the list.
+### B3 — the pinned Groq model is decommissioned *(critical)*
+`GROQ_MODEL` defaulted to `llama-3.3-70b-versatile`, which is not among the 14 models the
+key can reach. Every `POST /onboarding/chat` would have 404'd.
+**Fix:** `openai/gpt-oss-120b` — same 131k context, honours
+`response_format: json_object`, and follows the reply-in-language instruction. Tested
+against the real `SYSTEM_PROMPT` contract in en and ja. `groq/compound` set `done: true`
+on turn one and `qwen/qwen3.8-27b` ignored the JSON contract, so neither is a substitute.
+Changed in `.env`, `.env.example`, and the `config/env.ts` default — the last one matters
+because copying the example file would otherwise reinstate the dead model.
 
-### D5 — `Message` type does not match the wire format
-Mobile types `event_id: string`; the server returns `event_id: string | null` alongside
-`connection_id: string | null` (one is always null — enforced by a CHECK constraint).
-DM messages therefore do not type-check against the shared `Message` shape.
+### B4 — `join_event` reported the wrong error for a full event
+Filling the last seat flips `status` to `full`, so the next joiner failed the
+`status <> 'open'` test *before* reaching the size test and got `EVENT_CLOSED` →
+409 "This meetup is closed" instead of "full". Found by actually racing two joiners; not
+visible from reading, because the ordering only matters at exactly capacity.
+**Fix:** capacity is the more specific condition, so it is tested first. A started
+meetup with room still correctly returns `EVENT_CLOSED`.
 
-### D6 — Whole surfaces missing
-No Connections list, no DM thread, no create-event screen, no settings/sign-out, no
-push-token registration, no `match:unlocked` celebration. `useConnections` and
-`connectionsApi` exist with nothing rendering them.
+### B5 — `typing` broadcasts into arbitrary rooms
+`socket/index.ts:124` forwarded a client-supplied `room_id` straight to `socket.to()`
+with no check. Any authenticated socket could emit into `group:{any_event}`,
+`dm:{any_connection}`, or `user:{any_user}` — presence spoofing into rooms the caller
+cannot otherwise touch. Every other socket handler checks membership.
+**Fix:** gate on `socket.rooms`, which only holds rooms that passed a membership check.
 
-### Found *during* emulator testing (not visible from reading the code)
+### B6 — feedback could be submitted before the meetup
+`POST /events/:id/feedback` never checked status or `start_time`, so a member could rate
+the group the moment it formed, collect the `+2` participation credit, and unlock a
+mutual 1:1 before anyone had met.
+**Fix:** `409 MEETUP_NOT_FINISHED` unless the derived status is `completed`.
 
-**D7 — `expo-notifications` crashes the app on launch in Expo Go.** Adding push
-registration with a static `import` took the whole app down with a redbox before any
-component mounted: Expo Go dropped Android remote push in SDK 53 and the module
-reports it through the global error handler, so neither a `try/catch` around the import
-nor one around a lazy `require()` contains it. **Fix:** check
-`Constants.executionEnvironment` first and never load the module in Expo Go.
-*Caught only by screenshotting — a redbox is not a logcat `FATAL`, so the log grep
-came back clean while the app was dead.*
+### B7 — mutual unlock re-fired on every resubmission
+The connections upsert always wrote `unlocked_at: new Date()` and unconditionally
+`emitToUser(..., "match:unlocked", ...)`. `firstSubmission` gated reputation and vector
+learning but not the unlock block, so repeated POSTs reset the timestamp and re-notified
+the other party indefinitely — the one non-idempotent path in an otherwise replay-proof
+route.
+**Fix:** read the pair first; an existing row is already-delivered.
 
-**D8 — Discover hangs on "Loading…" forever when the device has no GPS fix.**
-`getCurrentPositionAsync` *hangs* rather than rejects, so the existing `.catch()` never
-fired, `coords` stayed null, and `useNearbyEvents` (gated on `enabled: !!coords`) never
-ran. Reproduces on any emulator without a simulated location and on a phone indoors
-with a cold GPS. **Fix:** race the call against a 5s timeout, falling back to Shibuya.
+### B8 — schema gaps that RLS was assumed to cover
+`event_sizes` was not `security_invoker`, so it ran as its owner and would expose every
+event id and group size to the anon key — the single hole in an otherwise clean deny-all
+posture. Also: `messages.connection_id` had no foreign key (a bad id was silently
+storable, and deleting a connection orphaned its DMs), `push_tokens` had no primary key,
+and eight columns the sweep and connections list filter on were unindexed.
+**Fix:** `migrations/001_hardening.sql`, idempotent.
 
-**D9 — `VirtualizedList` nested inside a `ScrollView`.** The group chat `FlatList` sits
-inside `MeetupScreen`'s `ScrollView`; React Native warns because windowing and scroll
-handling both break. Pre-existing in `GroupChat` and inherited by `ChatThread`.
-**Fix:** `ChatThread` virtualizes only when it owns the screen (`fill`, i.e. DMs) and
-renders plain mapped rows when embedded.
+### B9 — the mobile app could not bundle at all
+`babel-preset-expo` was not declared anywhere, so Metro failed to construct a transformer
+and served nothing. `expo-constants` and `react-native-worklets` were imported in `src/`
+and `babel.config.js` but only resolved transitively through `expo`.
+**Fix:** all three declared explicitly in `apps/mobile/package.json`.
 
-**D10 — A completed meetup was unreachable.** `/events/nearby` correctly excludes
-finished meetups, and nothing else listed them — `/events/mine` and `eventsApi.mine()`
-existed with no caller. The only route in was the feedback push, which Expo Go cannot
-receive, so feedback was untestable and a real user who missed the notification had no
-way back. **Fix:** a "Your meetups" section on Discover, with completed ones flagged
-"Leave feedback".
+### Found *during* verification (not visible from reading the code)
 
-**D11 — DM composer read "Message your group…".** `ChatThread` reused the group
-placeholder for 1:1 threads. **Fix:** scope-aware placeholder addressed by handle.
+**B10 — PostgREST 404s on a new function until its cache reloads.** After
+`migrations/003` created `ping_keepalive()`, the REST call returned
+`404 PGRST202 "Could not find the function"` while the function plainly existed in
+Postgres. **Fix:** `notify pgrst, 'reload schema'` after any migration that adds one.
+*This will recur on every future function, so it is documented in `CLAUDE.md`.*
 
-## 4. Decision — demo mode (user-selected)
+## 4. Decisions
 
-No Supabase/Groq/OAuth credentials exist, so the real API 503s on every data route and
-the meetup loop cannot run. **Chosen approach: a toggleable offline demo layer** so the
-full loop runs on the emulator today, with all real wiring left intact and switching
-back on the moment credentials land.
+**Redis is deliberately off.** `jobs/index.ts` runs the identical `runSweep()` body under
+either driver, so the timer exercises the real logic. More importantly, `sweep.ts` stamps
+its idempotency columns *after* the side effect rather than atomically — with two drivers
+(the BullMQ worker plus the boot-time `sweepOnce()`) that races, and I would have been
+verifying the sweep while fighting that bug. One driver, deterministic. **The atomicity
+fix is a prerequisite for setting `REDIS_URL`**; it is written up in `TRACKER.md` §5 and
+was left unfixed on purpose rather than bundled in silently.
 
-**Contract for the demo layer — do not violate:**
-1. It sits *behind* `services/api/client.ts`, at the same seam the real client uses.
-   Screens and hooks stay unaware of it (`docs/RULES.md` §5: centralize API requests).
-2. It is a **stand-in for the server**, so it may implement server-side business logic
-   (match scoring, mutual unlock, reputation). It mirrors
-   `server/src/modules/matching/score.ts` rather than inventing a second model
-   (`docs/RULES.md` §7). No scoring logic ever moves into a component.
-3. It obeys every product rule: mutual-only unlock, private feedback, no `real_name`.
-4. `EXPO_PUBLIC_DEMO_MODE=0`/absent ⇒ the real axios path, byte for byte as today.
+**OAuth stays deferred.** `seed --tokens` mints genuine Supabase sessions through the
+admin API, so every authenticated route was verified without a provider. Only the
+provider redirect and the `atsumaru://auth` handoff remain unexercised.
+
+**Extensions go in `extensions`, not `public`.** Supabase convention; keeps several
+hundred PostGIS functions out of the table namespace. `search_path` already covers it, so
+unqualified `st_dwithin` resolves — but an explicit cast needs `extensions.vector`.
+
+**Migrations are numbered files *and* an edit to `schema.sql`.** So a fresh project comes
+up correctly from one paste, and the live project can be brought forward incrementally.
+`scripts/sql.mjs` runs DDL through the Management API, so neither needs the dashboard.
+
+**Only the anon key goes into CI.** The keepalive function is `security definer` with the
+table revoked from `anon`, so the workflow can call exactly one thing and read nothing.
 
 ## 5. How to run
 
 ```bash
-# emulator must already be running
-cd apps/mobile && npx expo start --android      # demo mode reads apps/mobile/.env
+npm run setup                      # server + apps/mobile; site needs its own install
+cd site && npm install
 
-ADB="$HOME/AppData/Local/Android/Sdk/platform-tools/adb.exe"
-"$ADB" devices                                  # expect emulator-5554
-"$ADB" reverse tcp:8081 tcp:8081                # if Metro is unreachable from the device
+npm run dev --prefix server        # API on :4000  — root `npm run server` proxies this
+npm run seed --prefix server -- --tokens   # 6 users, 4 Shibuya meetups, prints tokens
+cd apps/mobile && npx expo start   # Metro on :8081, DEMO_MODE=0 → hits the real API
+cd site && npm run dev             # :3000
+
+# DDL without the dashboard (env values are in access_token.txt)
+export SUPABASE_ACCESS_TOKEN=sbp_… SUPABASE_PROJECT_REF=ucxgvtcqoeazuhsgwbhf
+node scripts/sql.mjs -f server/db/migrations/001_hardening.sql
+node scripts/sql.mjs -c "select count(*) from events"
 ```
 
-Real (non-demo) mode additionally needs `server/.env` filled in, `server/db/schema.sql`
-pasted into Supabase, and `npm run server` — see `TRACKER.md` §1.
+On Windows curl the API as `http://127.0.0.1:4000`, not `localhost`.
 
 ## 6. Change log
-
-All paths relative to `apps/mobile/`.
 
 ### Defect fixes
 
 | File | Change |
 |---|---|
-| `src/config/env.ts` | Platform-aware host (`10.0.2.2` on Android) + blank-as-unset handling + `DEMO_MODE` flag. **Fixes D3.** |
-| `src/store/index.ts` | Added `isAuthenticated`, separate from `user`; `signIn` now accepts `user: User \| null`. **Fixes D2.** |
-| `src/features/auth/hooks/useSession.ts` | Returns `{ user, authenticated }`; a dead token falls back to signed-out instead of stranding a spinner. **Fixes D2.** |
-| `src/app/navigation/RootNavigator.tsx` | Three-way `stage` gate (`auth` / `onboarding` / `app`) replacing the impossible `!user.handle` test; registers the new screens; wires `linking` + push registration. **Fixes D1.** |
-| `src/types/api.ts` | `Message.event_id` and `.connection_id` are both nullable, matching the wire format. **Fixes D5.** |
-| `src/screens/Discover/DiscoverScreen.tsx` | Fetches per-event match previews via `useQueries` and passes `matchScore` to `EventCard`; adds Connections / Settings / Host entry points. **Fixes D4.** |
-| `src/services/api/events.ts` | `create()` accepts the `description` the server already supported. |
-| `src/features/notifications/usePushRegistration.ts` | Expo Go detected via `Constants.executionEnvironment`; the native module is never loaded there. **Fixes D7.** |
-| `src/screens/Discover/DiscoverScreen.tsx` | 5s race around `getCurrentPositionAsync`, falling back to Shibuya. **Fixes D8.** Restructured so the whole screen is one `FlatList` (header in `ListHeaderComponent`) — no nested scrollers. Adds the "Your meetups" section. **Fixes D10.** |
-| `src/components/chat/ChatThread.tsx` | Virtualizes only when it owns the screen; mapped rows when embedded. **Fixes D9.** Scope-aware composer placeholder. **Fixes D11.** |
-| `src/features/events/hooks/useEvents.ts` | `useMyEvents()` — first caller of `/events/mine`. |
-| `src/services/api/demo/world.ts` | World held on `globalThis` so Fast Refresh cannot desync it from the auth store. |
+| `server/src/db/supabase.ts` | `authClient()` added; the `supabase()` doc comment now states why session minting must never run on the singleton. **Fixes B1.** |
+| `server/src/db/queries.ts` | `authDb()` wrapper alongside `db()`. **Fixes B1.** |
+| `server/src/modules/auth/session.ts` | `verifyOtp` moved onto `authDb()`. **Fixes B1.** |
+| `server/scripts/seed.ts` | `printTokens()` mints each token on a fresh client instead of the shared one. **Fixes B1.** |
+| `server/src/services/ai.ts` | `embed()` on `router.huggingface.co`, `wait_for_model` dropped, `503 EMBEDDING_UNAVAILABLE` via `hasEmbeddings`. **Fixes B2.** |
+| `server/src/config/env.ts` | `hasEmbeddings` flag; `GROQ_MODEL` default → `openai/gpt-oss-120b`. **Fixes B2, B3.** |
+| `server/.env.example` | Groq model updated with a note not to reinstate the dead one. **Fixes B3.** |
+| `server/db/migrations/002_…sql` + `server/db/schema.sql` | `join_event` tests capacity before status. **Fixes B4.** |
+| `server/src/socket/index.ts` | `typing` gated on `socket.rooms`. **Fixes B5.** |
+| `server/src/modules/feedback/routes.ts` | `409 MEETUP_NOT_FINISHED` unless derived status is `completed`. **Fixes B6.** Existing connections read before upsert, so no re-stamp and no re-notify. **Fixes B7.** |
+| `server/db/migrations/001_hardening.sql` | `security_invoker` on `event_sizes`, FK on `messages.connection_id`, PK on `push_tokens`, 8 indexes, pinned RPC `search_path`. **Fixes B8.** |
+| `apps/mobile/package.json` | `babel-preset-expo`, `expo-constants`, `react-native-worklets` declared. **Fixes B9.** |
 
-### New wiring (D6)
-
-| File | Purpose |
-|---|---|
-| `src/features/auth/hooks/useOAuthLogin.ts` | **new** — opens the provider, catches `atsumaru://auth?code=…`, trades the code via `POST /auth/session`. Guards against double-claiming a code. |
-| `src/app/navigation/linking.ts` | **new** — deep-link map for the `atsumaru://` scheme. |
-| `src/features/notifications/usePushRegistration.ts` | **new** — best-effort Expo push registration; every failure path is a no-op. |
-| `src/features/chat/hooks/useLiveThread.ts` | **new** — REST history + realtime merge, dedupe by id, used by both chat surfaces. |
-| `src/components/chat/ChatThread.tsx` | **new** — the shared chat component; **`components/chat/GroupChat.tsx` was deleted**, superseded by this. |
-| `src/screens/Connections/ConnectionsScreen.tsx` | **new** — mutual connections list. |
-| `src/screens/Connections/DmScreen.tsx` | **new** — 1:1 thread. |
-| `src/screens/Settings/SettingsScreen.tsx` | **new** — language override → `PATCH /users/me`, sign-out, reputation. |
-| `src/screens/Events/CreateEventScreen.tsx` | **new** — FR-13 host flow. |
-| `src/services/api/users.ts` | **new** — `me` / `byId` / `updateMe`. |
-| `src/services/api/errors.ts` | **new** — `ApiError` extracted so client ↔ demo is not a cycle. |
-| `src/screens/Meetup/MeetupScreen.tsx` | `match:unlocked` handler + celebration + route into the DM; uses `ChatThread`. |
-| `src/components/feedback/FeedbackPanel.tsx` | Celebration state with a "Start chatting" CTA; the no-unlock branch still reveals nothing. |
-| `src/screens/Auth/LoginScreen.tsx` | Real OAuth via `useOAuthLogin`; the `Alert` stub is gone. |
-| `src/i18n/locales/{en,ja,zh}.json` | +21 keys each (`common.send`, `auth.demoNote`, `meetup.chatEmpty`, `feedback.thanksTitle`, `connection.*`, `settings.*`, `createEvent.*`). **77 keys, all three in parity.** |
-
-### Demo layer
+### New wiring
 
 | File | Purpose |
 |---|---|
-| `src/services/api/demo/world.ts` | **new** — seeded world mirroring `server/scripts/seed.ts`: 6 users, 4 Shibuya meetups (open / nearly-full / ongoing / completed), chat history. Mutable in-session state. |
-| `src/services/api/demo/index.ts` | **new** — the request router: every endpoint the app calls, matching `docs/API_STRUCTURE.md` §3 response shapes. Holds the server-side logic (scoring, mutual unlock). |
-| `src/services/api/client.ts` | One branch at the transport seam: `DEMO_MODE` → `demoRequest`, else axios. Everything above it is unchanged. |
-| `src/services/socket/index.ts` | Demo transport for realtime — same exported surface, local emitter instead of socket.io; persists before broadcasting, like the server. |
-| `.env` | **new** (gitignored) — `EXPO_PUBLIC_DEMO_MODE=1`. |
+| `scripts/sql.mjs` | **new** — runs SQL against the project through the Management API, so migrations need no dashboard trip. |
+| `server/db/migrations/` | **new** — numbered migrations; `001` hardening, `002` join ordering, `003` keepalive. |
+| `server/db/migrations/003_keepalive.sql` | **new** — `keepalive` table + `security definer` `ping_keepalive()`, granted to `anon` with the table revoked. |
+| `.github/workflows/keepalive.yml` | **new** — one ping a day at 03:17 UTC (off the hour on purpose: busy cron minutes get delayed or dropped), 3 attempts with backoff, plus `workflow_dispatch`. |
+| `server/.env` | **new** (gitignored) — all four integrations. |
+| `apps/mobile/.env` | **new** (gitignored) — `EXPO_PUBLIC_DEMO_MODE=0`; URLs left blank so `config/env.ts` keeps choosing `10.0.2.2` on Android. |
+| `apps/mobile/.env.example` | URLs blanked with the emulator reasoning; `DEMO_MODE` documented (it was missing entirely). |
+| `access_token.txt` | **new** (gitignored, added to `.gitignore` *before* being written) — every credential, annotated with which are secret and what to rotate. |
+| GitHub repo secrets | `SUPABASE_URL`, `SUPABASE_ANON_KEY` set via the Actions API. |
 
-**Onboarding hand-off in demo mode:** completing onboarding adopts the new user into
-`e-ramen-retro` (upcoming, for group chat) and `e-cafe-crawl` (completed, for feedback),
-and pre-seeds `@harucafe`'s reciprocal pick — so the first honest feedback submission
-produces a *real* mutual unlock rather than a scripted one.
+### Documentation
 
-## 6b. UI revamp (Apple design) — 2026-08-29
-
-Applied the `apple-design` skill (WWDC *Designing Fluid Interfaces* / *Details of UI
-Typography* / *Principles of Great Design*), translated from its web framing to RN:
-springs → Reanimated, `backdrop-filter` → `expo-blur`, Pointer Events →
-`react-native-gesture-handler`, plus `expo-haptics` for the multimodal rule.
-
-**New dependencies** (all Expo Go compatible — no dev build needed):
-`react-native-reanimated` 4.5.1, `react-native-gesture-handler` 2.32.0,
-`react-native-svg` 15.15.4, `expo-blur`, `expo-haptics`, `expo-linear-gradient`.
-Reanimated 4 compiles worklets through `react-native-worklets`, which needs
-`babel.config.js` with `react-native-worklets/plugin` **last** — the project had no
-babel config at all before this.
-
-### Design system (`src/theme/`)
-
-| File | What it establishes |
+| File | Change |
 |---|---|
-| `tokens.ts` | Semantic colours (screens never touch the raw palette), 4pt spacing scale, radii, and a three-step elevation ramp where bigger surfaces read as thicker. |
-| `typography.ts` | A 12-role scale where **tracking and leading are size-specific** — negative tracking on display sizes, positive on caption. The old scale had no tracking at all, which is what made the app read as stock React Native. |
-| `motion.ts` | Apple's **damping + response** parameters converted to Reanimated's mass/stiffness/damping, so animations are specified as a designer would state them. Also the momentum-projection and rubber-band functions, and `useReducedMotion`. |
-
-### The map (`src/components/map/`)
-
-Replaces the dashed "needs a dev build" placeholder — the least finished thing in the
-app — with a hand-authored vector city.
-
-- `geo.ts` — lat/lng → world projection, plus a generated street network (arterials and
-  secondaries hand-placed; the residential grid is generated with seeded jitter, because
-  a regular grid reads as graph paper). Districts, parks, a river and a rail corridor.
-- `MapCanvas.tsx` — the static SVG art. Roads are drawn as a casing stroke plus a
-  lighter fill stroke, which is what makes vector lines read as *roads*. Memoised and
-  never re-rendered during gestures: the gesture layer transforms the container, so
-  panning stays on the compositor.
-- `InteractiveMap.tsx` — 1:1 pan, pinch-to-zoom about the focal point, double-tap
-  anchored to the tap, momentum projection into a velocity-handed-off spring,
-  rubber-banded edges, independent X/Y springs, and a camera that frames the annotations.
-- `MapPin.tsx` — pins **counter-scale against zoom** so they stay readable and tappable
-  at every zoom level, grow up-and-out toward the finger on selection, and carry a
-  callout. Map ↔ list selection stay in sync in both directions.
-
-### Bugs found by building it
-
-**D12 — disabled buttons rendered as enabled.** `PressableScale` wrote `opacity` on
-every frame, silently overriding the `opacity: 0.45` the Button set for its disabled
-state (the animated style merges last). Compounded on the emulator, which reports
-reduce-motion on. **Fix:** the press animation no longer emits `opacity` unless it owns
-it, *and* the disabled state is expressed in colour rather than opacity — a state that
-important should not depend on which style merges last.
-
-**D13 — map framing was silently clamped.** Vertical pan limits were measured against
-the full view height while the bottom ~45% sits behind the sheet, so the world could
-barely move vertically and any attempt to frame content in the visible band was clamped
-away. **Fix:** bounds measure against the sheet's deepest exposure, and the fit centres
-within the band *below the floating chrome* rather than from y=0.
+| `CLAUDE.md` | Database section (project ref, migration discipline, `extensions` schema, the PostgREST cache reload, keepalive); `scripts/sql.mjs` commands; the `verifyOtp` prohibition; a note that third-party endpoints and model ids drift silently; `EMBEDDING_UNAVAILABLE` in the degradation list; "Not implemented" rewritten now that the backend is verified. |
+| `TRACKER.md` | §1 closed with the assertion list; §1b (10 defects found by running it) and §1c (keepalive) added; sweep atomicity, non-transactional `POST /events`, and the leave-dodges-penalty gap added to §5; known-gaps table corrected — push has never delivered, and the demo layer's `/users/:id` hole is recorded. |
 
 ## 7. Verification log
 
 | Check | Result |
 |---|---|
-| `npx tsc --noEmit` | exit 0 after the rewire |
-| Demo-layer smoke test (20 assertions, headless) | all passed — onboarding extraction, handle collision, discovery, match preview, join, chat paging, feedback, **exactly one mutual unlocked**, **non-mutual pick absent from the response**, DM round-trip |
-| i18n parity | en/ja/zh = **84 keys each**, no missing, no extra |
+| `npm run typecheck` | exit 0 — server and mobile |
+| `npm test` | 29/29 passing |
+| `cd site && npm run build` | clean; 4 static pages, TypeScript 8.5s |
+| Metro bundle, `platform=android`, `DEMO_MODE=0` | **1782 modules**, 9.85 MB, no compile errors; every screen present |
+| Seeded state | 6 users (**6/6 with a 384-dim `preference_vector`**), 4 events, 14 members, 4 messages, 3 feedback rows |
 
-### Emulator run — Pixel_9 (`emulator-5554`, Android 17), Expo Go, demo mode
+### Live API — 54 assertions, all passing
 
-Bundle: 1327 modules, no errors. Every step below was confirmed by screenshot, not by
-log absence (see D7 — a redbox does not appear in logcat).
+Run against the real project with tokens from `seed --tokens`, then reset to a clean
+demo world and the harness deleted.
 
-| Step | Result |
+| Group | Result |
 |---|---|
-| Launch | Login renders; demo note shown |
-| Sign in | Loading state on the tapped provider, the other disabled; session minted |
-| Route to onboarding | **Reached AI chat — the D1 fix.** Also verified on relaunch: token present + profile absent → onboarding, where the old build showed Login forever |
-| AI chat | 3 turns, follow-ups in the user's language, extraction from free text (`hiking`, `coffee`, `board games`, `retro games`, `chill`) |
-| Handles | Suggestions generated from interests; `@trailbrew` reads as taken; debounced availability check shows "Available"; CTA disabled until a handle is picked |
-| Complete | Profile created, routed to Discover |
-| Location | One-shot foreground prompt only — no background request |
-| Discover | 3 nearby meetups, finished one correctly excluded, **group-fit % on every card (the D4 fix)**, map placeholder as designed |
-| Your meetups | Both adopted meetups listed; completed one flagged "Leave feedback" (the D10 fix) |
-| Meetup | Members, 35% fit, why-reasons, join/leave, seeded group chat |
-| Feedback | Self excluded; emoji ratings carry text labels (`docs/DESIGN.md` §10); privacy note; submit gated on a rating |
-| **Mutual unlock** | Rated 🔥/🙂 and picked **two** people, only one reciprocated → **exactly one unlock; the non-mutual pick appears nowhere in the UI** (`docs/RULES.md` §9) |
-| DM | Opened from the celebration CTA, header `@harucafe`, message sent and rendered with timestamp |
-| Final state | Zero JS errors, zero fatals in logcat |
+| Auth & profile (3) | `/auth/me` returns the profile; **`real_name` absent**; unauthenticated → 401 |
+| PostGIS discovery (4) | 3 open meetups at Shibuya, finished one excluded, `location` nested, Osaka radius empty — the filter is real, not incidental |
+| Match preview (4) | score **0.47–0.82**, reasons in the member's language. **Above the 0.40 no-vector ceiling, which is the proof embeddings reach the score** |
+| `/events/mine` (2) | includes completed meetups, which `nearby` excludes |
+| Membership gates (1) | non-member reading group chat → 403 `NOT_A_MEMBER` |
+| Feedback gate (1) | unfinished meetup → 409 `MEETUP_NOT_FINISHED` (B6) |
+| **Join row lock (7)** | two simultaneous joins for one seat → **exactly one 200 `matched`, one 409 `EVENT_FULL`**; `current_size` never exceeded `max_size`; event flipped to `full` |
+| **Mutual unlock (7)** | 2 of 3 picks reciprocated → **exactly 2 connections, the non-mutual pick absent from the response** (`docs/RULES.md` §9); form excludes self |
+| **Unlock idempotency (3)** | resubmitting left `unlocked_at` byte-identical, same ids, no duplicates (B7) |
+| DM privacy (4) | send 201, paging envelope returned, **non-participant → 403 `NO_CONNECTION`** |
+| Groq onboarding (8) | live chat in **en and ja** (`ラーメンとレトロゲーム、素敵ですね！…`), handle suggest/check, rate limiter never 500s |
+| **Sweep (8)** | 90-min rewind → reminder stamped, settlement correctly withheld; second sweep silent; 3-hour rewind → **5/5 ghosts docked exactly 2 points**, stamped, event closed; fourth sweep changed nothing |
 
-**Known limitation:** the `atsumaru://` deep link does not route in Expo Go (custom
-schemes need a dev build), so the push-notification path into feedback could not be
-exercised on-device. "Your meetups" is the tested route in. `linking.ts` is wired and
-should be re-verified in a dev build.
+### Dev servers
+
+| Service | Result |
+|---|---|
+| API `:4000` | `{"status":"ok","supabase":true,"groq":true,"oauth":{"line":false,"google":false}}` |
+| Metro `:8081` | HTTP 200, bundles the app against the real API |
+| Site `:3000` | HTTP 200 |
+| Keepalive workflow | ran the workflow's exact shell body locally against the live project — `ping_count` incremented, exit 0; anon can call the function but **cannot read the table** (401) |
+
+**Known limitations.** Push has never actually delivered: Expo Go dropped Android remote
+push and `app.json` has no `extra.eas.projectId`, so no token can be minted — the sweep's
+reminder branch is verified only as far as `pushTargets` returning zero devices. The
+mobile loop has been walked on-device in *demo* mode only; the app bundles against the
+real API but has not been driven through it on an emulator. OAuth remains unexercised.
+
+**Housekeeping.** The `sbp_` management token is account-wide across 9 projects and the
+`ghp_` token carries `admin:enterprise` and `delete:packages` for what only needed
+`Contents:write`; both, plus the service-role key, passed through a chat transcript and
+should be rotated. The commit diff was scanned for all four token prefixes (0 matches),
+and the push URL credential was stripped from `.git/config` afterwards.
