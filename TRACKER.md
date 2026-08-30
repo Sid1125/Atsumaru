@@ -12,7 +12,10 @@ Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All thr
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
 (`next build` clean). The mobile app has since been walked end to end on a **Pixel 10a
 emulator** in Expo Go, demo mode (§1d) — the loop holds; the defects that run surfaced
-are listed there, and the security review of the backend push is in §5.
+are listed there, and the security review of the backend push is in §5. The loop was then
+driven **live against the real API** (§1b OAuth box, `context.md` §8): Google sign-in →
+onboarding → discovery → feedback → **real mutual connection** → DM thread, all
+`DEMO_MODE=0`.
 
 ## Done
 
@@ -46,9 +49,9 @@ are listed there, and the security review of the backend push is in §5.
 
 ### Auth (docs/TRD.md §5, §17 — OAuth only, no OTP)
 
-- [~] LINE + Google bridge: HMAC-signed `state` + nonce, code exchange, `id_token` verified provider-side
-- [~] Supabase session minted through admin `generateLink` + `verifyOtp`; identities in `oauth_identities`
-- [~] Deep-link handoff: `?redirect_to=app` → one-time code → `POST /auth/session` (tokens never in a URL)
+- [x] Google bridge — exercised end-to-end on the emulator via Expo Go + ngrok + `exp://` handoff (2026-08-30; `context.md` §8). LINE half still [~]: bridge written, no channel
+- [x] Supabase session minted through admin `generateLink` + `verifyOtp`; identities in `oauth_identities` — Google run produced the user + `oauth_identities` row (Supabase logs)
+- [~] Deep-link handoff: `?redirect_to=app` → one-time code → `POST /auth/session` (tokens never in a URL) — `exp://` variant walked; `atsumaru://` variant still needs a dev build
 - [~] `logout` revokes upstream; `503` when a provider is unconfigured
 - [x] State signing, tamper, expiry, and handoff single-use covered by tests
 
@@ -201,12 +204,13 @@ Defects found on device:
 ### 1e. Independent re-verification with `server/.env`, 2026-08-30
 
 `server/.env` landed, so everything that needed live credentials was re-run from a clean
-process. Configured: Supabase, Groq, HuggingFace. Still empty: both OAuth providers and
-`REDIS_URL`.
+process. Configured then: Supabase, Groq, HuggingFace. Still empty then: both OAuth
+providers and `REDIS_URL`. **Google creds landed later that day and the full Google flow
+was walked live (see §1b checkbox + `context.md` §8); LINE and `REDIS_URL` remain empty.**
 
 - [x] Boot: `supabase:true, groq:true, oauth:{line:false,google:false}`, timer driver
       selected ("set REDIS_URL for BullMQ"), and the boot sweep ran — `1 completed,
-      0 reminders, 0 settled`
+      0 reminders, 0 settled` *(at this point; health now reports `google:true`)*
 - [x] `GET /api/auth/google` with no credentials → `503 AUTH_PROVIDER_UNAVAILABLE`
 - [x] `npm run seed -- --tokens`: 6 users, all six **with vector**, 4 meetups. Idempotent
       re-run (find-by-title then update) — no duplicate rows
@@ -254,9 +258,9 @@ New defects this run surfaced:
       `"socket smoke test"` message on Morning Trail Run, plus an
       `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. `npm run seed -- --reset`
       clears them along with all demo data
-- [ ] Still unexercised, and still needs provider credentials: the `verifyOtp` /
-      `authDb()` path in `modules/auth/session.ts`. `seed --tokens` mints sessions through
-      the same helper, but the API process itself only runs it during an OAuth callback
+- [x] `verifyOtp` / `authDb()` path in `modules/auth/session.ts` — exercised live by the
+      Google OAuth callback (2026-08-30): provider identity created, session link generated,
+      `oauth_identities` row written (Supabase logs + live user). LINE would reuse the same path
 
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
@@ -381,6 +385,6 @@ premium tier.
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
 | Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
 | Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right settings gear, so Settings cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
-| Mobile loop against the real API | The backend is proven and the app bundles against it (1782 modules, `DEMO_MODE=0`), but every on-device walkthrough so far — including the Pixel 10a run in §1d — has been in demo mode. Still needs a run with `DEMO_MODE=0` against `:4000` |
+| Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain
 | `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. See §5 |
 
