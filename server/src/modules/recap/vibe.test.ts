@@ -35,6 +35,13 @@ test("traits are normalised, and a repeat on one member counts once", () => {
   assert.deepEqual(summary.liked, ["coffee"]);
 });
 
+test("a single good still names the trait — weight 1 clears the MIN threshold", () => {
+  const summary = traitsFromRatings([{ rating: "good", traits: ["ramen"] }]);
+
+  assert.deepEqual(summary.liked, ["ramen"]);
+  assert.deepEqual(summary.cooled, []);
+});
+
 test("meh pushes a trait into cooled rather than liked", () => {
   const summary = traitsFromRatings([
     { rating: "meh", traits: ["karaoke"] },

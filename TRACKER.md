@@ -6,7 +6,7 @@ Legend: `[x]` done and verified · `[~]` code complete, not verified against a l
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 29/29 passing, and **the backend proven against a live Supabase project**
+`npm test` 49/49 passing, and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -39,7 +39,14 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 - [~] Feedback: private ratings, reputation deltas, preference-vector learning, mutual-only unlock, replay-proof
 - [x] Vibe recap: `GET /events/:id/recap` — per-user Groq recap of the caller's own ratings,
       cached in `meetup_recaps`, deterministic template fallback in en/ja/zh. **Verified
-      live 2026-08-30** (10/10 assertions, both the `ai` and `template` paths)
+      live 2026-08-30** (10/10 assertions, both the `ai` and `template` paths). Brute pass
+      same day: rate-limit flood (cap 10/hr exact, 11th call → template), 8-way concurrency
+      (byte-identical `created_at`, exactly one row), RLS deny-all, gate
+      401/403/409/404 — see `context.md` §11. Edge pass same day (fresh live harness,
+      deleted after): mixed fire+meh stores only the liked bucket and the text never names
+      a meh member's traits; all-fire bucket is alphabetical top-3; feedback added *after*
+      a recap is generated is invisible to later reads (cache-first wins; the recap never
+      changes — by design)
 - [~] Connections: mutual-only list, participants only
 - [~] Socket.io: `group:*`, `dm:*`, `member:joined`, `match:unlocked`, `typing`, `user:{id}` room; membership checked, persist-before-broadcast
 
@@ -390,15 +397,19 @@ JWT-shaped literals anywhere.
       `join_event`
 - [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
       completed meetup and escape the ghost penalty before `settle()` runs
-- [ ] **All-meh recap inverts the caller's dislikes into a compliment.** A member who
-      rates everyone `meh` gets `liked: []` but the AI path still runs — `vibeRecap`
+- [x] **All-meh recap inverts the caller's dislikes into a compliment.** A member who
+      rates everyone `meh` gets `liked: []` but the AI path still ran — `vibeRecap`
       sees the `cooled` traits in `recapPrompt`, and the system prompt's "never say
       anyone was rated negatively" leaves the model nothing to write about except the
       very traits the caller disliked. Live proof (flood test 2026-08-30): sotaruns
       rated three members `meh` on Morning Trail Run and received "あなたはアウトドアで、
       活動的でボードゲーム好き、そしてリラックスした雰囲気の人と仲良くなれました。"
       The template path already handles this (`quiet` when `liked.length === 0` in
-      `templateRecap`), so the fix is to skip the AI branch on an empty `liked` list
+      `templateRecap`). **Fix (2026-08-30, `modules/recap/routes.ts`):** skip the AI
+      branch on an empty `liked` list (`summary.liked.length > 0 && recapLimiter.take(userId)`),
+      which also stops an all-meh member from burning the generation cap. Re-verified
+      live after the edit: all-meh member → `source:"template"`, `traits: []`, the quiet
+      Japanese sentence; harness rows deleted, DB restored
 - [x] `connections/routes.ts:32` interpolates `userId` into a PostgREST `.or()` filter.
       Safe today (it is a UUID off the verified JWT); defence-in-depth only
 - [x] **AI surface, stated exactly.** GROQ has two jobs — the onboarding chat and the
