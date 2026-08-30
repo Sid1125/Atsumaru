@@ -1,13 +1,16 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-08-29.
+Status of the build against `docs/`. Updated 2026-08-30.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 29/29 passing, API boots in four configurations (no provider, fake Supabase,
-unreachable Redis, fake LINE credentials).
+`npm test` 29/29 passing, and **the backend proven against a live Supabase project**
+(`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
+Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
+servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
+(`next build` clean).
 
 ## Done
 
@@ -62,15 +65,79 @@ unreachable Redis, fake LINE credentials).
 
 ## To do
 
-### 1. Prove the backend against a real project (blocks everything else)
+### 1. Prove the backend against a real project — DONE 2026-08-30
 
-- [ ] Create the Supabase project, fill `server/.env`, paste `server/db/schema.sql`
-- [ ] `npm run seed -- --tokens`, then hit `/events/nearby` with a printed token — expect four meetups, the past one `completed`
-- [ ] Confirm `join_event` under two concurrent joiners: exactly one gets the last seat
-- [ ] Rewind an event's `start_time` by 90 minutes and run one sweep: reminder stamped, second sweep silent
-- [ ] Confirm a ghost drops 2 points exactly once (`reputation_settled_at`)
-- [ ] Walk Google OAuth end to end; then LINE once a channel exists
-- [ ] Optional: set `REDIS_URL` (Upstash) and confirm the BullMQ driver takes over
+Supabase project `ucxgvtcqoeazuhsgwbhf` (`ap-northeast-1`). PostGIS 3.3.7 and pgvector
+0.8.2 installed into the `extensions` schema, `schema.sql` applied, two migrations on
+top (`server/db/migrations/`). DDL runs through `scripts/sql.mjs` against the Management
+API, so re-applying needs no browser.
+
+- [x] Supabase project created, `server/.env` filled, `schema.sql` applied — 8 tables,
+      RLS on all 8, 5 RPCs
+- [x] `npm run seed -- --tokens`, then `/events/nearby` with a printed token — 3 open
+      meetups returned, the finished one correctly excluded, Osaka radius empty
+- [x] `join_event` under two concurrent joiners: exactly one gets the last seat
+      (1 × 200 `matched`, 1 × 409 `EVENT_FULL`, `current_size` never exceeded `max_size`)
+- [x] Rewound `start_time` 90 minutes and swept: reminder stamped, settlement correctly
+      withheld until 2h, second sweep silent
+- [x] Ghosts drop 2 points exactly once — 5/5 members docked, `reputation_settled_at`
+      stamped, a fourth sweep changed nothing
+- [x] Mutual-only unlock: 2 of 3 picks reciprocated → exactly 2 connections, the
+      non-mutual pick absent from the response; resubmitting did not rewrite
+      `unlocked_at` or re-notify
+- [x] DM round-trip over REST with the paging envelope; a non-participant gets 403
+- [x] Groq onboarding chat live, in English and Japanese; handle suggest/check working
+- [x] pgvector round-trip: all 6 seeded users have a 384-dim `preference_vector`, and
+      match scores land at 0.47–0.82 (a null vector caps the score at 0.40)
+- [ ] Walk Google OAuth end to end; then LINE once a channel exists — still deferred,
+      `seed --tokens` covers authenticated routes without a provider
+- [ ] Optional: set `REDIS_URL` (Upstash) and confirm the BullMQ driver takes over.
+      **Blocked on the sweep atomicity issue below** — two drivers can currently
+      double-notify
+
+### 1c. Keeping the free-tier project alive
+
+Supabase pauses a free project after ~7 days of inactivity, and restoring it is a manual
+dashboard action — which would silently break every demo.
+
+- [x] `keepalive` table + `ping_keepalive()` RPC (`migrations/003`). `security definer`,
+      so the anon key can call the function while the table itself stays revoked from
+      `anon` — the deny-all RLS posture is unchanged
+- [x] `.github/workflows/keepalive.yml` — one request a day at 03:17 UTC, three attempts
+      with backoff, plus `workflow_dispatch` for a manual run. Verified locally with the
+      exact CI script: `ping_count` incremented, exit 0
+- [x] Repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY` set. **Only the anon key is in
+      CI** — the service-role key never leaves `server/.env`
+
+### 1b. Found by running it (fixed)
+
+Every one of these was invisible without live credentials.
+
+- [x] `verifyOtp()` ran on the shared service-role client, so after the first login every
+      PostgREST query carried that user's JWT into the deny-all RLS. Session minting now
+      uses an isolated client (`db/supabase.ts` `authClient()`); same fix in
+      `seed.ts printTokens()`
+- [x] HuggingFace `api-inference.huggingface.co` was retired and no longer resolves —
+      `embed()` had never once succeeded. Now on `router.huggingface.co`; added the
+      missing `hasEmbeddings` flag and a `503 EMBEDDING_UNAVAILABLE`
+- [x] `GROQ_MODEL` pinned `llama-3.3-70b-versatile`, which Groq decommissioned — every
+      onboarding call would have 404'd. Now `openai/gpt-oss-120b`
+- [x] `join_event` raised `EVENT_CLOSED` for a merely-full event, because filling the
+      last seat flips status to `full` before the size test ran. Capacity is now checked
+      first (`migrations/002`)
+- [x] `typing` forwarded a client-supplied `room_id` straight to `socket.to()` — any
+      socket could spoof presence into any room. Now gated on `socket.rooms`
+- [x] Feedback had no status gate: a member could rate the group the moment it formed,
+      farm reputation, and unlock a 1:1 before meeting. Now `409 MEETUP_NOT_FINISHED`
+- [x] Mutual unlock rewrote `unlocked_at` and re-emitted `match:unlocked` on every
+      resubmission. Existing connections are now read first and treated as delivered
+- [x] Schema hardening (`migrations/001`): `event_sizes` ran as owner and leaked every
+      event id + size past RLS (now `security_invoker`); `messages.connection_id` had no
+      FK; `push_tokens` had no PK; 8 filtered columns were unindexed
+- [x] `babel-preset-expo` was missing entirely, so Metro could not construct a
+      transformer and the app could not bundle. `expo-constants` and
+      `react-native-worklets` were imported but only resolved transitively — all three
+      now declared
 
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
@@ -124,10 +191,20 @@ interactive Vibe Check squad-pass toy, draggable hero stickers, and punchier cop
 
 ### 5. Polish and hardening
 
+- [ ] **Sweep side effects are not atomic with their stamps.** `remind()` pushes then
+      stamps; `settle()` docks then stamps. One driver is safe (verified), but two —
+      BullMQ plus the boot-time `sweepOnce()`, or two API instances — can double-notify
+      and double-dock. Make the stamp a conditional update before enabling Redis
 - [ ] Accessibility pass: emoji ratings need text equivalents, touch targets, no colour-only state (docs/DESIGN.md §10)
-- [ ] Sweep only reads events past their reminder window; add an index on `events (start_time, status)` if the table grows
+- [x] Index on `events (start_time, status)` — added in `migrations/001` along with the
+      other 7 unindexed filter columns
 - [ ] Move OAuth handoff codes out of memory if the API ever runs more than one instance
 - [ ] Rotate `AUTH_STATE_SECRET` per deployment (the dev default warns in production)
+- [ ] `POST /events` inserts the event and the host's `group_members` row in two
+      statements; a failure between them leaves a hostless group. Move into an RPC like
+      `join_event`
+- [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
+      completed meetup and escape the ghost penalty before `settle()` runs
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
@@ -140,10 +217,13 @@ premium tier.
 | Area | Note |
 |---|---|
 | LINE credentials | The bridge is written but unexercised; a LINE Login channel is needed, and channels without the email scope fall back to a synthetic internal address |
+| Google OAuth | Same — the code path is unexercised. `seed --tokens` mints real Supabase sessions, which is how every authenticated route was verified |
 | Push receipts | Tickets are checked, but Expo's async receipt endpoint is not polled — a token can go stale for one cycle |
-| Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both |
+| Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
+| Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both — and the sweep atomicity fix in §5 first |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
-| Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. Ship builds must have it off |
-| Mobile loop verified only in demo mode | The full loop passes on-device against the demo layer, not yet against a real API; §1 still gates that |
+| Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
+| Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode; and connect-picks for unrated members are dropped. Real API mode is unaffected |
+| Mobile loop against the real API | The backend is proven and the app bundles against it (1782 modules, `DEMO_MODE=0`), but the on-device walkthrough has only ever been done in demo mode. Needs an emulator run |
 

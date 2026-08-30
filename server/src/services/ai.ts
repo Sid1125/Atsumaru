@@ -1,8 +1,9 @@
 import Groq from "groq-sdk";
 import { z } from "zod";
 
-import { env, hasGroq } from "../config/env.js";
+import { env, hasEmbeddings, hasGroq } from "../config/env.js";
 import type { Language } from "../types.js";
+import { HttpError } from "../utils/response.js";
 
 /** `preference_vector` is `vector(384)` in schema.sql (MiniLM all-MiniLM-L6-v2). */
 export const EMBEDDING_DIMS = 384;
@@ -84,21 +85,32 @@ export async function onboardingChat(
   return parsed.success ? parsed.data : retry;
 }
 
-/** MiniLM embedding via the HuggingFace inference API (docs/AI.md §4). */
+/**
+ * MiniLM embedding via the HuggingFace inference router (docs/AI.md §4).
+ *
+ * The legacy `api-inference.huggingface.co` host was retired and no longer resolves,
+ * so this goes through `router.huggingface.co`, which does not accept the old
+ * `options.wait_for_model` flag. all-MiniLM-L6-v2 returns 384 L2-normalized floats,
+ * so cosine similarity in modules/matching/score.ts is effectively a dot product.
+ */
 export async function embed(text: string): Promise<number[]> {
-  if (!env.HUGGINGFACE_API_KEY) {
-    throw new Error("HUGGINGFACE_API_KEY is not configured.");
+  if (!hasEmbeddings) {
+    throw new HttpError(
+      503,
+      "EMBEDDING_UNAVAILABLE",
+      "Embeddings are not configured."
+    );
   }
 
   const response = await fetch(
-    `https://api-inference.huggingface.co/pipeline/feature-extraction/${env.EMBEDDING_MODEL}`,
+    `https://router.huggingface.co/hf-inference/models/${env.EMBEDDING_MODEL}/pipeline/feature-extraction`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.HUGGINGFACE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
+      body: JSON.stringify({ inputs: text }),
     }
   );
 

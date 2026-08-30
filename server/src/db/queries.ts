@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { supabase } from "./supabase.js";
+import { authClient, supabase } from "./supabase.js";
 import { dbError, HttpError } from "../utils/response.js";
 import { parseVector } from "../utils/vector.js";
 import type { Language } from "../types.js";
@@ -51,6 +51,17 @@ export interface ConnectionRow {
 
 export function db(): SupabaseClient {
   const client = supabase();
+
+  if (!client) {
+    throw new HttpError(503, "DB_UNAVAILABLE", "Supabase is not configured.");
+  }
+
+  return client;
+}
+
+/** Isolated client for session minting — see the warning in db/supabase.ts. */
+export function authDb(): SupabaseClient {
+  const client = authClient();
 
   if (!client) {
     throw new HttpError(503, "DB_UNAVAILABLE", "Supabase is not configured.");
