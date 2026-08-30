@@ -14,7 +14,9 @@ type Provider = "line" | "google";
  * Flow (docs/TRD.md §5, README "Authentication"):
  *   1. open `GET /api/auth/{provider}?redirect_to=app` in the browser
  *   2. the provider returns to the API's callback, which redirects to
- *      `atsumaru://auth?code=…` — a one-time code, never a token in a URL
+ *      `atsumaru://auth?code=…` (native) or `exp://…/--/auth?code=…` (Expo Go)
+ *      — a one-time code, never a token in a URL. Any URL carrying `?code=`
+ *      is claimed; the server validates it.
  *   3. the app trades that code via `POST /auth/session` for the real session
  *
  * `user` comes back null for a brand-new account; the navigator reads that as
@@ -30,7 +32,13 @@ export function useOAuthLogin() {
 
   const exchange = useCallback(
     async (url: string) => {
-      const code = new URL(url).searchParams.get("code");
+      let code: string | null = null;
+
+      try {
+        code = new URL(url).searchParams.get("code");
+      } catch {
+        return;
+      }
 
       if (!code || claiming.current) return;
 
@@ -52,13 +60,11 @@ export function useOAuthLogin() {
   );
 
   useEffect(() => {
-    const subscription = Linking.addEventListener("url", ({ url }) => {
-      if (url.includes("://auth")) void exchange(url);
-    });
+    const subscription = Linking.addEventListener("url", ({ url }) => void exchange(url));
 
     // The app may have been cold-started *by* the redirect.
     void Linking.getInitialURL().then((url) => {
-      if (url && url.includes("://auth")) void exchange(url);
+      if (url) void exchange(url);
     });
 
     return () => subscription.remove();
