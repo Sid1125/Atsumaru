@@ -37,7 +37,7 @@ const INTENSITY: Record<Weight, number> = {
 const SOLID: Record<Weight, string> = {
   thin: "rgba(251,247,242,0.86)",
   regular: "rgba(251,247,242,0.94)",
-  thick: "#FBF7F2",
+  thick: colors.background,
 };
 
 /**

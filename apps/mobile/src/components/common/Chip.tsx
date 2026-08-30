@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressableScale } from "../ui/PressableScale";
+import { Sticker } from "../ui/Sticker";
 import { colors, radius, spacing, type } from "../../theme";
 
 interface ChipProps {
@@ -10,6 +11,12 @@ interface ChipProps {
   /** Leading glyph; never the only carrier of meaning (docs/DESIGN.md §10). */
   icon?: string;
   tone?: "neutral" | "accent";
+  /**
+   * When set, the *selected* chip renders as a category sticker (site vinyl:
+   * solid electric bg + hard offset shadow). Data-encoded, so colour pairs with
+   * the label text that sits on it.
+   */
+  sticker?: { bg: string; on: string };
 }
 
 export function Chip({
@@ -18,12 +25,19 @@ export function Chip({
   onPress,
   icon,
   tone = "accent",
+  sticker,
 }: ChipProps) {
+  const onColor = selected && sticker ? sticker.on : undefined;
+
   const body = (
     <View style={styles.row}>
       {icon ? <Text style={styles.icon}>{icon}</Text> : null}
       <Text
-        style={[styles.label, selected && styles.labelSelected]}
+        style={[
+          styles.label,
+          onColor != null && { color: onColor },
+          selected && styles.labelSelected,
+        ]}
         numberOfLines={1}
       >
         {label}
@@ -46,17 +60,36 @@ export function Chip({
     );
   }
 
-  return (
+  const pressable = (
     <PressableScale
       accessibilityLabel={label}
       accessibilityState={{ selected: !!selected }}
       onPress={onPress}
       scaleTo={0.94}
-      style={surface}
+      style={[
+        surface,
+        sticker && selected
+          ? {
+              backgroundColor: sticker.bg,
+              borderColor: sticker.bg,
+            }
+          : null,
+      ]}
     >
       {body}
     </PressableScale>
   );
+
+  // Selected category chips wear the sticker; everything else stays a plain pill.
+  if (sticker && selected) {
+    return (
+      <Sticker color={sticker.bg} borderRadius={radius.pill}>
+        {pressable}
+      </Sticker>
+    );
+  }
+
+  return pressable;
 }
 
 const styles = StyleSheet.create({

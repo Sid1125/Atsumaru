@@ -346,6 +346,17 @@ JWT-shaped literals anywhere.
       an address that already has an account gets the new identity attached to it, which is
       only safe while every linking provider verifies its addresses. LINE does, and only
       real provider-supplied addresses are ever linked (never a synthetic one)
+- [x] **Site flare ported to mobile (2026-08-30).** Category stickers now encode data:
+      `theme/colors.sticker` maps food/gaming/arts/outdoor to the site's electric band
+      (neon/hot pink/lilac/sage) with an AA-verified `{ bg, on }` pair, shown on card,
+      map pin, filter chip and meetup hero. `src/categoryMeta.ts` is the single source of
+      glyph + colour (replaced four drifting per-surface maps). Editorial type: new
+      `type.kicker` mono role + mono `sectionHeader` (Menlo / `monospace`, site's
+      `ui-monospace` stack), tighter display/title1 leading. `components/ui/Sticker` does
+      the site's hard offset vinyl shadow cross-platform (plain offset underlay — RN
+      elevation cannot). Login gained the positioning kicker + 集まる wordmark + lilac
+      ambient wash. Deliberately skipped: noise, marquee, dark mode, photo grids, real
+      avatars. Typecheck clean, 34/34 tests
 - [ ] Linking has no re-authentication step: if a provider ever released an unverified
       address, it would inherit the matching account. Gate any future provider on an
       explicit verified-email claim before adding it to the linking path

@@ -61,6 +61,8 @@ export const timings = {
   fast: { duration: 140, easing: Easing.out(Easing.quad) } satisfies WithTimingConfig,
   base: { duration: 220, easing: Easing.out(Easing.cubic) } satisfies WithTimingConfig,
   slow: { duration: 320, easing: Easing.out(Easing.cubic) } satisfies WithTimingConfig,
+  /** Ambient float for decorative elements — a gentle sine bob, never a spring. */
+  float: { duration: 2600, easing: Easing.inOut(Easing.sin) } satisfies WithTimingConfig,
 };
 
 /**

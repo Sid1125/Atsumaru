@@ -62,25 +62,29 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
   // the no-unlock branch says nothing about who did or did not pick the user.
   if (unlocked) {
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, styles.celebration]}>
         {unlocked.length > 0 ? (
           <>
-            <Text style={styles.title}>🎉 {t("connection.mutualTitle")}</Text>
-            <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+            <Text style={styles.celebrationGlyph}>🎉</Text>
+            <Text style={styles.celebrationKicker}>MUTUAL MATCH</Text>
+            <Text style={styles.celebrationTitle}>{t("connection.mutualTitle")}</Text>
+            <Text style={styles.privacy}>{t("feedback.privacyNote")}</Text>
             {onOpenConnection
               ? unlocked.map((connection) => (
                   <Button
                     key={connection.id}
                     label={t("connection.startChatting")}
                     onPress={() => onOpenConnection(connection)}
+                    variant="neon"
                   />
                 ))
               : null}
           </>
         ) : (
           <>
-            <Text style={styles.title}>{t("feedback.thanksTitle")}</Text>
-            <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+            <Text style={styles.celebrationKicker}>THANK YOU</Text>
+            <Text style={styles.celebrationTitle}>{t("feedback.thanksTitle")}</Text>
+            <Text style={styles.privacy}>{t("feedback.privacyNote")}</Text>
           </>
         )}
       </View>
@@ -91,7 +95,7 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{t("feedback.title")}</Text>
+      <Text style={styles.kicker}>{t("feedback.title")}</Text>
 
       {members.map((member) => (
         <View key={member.user_id} style={styles.row}>
@@ -111,7 +115,7 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
         </View>
       ))}
 
-      <Text style={styles.subTitle}>{t("feedback.rejoin")}</Text>
+      <Text style={styles.sectionLabel}>{t("feedback.rejoin")}</Text>
       <View style={styles.ratingRow}>
         <Chip
           label={t("feedback.yes")}
@@ -125,7 +129,7 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
         />
       </View>
 
-      <Text style={styles.subTitle}>{t("feedback.connectPrompt")}</Text>
+      <Text style={styles.sectionLabel}>{t("feedback.connectPrompt")}</Text>
       <View style={styles.ratingRow}>
         {members.map((member) => (
           <Chip
@@ -143,7 +147,7 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
         ))}
       </View>
 
-      <Text style={styles.note}>{t("feedback.privacyNote")}</Text>
+      <Text style={styles.privacy}>{t("feedback.privacyNote")}</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Button
@@ -166,11 +170,30 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...elevation.low,
   },
+  celebration: {
+    backgroundColor: colors.night,
+    borderWidth: 2,
+    borderColor: colors.neon,
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+  },
+  celebrationGlyph: { fontSize: 44 },
+  celebrationKicker: { ...type.overline, color: colors.neon },
+  celebrationTitle: {
+    ...type.title2,
+    color: colors.nightText,
+    textAlign: "center",
+  },
+  kicker: { ...type.overline, color: colors.primary },
   title: { ...type.title2, color: colors.text },
-  subTitle: { ...sectionHeader, color: colors.textMuted, marginTop: spacing.xs },
+  sectionLabel: { ...type.footnote, color: colors.textMuted, marginTop: spacing.xs },
   row: { gap: spacing.sm },
   handle: { ...type.bodyEmphasized, color: colors.text },
   ratingRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  note: { ...type.caption, color: colors.textMuted },
+  privacy: {
+    ...type.overline,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
   error: { ...type.footnote, color: colors.danger },
 });

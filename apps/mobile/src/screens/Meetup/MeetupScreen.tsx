@@ -9,7 +9,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 
 import { Button } from "../../components/common/Button";
+import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
+import { Sticker } from "../../components/ui/Sticker";
+import { categoryGlyph, categorySticker } from "../../categoryMeta";
 import { ChatThread } from "../../components/chat/ChatThread";
 import { FeedbackPanel } from "../../components/feedback/FeedbackPanel";
 import {
@@ -35,21 +38,10 @@ import type { Connection, GroupMember } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "Meetup">;
 
-const CATEGORY_GLYPH: Record<string, string> = {
-  food: "🍜",
-  gaming: "🎮",
-  arts: "🎨",
-  outdoor: "🥾",
-};
-
 function MemberAvatar({ member }: { member: GroupMember }) {
   return (
     <View style={styles.member}>
-      <View style={styles.memberAvatar}>
-        <Text style={styles.memberInitial}>
-          {member.user.handle.slice(0, 1).toUpperCase()}
-        </Text>
-      </View>
+      <Avatar id={member.user_id} label={member.user.handle.slice(0, 1)} size="md" />
       <Text style={styles.memberHandle} numberOfLines={1}>
         @{member.user.handle}
       </Text>
@@ -111,6 +103,8 @@ export function MeetupScreen() {
   const score = matchQuery.data
     ? Math.round(matchQuery.data.match_score * 100)
     : null;
+  const sticker = categorySticker(event.category);
+  const glyph = categoryGlyph(event.category);
 
   function openConnection(connection: Connection) {
     const otherId =
@@ -132,13 +126,50 @@ export function MeetupScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero — category glyph anchors the meetup's identity */}
+      {/* Hero — the site's night card: category sticker anchors identity, a
+          mono status tape sits on the corner */}
       <View style={styles.hero}>
-        <View style={styles.heroGlyph}>
-          <Text style={styles.heroGlyphText}>
-            {CATEGORY_GLYPH[event.category] ?? "📍"}
-          </Text>
+        <View style={styles.heroHead}>
+          <Sticker
+            color={sticker.bg}
+            borderRadius={radius.lg}
+            rotate={-1.5}
+            style={styles.heroSticker}
+          >
+            <Text style={styles.heroGlyphText}>{glyph}</Text>
+          </Sticker>
+          <Sticker
+            color={
+              event.status === "completed"
+                ? colors.nightRaised
+                : event.status === "ongoing"
+                  ? colors.neon
+                  : colors.nightRaised
+            }
+            borderRadius={radius.xs}
+            rotate={1}
+            offset={2}
+            style={styles.statusTape}
+          >
+            <Text
+              style={[
+                styles.statusTapeText,
+                event.status === "ongoing" && { color: colors.neonText },
+              ]}
+            >
+              {t(
+                event.status === "completed"
+                  ? "discover.status.completed"
+                  : event.status === "ongoing"
+                    ? "discover.status.ongoing"
+                    : "discover.status.open"
+              )}
+            </Text>
+          </Sticker>
         </View>
+        <Text style={[styles.categoryKicker, { color: sticker.bg }]}>
+          {t(`discover.categories.${event.category}`)}
+        </Text>
         <Text style={styles.title}>{event.title}</Text>
         <Text style={styles.meta}>
           {event.venue_name} ·{" "}
@@ -148,10 +179,11 @@ export function MeetupScreen() {
             minute: "2-digit",
           })}
         </Text>
-        {event.description ? (
-          <Text style={styles.description}>{event.description}</Text>
-        ) : null}
       </View>
+
+      {event.description ? (
+        <Text style={styles.description}>{event.description}</Text>
+      ) : null}
 
       {/* Match — the AI's answer, stated plainly with its reasons */}
       {score != null ? (
@@ -246,21 +278,36 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.md, gap: spacing.lg },
 
-  hero: { gap: spacing.xs },
-  heroGlyph: {
+  hero: {
+    backgroundColor: colors.night,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  heroHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: spacing.sm,
+  },
+  heroSticker: {
     width: 64,
     height: 64,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-    ...elevation.low,
+  },
+  statusTape: { marginTop: 2 },
+  statusTapeText: {
+    ...type.kicker,
+    fontSize: 8,
+    lineHeight: 11,
+    letterSpacing: 1.8,
+    color: colors.nightMuted,
+    paddingHorizontal: spacing.sm,
   },
   heroGlyphText: { fontSize: 30 },
-  title: { ...type.display, color: colors.text },
-  meta: { ...type.subhead, color: colors.textMuted },
-  description: { ...type.body, color: colors.textSecondary, marginTop: spacing.sm },
+  categoryKicker: { ...type.kicker, fontSize: 10, lineHeight: 13, letterSpacing: 2.2 },
+  title: { ...type.display, color: colors.nightText },
+  meta: { ...type.subhead, color: colors.nightMuted },
+  description: { ...type.body, color: colors.textSecondary, marginTop: -spacing.sm },
 
   matchCard: {
     backgroundColor: colors.accentSoft,
@@ -280,15 +327,6 @@ const styles = StyleSheet.create({
   sectionHeader: { ...sectionHeader, color: colors.textMuted },
   members: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   member: { alignItems: "center", gap: spacing.xs, width: 62 },
-  memberAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  memberInitial: { ...type.title3, color: colors.textOnColor },
   memberHandle: { ...type.caption, color: colors.textMuted },
 
   error: { ...type.footnote, color: colors.danger },
@@ -296,17 +334,17 @@ const styles = StyleSheet.create({
   celebration: {
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.night,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.neon,
     padding: spacing.lg,
     ...elevation.medium,
   },
   celebrationGlyph: { fontSize: 40 },
   celebrationTitle: {
     ...type.title3,
-    color: colors.text,
+    color: colors.nightText,
     textAlign: "center",
     marginBottom: spacing.xs,
   },

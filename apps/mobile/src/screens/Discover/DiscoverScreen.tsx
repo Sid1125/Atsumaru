@@ -7,6 +7,11 @@ import { useQueries } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 
+import {
+  CATEGORY_ORDER,
+  categoryGlyph,
+  categorySticker,
+} from "../../categoryMeta";
 import { Chip } from "../../components/common/Chip";
 import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
@@ -15,7 +20,6 @@ import {
   BottomSheet,
   type BottomSheetHandle,
 } from "../../components/ui/BottomSheet";
-import { Material } from "../../components/ui/Material";
 import { PressableScale } from "../../components/ui/PressableScale";
 import {
   useMyEvents,
@@ -25,7 +29,6 @@ import { eventsApi } from "../../services/api/events";
 import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
-  elevation,
   radius,
   sectionHeader,
   spacing,
@@ -35,13 +38,6 @@ import type { AppStackParamList } from "../../app/navigation/types";
 import type { Coords, MeetupEvent } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "Discover">;
-
-const CATEGORIES = [
-  { key: "food", icon: "🍜" },
-  { key: "gaming", icon: "🎮" },
-  { key: "arts", icon: "🎨" },
-  { key: "outdoor", icon: "🥾" },
-] as const;
 
 const FALLBACK_COORDS: Coords = { lat: 35.6595, lng: 139.7005 };
 
@@ -63,6 +59,7 @@ export function DiscoverScreen() {
 
   const [coords, setCoords] = useState<Coords | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bandBottom, setBandBottom] = useState(0);
   const sheet = useRef<BottomSheetHandle>(null);
 
   // One-shot location read for discovery only — no background tracking.
@@ -152,47 +149,53 @@ export function DiscoverScreen() {
         style={[styles.topChrome, { paddingTop: insets.top + spacing.sm }]}
         pointerEvents="box-none"
       >
-        <Material weight="regular" style={styles.identity}>
-          <View style={styles.identityInner}>
+        {/* Night editorial band — the site's dark hero strip */}
+        <View
+          style={styles.identityBand}
+          onLayout={(e) =>
+            setBandBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)
+          }
+        >
+          <View style={styles.bandRow}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
                 {(user?.handle ?? "?").slice(0, 1).toUpperCase()}
               </Text>
             </View>
             <View style={styles.identityText}>
+              <Text style={styles.kickerLine} numberOfLines={1}>
+                {t("discover.subtitle")}
+              </Text>
               <Text style={styles.handle} numberOfLines={1}>
                 @{user?.handle ?? "you"}
               </Text>
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {t("discover.subtitle")}
-              </Text>
+            </View>
+
+            <View style={styles.chromeActions}>
+              <PressableScale
+                accessibilityLabel={t("connection.title")}
+                onPress={() => navigation.navigate("Connections")}
+                style={styles.iconButton}
+                scaleTo={0.9}
+              >
+                <Text style={styles.iconGlyph}>♥</Text>
+              </PressableScale>
+              <PressableScale
+                accessibilityLabel={t("settings.title")}
+                onPress={() => navigation.navigate("Settings")}
+                style={styles.iconButton}
+                scaleTo={0.9}
+              >
+                <Text style={styles.iconGlyph}>⚙</Text>
+              </PressableScale>
             </View>
           </View>
-        </Material>
-
-        <View style={styles.chromeActions}>
-          <PressableScale
-            accessibilityLabel={t("connection.title")}
-            onPress={() => navigation.navigate("Connections")}
-            style={styles.iconButton}
-            scaleTo={0.9}
-          >
-            <Text style={styles.iconGlyph}>♥</Text>
-          </PressableScale>
-          <PressableScale
-            accessibilityLabel={t("settings.title")}
-            onPress={() => navigation.navigate("Settings")}
-            style={styles.iconButton}
-            scaleTo={0.9}
-          >
-            <Text style={styles.iconGlyph}>⚙</Text>
-          </PressableScale>
         </View>
       </View>
 
       {/* Category filters float over the map, below the identity chrome */}
       <View
-        style={[styles.filterRail, { top: insets.top + 78 }]}
+        style={[styles.filterRail, { top: bandBottom + spacing.xs }]}
         pointerEvents="box-none"
       >
         <ScrollView
@@ -206,16 +209,20 @@ export function DiscoverScreen() {
             onPress={() => setCategory(null)}
             tone="neutral"
           />
-          {CATEGORIES.map((item) => (
-            <Chip
-              key={item.key}
-              icon={item.icon}
-              label={t(`discover.categories.${item.key}`)}
-              selected={category === item.key}
-              onPress={() => setCategory(item.key)}
-              tone="neutral"
-            />
-          ))}
+          {CATEGORY_ORDER.map((key) => {
+            const sticker = categorySticker(key);
+            return (
+              <Chip
+                key={key}
+                icon={categoryGlyph(key)}
+                label={t(`discover.categories.${key}`)}
+                selected={category === key}
+                onPress={() => setCategory(key)}
+                tone="neutral"
+                sticker={sticker}
+              />
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -224,15 +231,18 @@ export function DiscoverScreen() {
         initial="half"
         header={
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{t("discover.forYou")}</Text>
-            <PressableScale
-              accessibilityLabel={t("createEvent.title")}
-              onPress={() => navigation.navigate("CreateEvent")}
-              style={styles.hostButton}
-              scaleTo={0.93}
-            >
-              <Text style={styles.hostLabel}>+ {t("createEvent.short")}</Text>
-            </PressableScale>
+            <Text style={styles.sheetKicker}>DISCOVER</Text>
+            <View style={styles.sheetTitleRow}>
+              <Text style={styles.sheetTitle}>{t("discover.forYou")}</Text>
+              <PressableScale
+                accessibilityLabel={t("createEvent.title")}
+                onPress={() => navigation.navigate("CreateEvent")}
+                style={styles.hostButton}
+                scaleTo={0.93}
+              >
+                <Text style={styles.hostLabel}>+ {t("createEvent.short")}</Text>
+              </PressableScale>
+            </View>
           </View>
         }
       >
@@ -316,43 +326,45 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
     paddingHorizontal: spacing.md,
+    gap: spacing.sm,
   },
-  identity: { flex: 1, ...elevation.medium },
-  identityInner: {
+  identityBand: {
+    backgroundColor: colors.night,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  bandRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm + 2,
   },
   avatar: {
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.neon,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { ...type.captionEmphasized, color: colors.textOnColor, fontSize: 15 },
+  avatarText: { ...type.captionEmphasized, color: colors.neonText, fontSize: 17 },
   identityText: { flex: 1 },
-  handle: { ...type.headline, color: colors.text },
-  subtitle: { ...type.caption, color: colors.textMuted },
+  kickerLine: { ...type.kicker, color: colors.neon, fontSize: 9, lineHeight: 12 },
+  handle: { ...type.title2, color: colors.nightText },
 
   chromeActions: { flexDirection: "row", gap: spacing.sm },
   iconButton: {
     width: 44,
     height: 44,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.nightRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.nightSeparator,
     alignItems: "center",
     justifyContent: "center",
-    ...elevation.medium,
   },
-  iconGlyph: { fontSize: 18, color: colors.text },
+  iconGlyph: { fontSize: 18, color: colors.nightText },
 
   filterRail: { position: "absolute", left: 0, right: 0 },
   filterRow: {
@@ -362,12 +374,16 @@ const styles = StyleSheet.create({
   },
 
   sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
+    gap: spacing.xxs,
+  },
+  sheetKicker: { ...type.overline, color: colors.primary },
+  sheetTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sheetTitle: { ...type.title2, color: colors.text },
   hostButton: {

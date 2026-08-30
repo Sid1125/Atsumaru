@@ -1,14 +1,17 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
+import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
+import { PressableScale } from "../../components/ui/PressableScale";
 import { useConnections } from "../../features/connections/hooks/useConnections";
 import { usersApi } from "../../services/api/users";
 import { useAuthStore } from "../../store";
-import { colors, elevation, radius, spacing, type } from "../../theme";
+import { colors, radius, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 import type { Connection } from "../../types/api";
 
@@ -39,17 +42,17 @@ function ConnectionRow({
   const handle = profile.data?.user.handle;
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={handle ? `@${handle}` : t("connection.title")}
       onPress={() => onOpen(handle)}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={styles.row}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
-          {(handle ?? "?").slice(0, 1).toUpperCase()}
-        </Text>
-      </View>
+      <Avatar
+        id={otherId}
+        label={(handle ?? "?").slice(0, 1)}
+        size="md"
+      />
       <View style={styles.rowBody}>
         <Text style={styles.handle}>{handle ? `@${handle}` : "…"}</Text>
         <Text style={styles.meta}>
@@ -57,7 +60,7 @@ function ConnectionRow({
         </Text>
       </View>
       <Text style={styles.chevron}>›</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -66,6 +69,7 @@ export function ConnectionsScreen() {
   const navigation = useNavigation<Nav>();
   const me = useAuthStore((s) => s.user);
   const query = useConnections();
+  const reducedMotion = useReducedMotion();
 
   if (query.isPending) return <ScreenState status="loading" />;
   if (query.isError)
@@ -79,21 +83,23 @@ export function ConnectionsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.note}>{t("connection.subtitle")}</Text>
-      <FlatList
-        data={connections}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <ConnectionRow
-            connection={item}
-            meId={me?.id ?? ""}
-            onOpen={(handle) =>
-              navigation.navigate("Dm", { connectionId: item.id, handle })
-            }
-          />
-        )}
-      />
+      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)} style={{ flex: 1 }}>
+        <Text style={styles.note}>{t("connection.subtitle")}</Text>
+        <FlatList
+          data={connections}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <ConnectionRow
+              connection={item}
+              meId={me?.id ?? ""}
+              onOpen={(handle) =>
+                navigation.navigate("Dm", { connectionId: item.id, handle })
+              }
+            />
+          )}
+        />
+      </Animated.View>
     </View>
   );
 }
@@ -112,18 +118,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  pressed: { opacity: 0.9 },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { ...type.title3, color: colors.primaryText },
   rowBody: { flex: 1 },
-  handle: { ...type.body, fontWeight: "600", color: colors.text },
+  handle: { ...type.bodyEmphasized, color: colors.text },
   meta: { ...type.footnote, color: colors.textMuted },
   chevron: { ...type.title1, color: colors.textMuted },
 });

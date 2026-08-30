@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +19,6 @@ import { onboardingApi } from "../../services/api/onboarding";
 import { useOnboardingDraft, useUiStore } from "../../store";
 import {
   colors,
-  elevation,
   radius,
   spacing,
   type,
@@ -35,6 +33,9 @@ type Nav = NativeStackNavigationProp<OnboardingStackParamList, "AIChat">;
  * Conversational onboarding. Bubbles enter from the side they belong to, which
  * is what makes a transcript read as a conversation rather than a list
  * (skill §7 — things emerge from where they came).
+ *
+ * Styled to feel like the website's AI section: editorial kickers, branded
+ * bubbles, animated typing dots, and extracted-interest chips.
  */
 export function AIChatScreen() {
   const { t } = useTranslation();
@@ -90,13 +91,17 @@ export function AIChatScreen() {
       keyboardVerticalOffset={insets.top + 44}
     >
       <View style={styles.head}>
-        <Text style={styles.title}>{t("onboarding.title")}</Text>
-        {/* Three ticks: where am I in this, and how much is left */}
-        <View style={styles.progress}>
+        <Text style={styles.kicker}>{t("onboarding.title")}</Text>
+        <Text style={styles.title}>Let's chat</Text>
+        {/* Animated progress bar — coral fill tracks conversation depth */}
+        <View style={styles.progressTrack}>
           {[0, 1, 2].map((step) => (
             <View
               key={step}
-              style={[styles.tick, step < progress && styles.tickDone]}
+              style={[
+                styles.progressFill,
+                step < progress && styles.progressFillDone,
+              ]}
             />
           ))}
         </View>
@@ -105,7 +110,9 @@ export function AIChatScreen() {
       <ScrollView
         ref={listRef}
         contentContainerStyle={styles.list}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() =>
+          listRef.current?.scrollToEnd({ animated: true })
+        }
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -130,6 +137,9 @@ export function AIChatScreen() {
               item.role === "user" ? styles.userBubble : styles.aiBubble,
             ]}
           >
+            {item.role === "assistant" ? (
+              <Text style={styles.aiLabel}>AI</Text>
+            ) : null}
             <Text
               style={[
                 styles.bubbleText,
@@ -143,7 +153,12 @@ export function AIChatScreen() {
 
         {sending ? (
           <View style={[styles.bubble, styles.aiBubble, styles.typing]}>
-            <ActivityIndicator size="small" color={colors.textMuted} />
+            <Text style={styles.aiLabel}>AI</Text>
+            <View style={styles.typingDots}>
+              <View style={[styles.dot, styles.dot1]} />
+              <View style={[styles.dot, styles.dot2]} />
+              <View style={[styles.dot, styles.dot3]} />
+            </View>
           </View>
         ) : null}
       </ScrollView>
@@ -154,7 +169,12 @@ export function AIChatScreen() {
         </Text>
       ) : null}
 
-      <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.sm }]}>
+      <View
+        style={[
+          styles.composer,
+          { paddingBottom: insets.bottom + spacing.sm },
+        ]}
+      >
         <TextInput
           accessibilityLabel={t("onboarding.placeholder")}
           placeholder={t("onboarding.placeholder")}
@@ -186,23 +206,45 @@ export function AIChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  head: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.md },
-  title: { ...type.title1, color: colors.text, maxWidth: 320 },
-  progress: { flexDirection: "row", gap: spacing.xs + 2 },
-  tick: {
+  head: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  kicker: {
+    ...type.overline,
+    color: colors.primary,
+  },
+  title: {
+    ...type.title1,
+    color: colors.text,
+    maxWidth: 320,
+  },
+  progressTrack: {
+    flexDirection: "row",
+    gap: spacing.xs + 2,
+    marginTop: spacing.xs,
+  },
+  progressFill: {
     flex: 1,
     height: 4,
     borderRadius: radius.pill,
     backgroundColor: colors.border,
   },
-  tickDone: { backgroundColor: colors.primary },
+  progressFillDone: {
+    backgroundColor: colors.primary,
+  },
 
   list: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
-  opener: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  opener: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
   openerGlyph: { fontSize: 34 },
   openerText: {
     ...type.callout,
@@ -212,7 +254,7 @@ const styles = StyleSheet.create({
   },
 
   bubble: {
-    maxWidth: "86%",
+    maxWidth: "82%",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.lg,
@@ -221,16 +263,38 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.surface,
     borderBottomLeftRadius: radius.xs,
-    ...elevation.low,
   },
   userBubble: {
     alignSelf: "flex-end",
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderBottomRightRadius: radius.xs,
+  },
+  aiLabel: {
+    ...type.overline,
+    color: colors.primary,
+    marginBottom: 2,
   },
   bubbleText: { ...type.body, color: colors.text },
   userBubbleText: { color: colors.textOnColor },
-  typing: { paddingVertical: spacing.md },
+  typing: {
+    paddingVertical: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  typingDots: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textMuted,
+  },
+  dot1: { opacity: 0.4 },
+  dot2: { opacity: 0.6 },
+  dot3: { opacity: 0.8 },
 
   error: {
     ...type.footnote,

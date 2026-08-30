@@ -6,13 +6,16 @@ import { colors, elevation, MIN_TARGET, radius, spacing, type } from "../../them
 interface ButtonProps {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "tinted" | "plain";
+  /** `neon` is the electric CTA — the site's neon pill on night surfaces. */
+  variant?: "primary" | "secondary" | "tinted" | "plain" | "neon";
   size?: "regular" | "large";
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
   /** Leading glyph. Kept decorative — the label always carries the meaning. */
   icon?: string;
+  /** Leading ReactNode — use for SVG logos or complex icons. */
+  leadingIcon?: React.ReactNode;
   haptic?: "none" | "light" | "medium" | "success";
 }
 
@@ -25,11 +28,13 @@ export function Button({
   loading,
   style,
   icon,
+  leadingIcon,
   haptic = "light",
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const onNeon = variant === "neon";
 
-  return (
+  const surface = (
     <PressableScale
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!isDisabled }}
@@ -43,21 +48,26 @@ export function Button({
         size === "large" && styles.large,
         styles[variant],
         isDisabled && styles.disabled,
+        onNeon && styles.neon,
         style,
       ]}
     >
       <View style={styles.content}>
         {loading ? (
           <ActivityIndicator
-            color={variant === "primary" ? colors.primaryText : colors.text}
+            color={onNeon ? colors.neonText : variant === "primary" ? colors.primaryText : colors.text}
           />
         ) : (
           <>
-            {icon ? <Text style={styles.icon}>{icon}</Text> : null}
+            {leadingIcon ?? (icon ? <Text style={styles.icon}>{icon}</Text> : null)}
             <Text
               style={[
                 styles.label,
-                variant === "primary" ? styles.labelOnColor : styles.labelOnSurface,
+                onNeon
+                  ? styles.labelOnNeon
+                  : variant === "primary"
+                    ? styles.labelOnColor
+                    : styles.labelOnSurface,
                 variant === "tinted" && styles.labelTinted,
                 isDisabled && styles.labelDisabled,
               ]}
@@ -70,6 +80,9 @@ export function Button({
       </View>
     </PressableScale>
   );
+
+  // Neon CTA — flat neon pill, no vinyl shadow wrapper (that layout breaks).
+  return surface;
 }
 
 const styles = StyleSheet.create({
@@ -96,6 +109,9 @@ const styles = StyleSheet.create({
   },
   tinted: { backgroundColor: colors.primarySoft },
   plain: { backgroundColor: "transparent" },
+  /** Neon pill keeps no soft shadow — the hard underlay is its shadow. */
+  neon: { backgroundColor: colors.neon },
+  labelOnNeon: { color: colors.neonText },
   /**
    * Disabled state is expressed in colour, not opacity. Opacity is owned by the
    * press animation on the same element, so a translucent "disabled" look was

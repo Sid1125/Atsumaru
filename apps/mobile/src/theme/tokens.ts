@@ -22,9 +22,9 @@ export const palette = {
   ink500: "#6E655C",
   ink300: "#9C9188",
 
-  clay500: "#D9603B",
-  clay600: "#C4522F",
-  clay100: "#FBEAE3",
+  clay500: "#FF432A",
+  clay600: "#E02E17",
+  clay100: "#FFF0ED",
 
   pine500: "#2F6F62",
   pine600: "#265A50",
@@ -32,6 +32,15 @@ export const palette = {
 
   amber500: "#C98A2E",
   rose500: "#B3402C",
+
+  // Electric band — the rail site stickers live on (site/globals.css).
+  // Each maps to a category; the pair decides text colour per WCAG.
+  neon500: "#C8FF00",
+  hotpink500: "#FF2E93",
+  lilac500: "#8A4FFF",
+  sage500: "#7A9E7E",
+  /** The site's near-black, used as ink ON a sticker (site $000 shadow / ink). */
+  stickerInk: "#09090B",
 } as const;
 
 /**
@@ -54,20 +63,47 @@ export const colors = {
   textMuted: "#6E655C",
   textOnColor: "#FFFFFF",
 
-  primary: "#D9603B",
-  primaryPressed: "#C4522F",
+  primary: "#FF432A",
+  primaryPressed: "#E02E17",
   primaryText: "#FFFFFF",
-  primarySoft: "#FBEAE3",
+  primarySoft: "#FFF0ED",
 
   accent: "#2F6F62",
   accentPressed: "#265A50",
   accentSoft: "#E3EFEB",
 
   danger: "#B3402C",
+  dangerLight: "#FF8A7A",
   warning: "#C98A2E",
+
+  // Night surfaces — the site's dark sections (site/globals.css `bg-dark` /
+  // `bg-warm`). Login and the editorial chrome sit on these; content stays warm.
+  night: "#09090B",
+  nightRaised: "#141210",
+  nightText: "#FAF7F2",
+  nightMuted: "rgba(250,247,242,0.72)",
+  nightSeparator: "#242428",
+  /** Electric CTA — the site's neon pill, dark ink on it (contrast 16.6:1). */
+  neon: "#C8FF00",
+  neonText: "#09090B",
 
   /** Scrim behind modal surfaces — dim to focus (skill §12). */
   scrim: "rgba(26,22,19,0.32)",
+
+  /**
+   * Category sticker palette (mirrors the site's electric rail). The sticker is
+   * a data carrier, never decoration alone — colour always pairs with the glyph
+   * and the label text beside it (docs/DESIGN.md §10). Each entry is its own
+   * { bg, on } pair so ink stays WCAG-AA on the specific colour: neon/hot pink/
+   * sage take the near-black ink, lilac takes white (site rule: soft = ink, hot
+   * = white).
+   */
+  sticker: {
+    food: { bg: "#C8FF00", on: "#09090B" },
+    gaming: { bg: "#FF2E93", on: "#09090B" },
+    arts: { bg: "#8A4FFF", on: "#FFFFFF" },
+    outdoor: { bg: "#7A9E7E", on: "#09090B" },
+  } as const,
 } as const;
 
 /** 4pt rhythm. Spacing is a scale, not arbitrary numbers. */
