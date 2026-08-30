@@ -12,7 +12,11 @@ const schema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 
   GROQ_API_KEY: z.string().optional(),
-  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
+  /**
+   * llama-3.3-70b-versatile was decommissioned by Groq and 404s on current keys;
+   * gpt-oss-120b is the successor with the same 131k context and JSON-mode support.
+   */
+  GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
 
   HUGGINGFACE_API_KEY: z.string().optional(),
   EMBEDDING_MODEL: z.string().default("sentence-transformers/all-MiniLM-L6-v2"),
@@ -51,6 +55,7 @@ export const env = parsed.data;
 
 export const hasSupabase = !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
 export const hasGroq = !!env.GROQ_API_KEY;
+export const hasEmbeddings = !!env.HUGGINGFACE_API_KEY;
 export const hasLine = !!(env.LINE_CHANNEL_ID && env.LINE_CHANNEL_SECRET);
 export const hasGoogle = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 export const hasRedis = !!env.REDIS_URL;

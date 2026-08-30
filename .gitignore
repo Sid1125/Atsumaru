@@ -5,6 +5,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+access_token.txt
+*.token.txt
 
 # builds
 dist/
