@@ -16,9 +16,9 @@ interface EventCardProps {
   selected?: boolean;
   onPress: () => void;
   onOpen?: () => void;
+  dark?: boolean;
 }
 
-/** A filled arc of the group's occupancy — size read at a glance, not counted. */
 function OccupancyBar({
   current,
   max,
@@ -49,6 +49,7 @@ export function EventCard({
   selected,
   onPress,
   onOpen,
+  dark,
 }: EventCardProps) {
   const { t, i18n } = useTranslation();
 
@@ -72,8 +73,15 @@ export function EventCard({
       )}${score != null ? `, ${t("discover.groupFit", { score })}` : ""}`}
       onPress={selected && onOpen ? onOpen : onPress}
       scaleTo={0.98}
-      style={[styles.card, selected && styles.cardSelected]}
+      style={[
+        styles.card,
+        dark && styles.cardDark,
+        selected && (dark ? styles.cardSelectedDark : styles.cardSelected),
+      ]}
     >
+      {/* Category accent strip */}
+      <View style={[styles.accentStrip, { backgroundColor: sticker.bg }]} />
+
       <View style={styles.row}>
         <Sticker
           color={sticker.bg}
@@ -88,10 +96,10 @@ export function EventCard({
           <Text style={[styles.categoryKicker, { color: sticker.bg }]}>
             {t(`discover.categories.${event.category}`)}
           </Text>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={[styles.title, dark && styles.titleDark]} numberOfLines={1}>
             {event.title}
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
+          <Text style={[styles.meta, dark && styles.metaDark]} numberOfLines={1}>
             {event.venue_name} · {when}
           </Text>
 
@@ -101,7 +109,7 @@ export function EventCard({
               max={event.max_size}
               color={sticker.bg}
             />
-            <Text style={styles.size}>
+            <Text style={[styles.size, dark && styles.sizeDark]}>
               {full
                 ? t("discover.status.full")
                 : t("discover.size", {
@@ -125,24 +133,44 @@ export function EventCard({
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.md - 2,
+    overflow: "hidden",
     ...elevation.low,
+  },
+  cardDark: {
+    backgroundColor: colors.nightRaised,
+    borderColor: colors.nightSeparator,
   },
   cardSelected: {
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
   },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md - 4 },
-  sticker: { width: 56, height: 56 },
-  glyph: { fontSize: 26 },
+  cardSelectedDark: {
+    borderColor: colors.neon,
+    backgroundColor: colors.nightRaised,
+  },
+  accentStrip: {
+    width: 4,
+  },
+  row: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md - 4,
+    padding: spacing.md - 2,
+  },
+  sticker: { width: 52, height: 52 },
+  glyph: { fontSize: 24 },
   body: { flex: 1, gap: 2 },
   categoryKicker: { ...type.kicker, fontSize: 9, lineHeight: 12, letterSpacing: 1.8 },
   title: { ...type.bodyEmphasized, color: colors.text },
+  titleDark: { color: colors.nightText },
   meta: { ...type.footnote, color: colors.textMuted },
+  metaDark: { color: colors.nightMuted },
   footer: {
     flexDirection: "row",
     alignItems: "center",
@@ -157,6 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   size: { ...type.caption, color: colors.textMuted },
+  sizeDark: { color: colors.nightMuted },
   scoreWell: {
     flexDirection: "row",
     alignItems: "baseline",

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
+import { categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
 import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
@@ -67,75 +68,97 @@ export function CreateEventScreen() {
     }
   }
 
+  const sticker = categorySticker(category);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
         <Text style={styles.kicker}>HOST A MEETUP</Text>
         <Text style={styles.kickerHint}>Fill in the details and post it to the board.</Text>
 
-        <Text style={styles.sectionLabel}>{t("createEvent.name")}</Text>
-        <TextInput
-          accessibilityLabel={t("createEvent.name")}
-          value={title}
-          onChangeText={setTitle}
-          placeholder={t("createEvent.namePlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          style={styles.input}
-        />
-
-        <Text style={styles.sectionLabel}>{t("createEvent.venue")}</Text>
-        <TextInput
-          accessibilityLabel={t("createEvent.venue")}
-          value={venue}
-          onChangeText={setVenue}
-          placeholder={t("createEvent.venuePlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          style={styles.input}
-        />
-
-        <Text style={styles.sectionLabel}>{t("createEvent.description")}</Text>
-        <TextInput
-          accessibilityLabel={t("createEvent.description")}
-          value={description}
-          onChangeText={setDescription}
-          placeholder={t("createEvent.descriptionPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          style={[styles.input, styles.multiline]}
-          multiline
-        />
-
-        <Text style={styles.sectionLabel}>{t("createEvent.category")}</Text>
-        <View style={styles.chips}>
-          {CATEGORIES.map((key) => (
-            <Chip
-              key={key}
-              label={t(`discover.categories.${key}`)}
-              selected={category === key}
-              onPress={() => setCategory(key)}
-            />
-          ))}
+        {/* Details card */}
+        <View style={styles.card}>
+          <Text style={styles.cardKicker}>DETAILS</Text>
+          <TextInput
+            accessibilityLabel={t("createEvent.name")}
+            value={title}
+            onChangeText={setTitle}
+            placeholder={t("createEvent.namePlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+          />
+          <TextInput
+            accessibilityLabel={t("createEvent.venue")}
+            value={venue}
+            onChangeText={setVenue}
+            placeholder={t("createEvent.venuePlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+          />
+          <TextInput
+            accessibilityLabel={t("createEvent.description")}
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t("createEvent.descriptionPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, styles.multiline]}
+            multiline
+          />
         </View>
 
-        <Text style={styles.sectionLabel}>{t("createEvent.size")}</Text>
-        <View style={styles.chips}>
-          {SIZES.map((size) => (
-            <Chip
-              key={size}
-              label={String(size)}
-              selected={maxSize === size}
-              onPress={() => setMaxSize(size)}
-            />
-          ))}
+        {/* Category card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardKicker}>{t("createEvent.category")}</Text>
+            <Text style={[styles.cardSticker, { color: sticker.bg }]}>
+              {categorySticker(category).bg === sticker.bg ? "●" : ""}
+            </Text>
+          </View>
+          <View style={styles.chips}>
+            {CATEGORIES.map((key) => {
+              const s = categorySticker(key);
+              return (
+                <Chip
+                  key={key}
+                  icon={categorySticker(key).bg === sticker.bg ? "●" : undefined}
+                  label={t(`discover.categories.${key}`)}
+                  selected={category === key}
+                  onPress={() => setCategory(key)}
+                  sticker={s}
+                />
+              );
+            })}
+          </View>
         </View>
 
-        <Text style={styles.sectionLabel}>{t("createEvent.startsIn")}</Text>
-        <TextInput
-          accessibilityLabel={t("createEvent.startsIn")}
-          value={hoursAhead}
-          onChangeText={setHoursAhead}
-          keyboardType="number-pad"
-          style={styles.input}
-        />
+        {/* Group size + timing card */}
+        <View style={styles.card}>
+          <Text style={styles.cardKicker}>GROUP</Text>
+          <Text style={styles.fieldLabel}>{t("createEvent.size")}</Text>
+          <View style={styles.chips}>
+            {SIZES.map((size) => (
+              <Chip
+                key={size}
+                label={String(size)}
+                selected={maxSize === size}
+                onPress={() => setMaxSize(size)}
+              />
+            ))}
+          </View>
+          <Text style={styles.fieldLabel}>{t("createEvent.startsIn")}</Text>
+          <TextInput
+            accessibilityLabel={t("createEvent.startsIn")}
+            value={hoursAhead}
+            onChangeText={setHoursAhead}
+            keyboardType="number-pad"
+            style={styles.input}
+          />
+        </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -153,21 +176,39 @@ export function CreateEventScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.xs },
+  content: { padding: spacing.md, gap: spacing.md },
   kicker: { ...type.overline, color: colors.primary },
   kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
-  sectionLabel: { ...type.footnote, color: colors.textMuted, marginTop: spacing.md },
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...elevation.low,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardKicker: { ...type.kicker, color: colors.textMuted },
+  cardSticker: { fontSize: 10 },
+  fieldLabel: { ...type.footnote, color: colors.textMuted },
   input: {
     minHeight: 48,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
     color: colors.text,
+    ...type.callout,
   },
   multiline: { minHeight: 88, paddingTop: spacing.sm, textAlignVertical: "top" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  error: { ...type.footnote, color: colors.danger, marginTop: spacing.sm },
-  cta: { marginTop: spacing.lg },
+  error: { ...type.footnote, color: colors.danger },
+  cta: { marginTop: spacing.sm },
 });

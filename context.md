@@ -358,6 +358,10 @@ person keeps one account across providers, and the move of Google onto Supabase 
    `server/.env` is unused and can be blanked.
 9. **Mobile gaps (by design)**: map refetch debounce, message-history infinite scroll,
    venue picker in create-event.
+10. **AI not in chat**: GROQ and HuggingFace are wired for onboarding only (chat
+    completion + preference vectors). Group chat and DMs are pure text plumbing — no
+    summarization, sentiment, or smart replies. Adding AI here means new routes + socket
+    hooks
 
 ---
 

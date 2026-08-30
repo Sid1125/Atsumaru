@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Avatar } from "../../components/common/Avatar";
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
 import { authApi } from "../../services/api/auth";
@@ -34,7 +35,6 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** The chosen language also goes to the server so the AI replies in it. */
   async function chooseLanguage(next: Language) {
     setLanguage(next);
     setError(null);
@@ -52,7 +52,6 @@ export function SettingsScreen() {
     setError(null);
 
     try {
-      // Best-effort upstream revoke; the local session is cleared either way.
       await authApi.logout().catch(() => undefined);
       disconnectSocket();
       queryClient.clear();
@@ -65,33 +64,48 @@ export function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+      showsVerticalScrollIndicator={false}
+    >
       <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
+        {/* Profile hero — night card with avatar + identity */}
         <View style={styles.profile}>
-          <Text style={styles.handle}>@{user?.handle}</Text>
-          <Text style={styles.name}>{user?.display_name}</Text>
-          <Text style={styles.rep}>
-            {t("settings.reputation", { score: user?.reputation_score ?? 0 })}
-          </Text>
+          <Avatar id={user?.id ?? ""} label={(user?.handle ?? "?").slice(0, 1)} size="lg" />
+          <View style={styles.profileText}>
+            <Text style={styles.handle}>@{user?.handle}</Text>
+            <Text style={styles.name}>{user?.display_name}</Text>
+          </View>
+          <View style={styles.repBadge}>
+            <Text style={styles.repValue}>{user?.reputation_score ?? 0}</Text>
+            <Text style={styles.repLabel}>rep</Text>
+          </View>
         </View>
 
-        <Text style={styles.sectionLabel}>{t("settings.language")}</Text>
-        <View style={styles.chips}>
-          {LANGUAGES.map((item) => (
-            <Chip
-              key={item.code}
-              label={item.label}
-              selected={language === item.code}
-              onPress={() => chooseLanguage(item.code)}
-            />
-          ))}
+        {/* Language card */}
+        <View style={styles.card}>
+          <Text style={styles.cardKicker}>{t("settings.language")}</Text>
+          <View style={styles.chips}>
+            {LANGUAGES.map((item) => (
+              <Chip
+                key={item.code}
+                label={item.label}
+                selected={language === item.code}
+                onPress={() => chooseLanguage(item.code)}
+              />
+            ))}
+          </View>
         </View>
 
-        <Text style={styles.sectionLabel}>{t("onboarding.interests")}</Text>
-        <View style={styles.chips}>
-          {(user?.interests ?? []).map((interest) => (
-            <Chip key={interest} label={interest} />
-          ))}
+        {/* Interests card */}
+        <View style={styles.card}>
+          <Text style={styles.cardKicker}>{t("onboarding.interests")}</Text>
+          <View style={styles.chips}>
+            {(user?.interests ?? []).map((interest) => (
+              <Chip key={interest} label={interest} />
+            ))}
+          </View>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -113,17 +127,43 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.md },
+
+  /* Profile hero */
   profile: {
     backgroundColor: colors.night,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.lg,
-    gap: spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    ...elevation.medium,
   },
+  profileText: { flex: 1, gap: 2 },
   handle: { ...type.title2, color: colors.nightText },
   name: { ...type.callout, color: colors.nightMuted },
-  rep: { ...type.footnote, color: colors.neon },
-  sectionLabel: { ...type.footnote, color: colors.textMuted, marginTop: spacing.xs },
+  repBadge: {
+    alignItems: "center",
+    backgroundColor: colors.nightRaised,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+  },
+  repValue: { ...type.title3, color: colors.neon, fontWeight: "700" },
+  repLabel: { ...type.overline, color: colors.nightMuted, fontSize: 8 },
+
+  /* Section cards */
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...elevation.low,
+  },
+  cardKicker: { ...type.kicker, color: colors.textMuted },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+
   error: { ...type.footnote, color: colors.danger },
   signOut: { marginTop: spacing.sm },
   privacy: {

@@ -27,7 +27,6 @@ import {
   colors,
   elevation,
   radius,
-  sectionHeader,
   spacing,
   springs,
   type,
@@ -204,8 +203,8 @@ export function MeetupScreen() {
       ) : null}
 
       {/* Group */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>
+      <View style={styles.groupCard}>
+        <Text style={styles.groupKicker}>
           {t("meetup.yourGroup")} ·{" "}
           {t("discover.size", {
             current: event.current_size,
@@ -258,7 +257,7 @@ export function MeetupScreen() {
           entering={reducedMotion ? undefined : FadeInDown.duration(280)}
           style={styles.section}
         >
-          <Text style={styles.sectionHeader}>{t("meetup.groupChat")}</Text>
+          <Text style={styles.groupKicker}>{t("meetup.groupChat")}</Text>
           <ChatThread
             scope="group"
             id={eventId}
@@ -324,7 +323,16 @@ const styles = StyleSheet.create({
   reasonText: { ...type.footnote, color: colors.textSecondary, flex: 1 },
 
   section: { gap: spacing.sm },
-  sectionHeader: { ...sectionHeader, color: colors.textMuted },
+  groupCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...elevation.low,
+  },
+  groupKicker: { ...type.kicker, color: colors.textMuted },
   members: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   member: { alignItems: "center", gap: spacing.xs, width: 62 },
   memberHandle: { ...type.caption, color: colors.textMuted },

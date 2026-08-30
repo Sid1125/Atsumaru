@@ -9,6 +9,7 @@ interface ScreenStateProps {
   status: "loading" | "error" | "empty";
   message?: string;
   onRetry?: () => void;
+  dark?: boolean;
 }
 
 const GLYPH: Record<ScreenStateProps["status"], string> = {
@@ -17,15 +18,7 @@ const GLYPH: Record<ScreenStateProps["status"], string> = {
   empty: "🗺️",
 };
 
-/**
- * Loading / error / empty in one place so no screen ever renders blank
- * (docs/RULES.md §13). Each state answers "what happened" and, where there is
- * one, "what can I do" — feedback with a path forward rather than a dead end.
- *
- * Branded with Atsumaru's kicker labels and emoji pairs so every state feels
- * designed, not generic (docs/DESIGN.md §10).
- */
-export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
+export function ScreenState({ status, message, onRetry, dark }: ScreenStateProps) {
   const { t } = useTranslation();
 
   return (
@@ -36,13 +29,15 @@ export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
     >
       {status === "loading" ? (
         <>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.label}>{message ?? t("common.loading")}</Text>
+          <ActivityIndicator color={dark ? colors.neon : colors.primary} size="large" />
+          <Text style={[styles.label, dark && styles.labelDark]}>
+            {message ?? t("common.loading")}
+          </Text>
         </>
       ) : (
         <>
           <Text style={styles.glyph}>{GLYPH[status]}</Text>
-          <Text style={styles.label}>
+          <Text style={[styles.label, dark && styles.labelDark]}>
             {message ??
               (status === "error" ? t("common.error") : t("common.empty"))}
           </Text>
@@ -50,7 +45,7 @@ export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
             <Button
               label={t("common.retry")}
               onPress={onRetry}
-              variant="secondary"
+              variant={dark ? "neon" : "secondary"}
               size="regular"
             />
           ) : null}
@@ -75,5 +70,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
     maxWidth: 260,
+  },
+  labelDark: {
+    color: colors.nightMuted,
   },
 });

@@ -385,6 +385,10 @@ JWT-shaped literals anywhere.
       `join_event`
 - [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
       completed meetup and escape the ghost penalty before `settle()` runs
+- [ ] **GROQ and HuggingFace embeddings are not in group chats.** Both are wired for
+      onboarding only (GROQ chat completion + HuggingFace MiniLM preference vectors).
+      Group chat is pure text plumbing — no AI summarization, no sentiment, no smart
+      replies. DMs same. If AI is desired in chat, it needs new routes and a socket hook
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
