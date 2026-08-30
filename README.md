@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="./assets/atsumaru-mark.svg" width="52" valign="middle"> ATSUMARU
+# <img src="./assets/atsumaru-mark.png" width="52" valign="middle"> ATSUMARU
 
 ### **集まる — Meet people. Not profiles.**
 
@@ -988,64 +988,6 @@ If Redis becomes unreachable, the API falls back automatically.
 
 ---
 
-# ⚠️ Development notes
-
-<details>
-<summary><strong>Database unavailable</strong></summary>
-
-Without Supabase credentials:
-
-```text
-503 DB_UNAVAILABLE
-```
-
-</details>
-
-<details>
-<summary><strong>AI unavailable</strong></summary>
-
-Without:
-
-```env
-GROQ_API_KEY=...
-```
-
-onboarding returns:
-
-```text
-503 AI_UNAVAILABLE
-```
-
-</details>
-
-<details>
-<summary><strong>Authentication unavailable</strong></summary>
-
-Without the required provider credentials:
-
-```text
-503 AUTH_PROVIDER_UNAVAILABLE
-```
-
-</details>
-
-<details>
-<summary><strong>Mapbox</strong></summary>
-
-Real Mapbox rendering requires:
-
-```env
-EXPO_PUBLIC_MAPBOX_TOKEN=...
-```
-
-and a native development build.
-
-`@rnmapbox/maps` does not work inside Expo Go because it requires native code.
-
-</details>
-
----
-
 # 📚 Documentation
 
 | Document | Description |
@@ -1116,7 +1058,7 @@ It's:
 
 <br>
 
-<img src="./assets/atsumaru-mark.svg" width="72">
+<img src="./assets/atsumaru-mark.png" width="72">
 
 <br><br>
 
