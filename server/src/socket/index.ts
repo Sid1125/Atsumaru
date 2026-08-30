@@ -121,7 +121,12 @@ export function attachSocket(httpServer: HttpServer) {
       }
     );
 
+    // A client could otherwise name any room — group:{any_event}, dm:{any_connection},
+    // even user:{someone_else} — and spoof presence into it. socket.rooms only holds
+    // rooms this socket actually passed a membership check to join.
     socket.on("typing", ({ room_id }: { room_id: string }) => {
+      if (typeof room_id !== "string" || !socket.rooms.has(room_id)) return;
+
       socket.to(room_id).emit("typing", { room_id, user_id: userId });
     });
   });

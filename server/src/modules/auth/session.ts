@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { db, publicUser, type PublicUser } from "../../db/queries.js";
+import { authDb, db, publicUser, type PublicUser } from "../../db/queries.js";
 import { HttpError, dbError } from "../../utils/response.js";
 import { emailForIdentity, type Identity } from "./oauth.js";
 
@@ -75,7 +75,11 @@ export async function sessionForIdentity(identity: Identity): Promise<AuthSessio
     );
   }
 
-  const { data: verified, error: verifyError } = await client.auth.verifyOtp({
+  // verifyOtp stores a session on whichever client runs it, and supabase-js then sends
+  // that user's JWT on every subsequent PostgREST call from the same client. Doing this
+  // on the shared db() singleton would silently demote the whole process to the user's
+  // own privileges and hit the deny-all RLS in schema.sql, so it gets its own client.
+  const { data: verified, error: verifyError } = await authDb().auth.verifyOtp({
     type: "email",
     token_hash: link.properties.hashed_token,
   });

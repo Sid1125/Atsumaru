@@ -6,6 +6,7 @@ import { asyncRoute } from "../../middleware/errorHandler.js";
 import {
   CONNECTION_COLUMNS,
   db,
+  findEvent,
   findMembers,
   preferenceVector,
   requireMembership,
@@ -109,6 +110,20 @@ feedbackRouter.post(
     const userId = req.userId!;
 
     await requireMembership(eventId, userId);
+
+    // Feedback is post-meetup by definition (docs/PRD.md FR-09). Without this a member
+    // could rate the group the moment it forms, farm the participation credit, and
+    // unlock a mutual 1:1 before anyone had met. findEvent returns the derived status,
+    // so this closes the same instant event_status() flips to completed.
+    const event = await findEvent(eventId);
+
+    if (event.status !== "completed") {
+      throw new HttpError(
+        409,
+        "MEETUP_NOT_FINISHED",
+        "Feedback opens once the meetup has finished."
+      );
+    }
 
     const parsed = submitSchema.safeParse(req.body);
 
@@ -220,6 +235,24 @@ feedbackRouter.post(
       for (const row of (theirPicks ?? []) as { from_user: string }[]) {
         // The table's check constraint requires user_a < user_b.
         const [user_a, user_b] = [userId, row.from_user].sort();
+
+        // Only the first unlock of a pair is an event. Re-upserting would reset
+        // unlocked_at and re-notify the other side on every resubmission, so read
+        // first and treat an existing row as already-delivered.
+        const { data: already, error: existingError } = await db()
+          .from("connections")
+          .select(CONNECTION_COLUMNS)
+          .eq("event_id", eventId)
+          .eq("user_a", user_a!)
+          .eq("user_b", user_b!)
+          .maybeSingle<ConnectionRow>();
+
+        if (existingError) throw dbError(existingError);
+
+        if (already) {
+          unlocked.push(already);
+          continue;
+        }
 
         const { data: connection, error: connectionError } = await db()
           .from("connections")
