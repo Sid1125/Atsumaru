@@ -11,13 +11,12 @@ import { PressableScale } from "../../components/ui/PressableScale";
 import { useConnections } from "../../features/connections/hooks/useConnections";
 import { usersApi } from "../../services/api/users";
 import { useAuthStore } from "../../store";
-import { colors, radius, spacing, type, useReducedMotion } from "../../theme";
+import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 import type { Connection } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "Connections">;
 
-/** The other participant's id — a connection stores the pair, not a direction. */
 function otherUserId(connection: Connection, me: string): string {
   return connection.user_a === me ? connection.user_b : connection.user_a;
 }
@@ -59,7 +58,9 @@ function ConnectionRow({
           {profile.data?.user.display_name ?? t("common.loading")}
         </Text>
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <View style={styles.chevronWrap}>
+        <Text style={styles.chevron}>›</Text>
+      </View>
     </PressableScale>
   );
 }
@@ -84,7 +85,8 @@ export function ConnectionsScreen() {
   return (
     <View style={styles.container}>
       <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)} style={{ flex: 1 }}>
-        <Text style={styles.note}>{t("connection.subtitle")}</Text>
+        <Text style={styles.kicker}>CONNECTIONS</Text>
+        <Text style={styles.subtitle}>{t("connection.subtitle")}</Text>
         <FlatList
           data={connections}
           keyExtractor={(item) => item.id}
@@ -106,20 +108,31 @@ export function ConnectionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-  note: { ...type.footnote, color: colors.textMuted, marginBottom: spacing.sm },
+  kicker: { ...type.overline, color: colors.primary, marginBottom: spacing.xxs },
+  subtitle: { ...type.footnote, color: colors.textMuted, marginBottom: spacing.sm },
   list: { gap: spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md - 2,
+    ...elevation.low,
   },
-  rowBody: { flex: 1 },
+  rowBody: { flex: 1, gap: 2 },
   handle: { ...type.bodyEmphasized, color: colors.text },
   meta: { ...type.footnote, color: colors.textMuted },
-  chevron: { ...type.title1, color: colors.textMuted },
+  chevronWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.backgroundElevated,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chevron: { ...type.headline, color: colors.textMuted },
 });

@@ -29,8 +29,8 @@ import { eventsApi } from "../../services/api/events";
 import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
+  elevation,
   radius,
-  sectionHeader,
   spacing,
   type,
 } from "../../theme";
@@ -229,6 +229,7 @@ export function DiscoverScreen() {
       <BottomSheet
         ref={sheet}
         initial="half"
+        dark
         header={
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetKicker}>DISCOVER</Text>
@@ -255,7 +256,7 @@ export function DiscoverScreen() {
         >
           {needsFeedback.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>
+              <Text style={styles.sectionKicker}>
                 {t("discover.yourMeetups")}
               </Text>
               {needsFeedback.map((event) => (
@@ -265,11 +266,11 @@ export function DiscoverScreen() {
           ) : null}
 
           {query.isPending ? (
-            <ScreenState status="loading" />
+            <ScreenState status="loading" dark />
           ) : query.isError ? (
-            <ScreenState status="error" onRetry={() => query.refetch()} />
+            <ScreenState status="error" onRetry={() => query.refetch()} dark />
           ) : events.length === 0 ? (
-            <ScreenState status="empty" />
+            <ScreenState status="empty" dark />
           ) : (
             <View style={styles.section}>
               {events.map((event, index) => (
@@ -280,6 +281,7 @@ export function DiscoverScreen() {
                   selected={event.id === selectedId}
                   onPress={() => selectFromList(event.id)}
                   onOpen={() => open(event.id)}
+                  dark
                 />
               ))}
             </View>
@@ -379,41 +381,44 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.xxs,
   },
-  sheetKicker: { ...type.overline, color: colors.primary },
+  sheetKicker: { ...type.overline, color: colors.neon },
   sheetTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  sheetTitle: { ...type.title2, color: colors.text },
+  sheetTitle: { ...type.title2, color: colors.nightText },
   hostButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
     borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.neon,
   },
-  hostLabel: { ...type.footnote, color: colors.primary, fontWeight: "700" },
+  hostLabel: { ...type.footnote, color: colors.neonText, fontWeight: "700" },
 
   sheetBody: { paddingHorizontal: spacing.md, gap: spacing.md },
   section: { gap: spacing.sm },
-  sectionHeader: { ...sectionHeader, color: colors.textMuted, marginBottom: spacing.xxs },
+  sectionKicker: { ...type.kicker, color: colors.nightMuted, marginBottom: spacing.xxs },
 
   feedbackRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     padding: spacing.md - 2,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.nightRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.nightSeparator,
+    ...elevation.low,
   },
   feedbackDot: {
-    width: 8,
-    height: 8,
+    width: 10,
+    height: 10,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.neon,
   },
-  feedbackBody: { flex: 1 },
-  feedbackTitle: { ...type.bodyEmphasized, color: colors.text },
-  feedbackMeta: { ...type.caption, color: colors.primary, fontWeight: "600" },
-  chevron: { ...type.title3, color: colors.textMuted },
+  feedbackBody: { flex: 1, gap: 2 },
+  feedbackTitle: { ...type.bodyEmphasized, color: colors.nightText },
+  feedbackMeta: { ...type.caption, color: colors.neon, fontWeight: "600" },
+  chevron: { ...type.title3, color: colors.nightMuted },
 });

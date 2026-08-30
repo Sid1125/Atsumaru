@@ -33,6 +33,8 @@ interface BottomSheetProps {
   header?: ReactNode;
   initial?: SheetDetent;
   onDetentChange?: (detent: SheetDetent) => void;
+  /** Dark variant for the discover list — night surfaces, light text. */
+  dark?: boolean;
 }
 
 /**
@@ -49,7 +51,7 @@ interface BottomSheetProps {
  *   • A haptic on the frame the detent actually changes (skill §13, causality).
  */
 export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
-  function BottomSheet({ children, header, initial = "half", onDetentChange }, ref) {
+  function BottomSheet({ children, header, initial = "half", onDetentChange, dark }, ref) {
     const { height } = useWindowDimensions();
     const reducedMotion = useReducedMotion();
 
@@ -144,10 +146,13 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
       transform: [{ translateY: y.value }],
     }));
 
+    const bgColor = dark ? colors.night : colors.surface;
+    const grabberColor = dark ? "rgba(250,247,242,0.18)" : "rgba(26,22,19,0.18)";
+
     const content = (
-      <Animated.View style={[styles.sheet, { height }, sheetStyle]}>
+      <Animated.View style={[styles.sheet, { height, backgroundColor: bgColor }, sheetStyle]}>
         <View style={styles.grabberRow}>
-          <View style={styles.grabber} />
+          <View style={[styles.grabber, { backgroundColor: grabberColor }]} />
         </View>
         {header}
         <View style={styles.body}>{children}</View>
@@ -173,7 +178,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
     ...elevation.high,
@@ -183,7 +187,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 5,
     borderRadius: radius.pill,
-    backgroundColor: "rgba(26,22,19,0.18)",
   },
   body: { flex: 1 },
 });
