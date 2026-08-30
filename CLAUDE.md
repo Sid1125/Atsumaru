@@ -89,9 +89,21 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   score, never computes it. Reason strings come from `modules/matching/reasons.ts`
   in the member's own language.
 - Shared unions live in `server/src/types.ts` (`Language`, `LANGUAGES` for zod).
-- Auth is an OAuth bridge, not Supabase's client flow: `modules/auth/oauth.ts` holds the
-  provider table and the HMAC-signed `state`, `modules/auth/session.ts` maps a provider
-  subject to a Supabase session. Add a provider there, not in a route.
+- Auth is a hybrid, not one flow: **Google is brokered by Supabase Auth over PKCE** (client
+  id/secret in the Supabase dashboard, `pkcePair` + `supabaseAuthorizeUrl` in
+  `modules/auth/oauth.ts`, redeemed by `sessionFromSupabaseCode` in `session.ts`), while
+  **LINE is exchanged by the API** because Supabase has no LINE provider. Both end at the
+  same one-time handoff code, so the app has a single code path. Add a provider in
+  `oauth.ts`/`session.ts`, not in a route.
+- Three redirect URLs must agree, and they live in three different places: the Google
+  console holds Supabase's `/auth/v1/callback`, `OAUTH_CALLBACK_URL` holds *our* callback,
+  and Supabase → Auth → URL Configuration → Redirect URLs must list that callback.
+  Miss the last one and GoTrue redirects to **Site URL** instead — the browser lands on the
+  wrong host with a perfectly valid `?code=`, which looks exactly like an app bug.
+- A provider address that already has an account is **linked**, never twinned
+  (`isEmailTaken` in `session.ts`). Only real provider-supplied addresses link; a synthetic
+  `@oauth.atsumaru.invalid` one never does. `is_new` means "no profile row yet" on both
+  providers.
 - Socket handlers check membership/connection and persist **before** broadcasting, so
   REST history and the live stream never disagree. Rooms: `group:{event_id}`,
   `dm:{connection_id}`, `user:{user_id}` (the last for server pushes such as
@@ -144,7 +156,15 @@ exists so the meetup loop is demonstrable before Supabase is provisioned.
 - `expo-notifications` must never be imported at module scope: Expo Go dropped Android
   remote push in SDK 53 and the failure escapes `try/catch`. Gate on
   `Constants.executionEnvironment` (see `usePushRegistration.ts`).
-- `atsumaru://` deep links do not route in Expo Go; they need a dev build.
+- `atsumaru://` deep links do not route in Expo Go; they need a dev build. In Expo Go the
+  OAuth handoff goes to `exp://<host>:8081/--/auth`, and **that host must be the one Expo Go
+  loaded the bundle from** — `APP_AUTH_REDIRECT` has to match or the redirect lands nowhere
+  and the app silently keeps its old session.
+- **Open the project as `exp://10.0.2.2:8081`.** Metro mirrors whichever host it was asked
+  on into `hostUri`, so launching from a virtual-adapter IP (Hyper-V/WSL, e.g.
+  `192.168.236.1`) yields a bundle URL the emulator cannot route: Expo Go spins on its own
+  blue loader forever and logcat says `Cannot connect to Expo CLI`. That spinner is Expo
+  Go's, not `ScreenState` — the app never started.
 
 ## Design system (mobile)
 

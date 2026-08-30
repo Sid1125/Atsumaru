@@ -64,12 +64,28 @@ profile confirm → Discover → Meetup → feedback).
 
 ### Authentication
 
-`GET /api/auth/line` and `GET /api/auth/google` redirect to the provider; the provider
-returns to `GET /api/auth/callback`, which exchanges the code, verifies the `id_token`,
-and mints a Supabase session. Both providers need their console to list
-`OAUTH_CALLBACK_URL` as an allowed redirect URI. Add `?redirect_to=app` to come back
-through `atsumaru://auth?code=…`; the app then posts that one-time code to
+`GET /api/auth/line` and `GET /api/auth/google` start a login; both end at
+`GET /api/auth/callback`, which mints a Supabase session. Add `?redirect_to=app` to come
+back through `atsumaru://auth?code=…`; the app posts that one-time code to
 `POST /api/auth/session` — tokens never travel in a URL.
+
+The two providers differ underneath:
+
+- **Google** is brokered by Supabase Auth. Its client id/secret live in the Supabase
+  dashboard (Auth → Providers → Google), the Google console's redirect URI is Supabase's
+  `https://<ref>.supabase.co/auth/v1/callback`, and the API drives PKCE so Supabase hands
+  back a code rather than tokens in a fragment. `OAUTH_CALLBACK_URL` must therefore also
+  be listed under Supabase → Auth → URL Configuration → **Redirect URLs**, or GoTrue
+  quietly redirects to Site URL instead.
+- **LINE** has no Supabase provider, so the API exchanges the code and verifies the
+  `id_token` itself; its console lists `OAUTH_CALLBACK_URL`. A channel without email
+  permission yields no address, so an internal synthetic one is used. When a provider does
+  return an address that already has an account, the identity is linked to it rather than
+  creating a second account.
+
+On an Android emulator use `OAUTH_CALLBACK_URL=http://10.0.2.2:4000/api/auth/callback`
+and point `APP_AUTH_REDIRECT` at the Expo Go origin the bundle is served from
+(`exp://10.0.2.2:8081/--/auth`); `atsumaru://auth` needs a dev build.
 
 ### Background work
 

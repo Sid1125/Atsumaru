@@ -9,15 +9,21 @@ import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import {
   authorizeUrl,
+  callbackWithState,
+  claimVerifier,
   identityFromCode,
   isProvider,
+  pkcePair,
   providerConfigured,
   signState,
+  stashVerifier,
+  supabaseAuthorizeUrl,
   verifyState,
 } from "./oauth.js";
 import {
   claimSession,
   sessionForIdentity,
+  sessionFromSupabaseCode,
   stashSession,
   type AuthSession,
 } from "./session.js";
@@ -61,15 +67,22 @@ authRouter.post(
 authRouter.get(
   "/callback",
   asyncRoute(async (req, res) => {
-    // A provider-side denial arrives as ?error, not as a code.
+    // A provider-side denial arrives as ?error, not as a code. Supabase forwards Google's
+    // refusal the same way.
     if (typeof req.query.error === "string") {
       throw new HttpError(400, "OAUTH_DENIED", "Sign-in was cancelled.");
     }
 
     const code = typeof req.query.code === "string" ? req.query.code : "";
-    const state = verifyState(
-      typeof req.query.state === "string" ? req.query.state : ""
-    );
+    // Google comes back through Supabase, which keeps its own `state` and hands ours back
+    // in the redirect URL; LINE echoes ours directly.
+    const rawState =
+      typeof req.query.st === "string"
+        ? req.query.st
+        : typeof req.query.state === "string"
+          ? req.query.state
+          : "";
+    const state = verifyState(rawState);
 
     if (!code || !state) {
       throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
@@ -86,8 +99,20 @@ authRouter.get(
     let session: AuthSession;
 
     try {
-      const identity = await identityFromCode(state.provider, code, state.nonce);
-      session = await sessionForIdentity(identity);
+      if (state.provider === "google") {
+        // Single-use: the verifier is consumed here, so a replayed callback cannot
+        // redeem the code twice.
+        const verifier = claimVerifier(rawState);
+
+        if (!verifier) {
+          throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
+        }
+
+        session = await sessionFromSupabaseCode(code, verifier);
+      } else {
+        const identity = await identityFromCode(state.provider, code, state.nonce);
+        session = await sessionForIdentity(identity);
+      }
     } catch (error) {
       if (error instanceof HttpError) throw error;
 
@@ -132,6 +157,8 @@ authRouter.post(
  * `GET /auth/line` and `GET /auth/google` (docs/API_STRUCTURE.md §3.1). Add
  * `?redirect_to=app` to come back through the app deep link instead of JSON.
  * Declared last so the parameter cannot shadow `/me`, `/callback`, or `/session`.
+ *
+ * Google is handed to Supabase Auth (PKCE); LINE is exchanged by this server.
  */
 authRouter.get(
   "/:provider",
@@ -149,6 +176,15 @@ authRouter.get(
     }
 
     const { state, nonce } = signState(provider, req.query.redirect_to === "app");
+
+    if (provider === "google") {
+      const { verifier, challenge } = pkcePair();
+      stashVerifier(state, verifier);
+
+      return res.redirect(
+        supabaseAuthorizeUrl(provider, callbackWithState(state), challenge)
+      );
+    }
 
     return res.redirect(authorizeUrl(provider, state, nonce));
   })

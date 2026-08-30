@@ -1,6 +1,6 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-import { env, hasGoogle, hasLine } from "../../config/env.js";
+import { env, hasLine, hasSupabase } from "../../config/env.js";
 
 /** OAuth only — LINE and Google, no phone OTP (docs/TRD.md §5). */
 export const PROVIDERS = ["line", "google"] as const;
@@ -11,8 +11,13 @@ export function isProvider(value: string): value is Provider {
   return (PROVIDERS as readonly string[]).includes(value);
 }
 
+/**
+ * Google is brokered by Supabase Auth, which holds the client id and secret, so this
+ * server only needs Supabase to be reachable. Supabase has no LINE provider, so LINE
+ * still exchanges its own code here and needs channel credentials.
+ */
 export function providerConfigured(provider: Provider): boolean {
-  return provider === "line" ? hasLine : hasGoogle;
+  return provider === "line" ? hasLine : hasSupabase && !!env.SUPABASE_ANON_KEY;
 }
 
 interface ProviderConfig {
@@ -23,20 +28,14 @@ interface ProviderConfig {
   clientSecret: () => string;
 }
 
-const CONFIG: Record<Provider, ProviderConfig> = {
+/** Only LINE is exchanged here; Google's client credentials live in Supabase. */
+const CONFIG: Record<"line", ProviderConfig> = {
   line: {
     authorizeUrl: "https://access.line.me/oauth2/v2.1/authorize",
     tokenUrl: "https://api.line.me/oauth2/v2.1/token",
     scope: "openid profile email",
     clientId: () => env.LINE_CHANNEL_ID ?? "",
     clientSecret: () => env.LINE_CHANNEL_SECRET ?? "",
-  },
-  google: {
-    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenUrl: "https://oauth2.googleapis.com/token",
-    scope: "openid profile email",
-    clientId: () => env.GOOGLE_CLIENT_ID ?? "",
-    clientSecret: () => env.GOOGLE_CLIENT_SECRET ?? "",
   },
 };
 
@@ -107,7 +106,8 @@ export function verifyState(state: string, now = Date.now()): StatePayload | nul
   return { ...payload, app: payload.app === true };
 }
 
-export function authorizeUrl(provider: Provider, state: string, nonce: string): string {
+/** LINE's own authorize endpoint; Google goes through {@link supabaseAuthorizeUrl}. */
+export function authorizeUrl(provider: "line", state: string, nonce: string): string {
   const config = CONFIG[provider];
   const url = new URL(config.authorizeUrl);
 
@@ -119,6 +119,78 @@ export function authorizeUrl(provider: Provider, state: string, nonce: string): 
   url.searchParams.set("nonce", nonce);
 
   return url.toString();
+}
+
+/**
+ * PKCE, because Supabase only returns an authorization code (rather than tokens in a URL
+ * fragment) when the caller proves it started the flow. The verifier stays on this
+ * server; only its SHA-256 digest travels.
+ */
+export function pkcePair(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+
+  return { verifier, challenge };
+}
+
+/**
+ * Supabase brokers Google: it holds the client secret, talks to Google, and redirects
+ * back to `redirectTo` with `?code=`. The signed `state` rides along in that URL because
+ * GoTrue issues its own `state` to Google and forwards nothing of ours.
+ *
+ * Wire format mirrors supabase-js `_getUrlForProvider` / `?grant_type=pkce`.
+ */
+export function supabaseAuthorizeUrl(
+  provider: "google",
+  redirectTo: string,
+  challenge: string
+): string {
+  const url = new URL(`${env.SUPABASE_URL}/auth/v1/authorize`);
+
+  url.searchParams.set("provider", provider);
+  url.searchParams.set("redirect_to", redirectTo);
+  url.searchParams.set("code_challenge", challenge);
+  url.searchParams.set("code_challenge_method", "s256");
+
+  return url.toString();
+}
+
+/** `OAUTH_CALLBACK_URL` with the signed state attached, for Supabase to redirect back to. */
+export function callbackWithState(state: string): string {
+  const url = new URL(env.OAUTH_CALLBACK_URL);
+  url.searchParams.set("st", state);
+
+  return url.toString();
+}
+
+const VERIFIER_TTL_MS = STATE_TTL_SECONDS * 1000;
+
+// ponytail: in-memory, keyed by the signed state, same single-instance caveat as the
+// handoff codes in session.ts. A restart mid-login costs one retry.
+const verifiers = new Map<string, { verifier: string; expiresAt: number }>();
+
+export function stashVerifier(state: string, verifier: string, now = Date.now()): void {
+  pruneVerifiers(now);
+  verifiers.set(state, { verifier, expiresAt: now + VERIFIER_TTL_MS });
+}
+
+/** Single use: a replayed callback must not be able to exchange a second time. */
+export function claimVerifier(state: string, now = Date.now()): string | null {
+  pruneVerifiers(now);
+
+  const entry = verifiers.get(state);
+
+  if (!entry) return null;
+
+  verifiers.delete(state);
+
+  return entry.expiresAt >= now ? entry.verifier : null;
+}
+
+function pruneVerifiers(now: number) {
+  for (const [state, entry] of verifiers) {
+    if (entry.expiresAt < now) verifiers.delete(state);
+  }
 }
 
 export interface Identity {
@@ -155,8 +227,8 @@ async function postForm(url: string, body: Record<string, string>) {
   return (await response.json()) as Record<string, unknown>;
 }
 
-/** Swaps the authorization code for the provider's `id_token`. */
-async function exchangeCode(provider: Provider, code: string): Promise<string> {
+/** Swaps LINE's authorization code for its `id_token`. */
+async function exchangeCode(provider: "line", code: string): Promise<string> {
   const config = CONFIG[provider];
 
   const tokens = await postForm(config.tokenUrl, {
@@ -177,24 +249,21 @@ async function exchangeCode(provider: Provider, code: string): Promise<string> {
 }
 
 /**
- * Both providers expose an endpoint that validates the signature, audience and expiry
- * of an id_token, which keeps a JWKS implementation out of this codebase.
+ * LINE exposes an endpoint that validates the signature, audience, expiry and nonce of an
+ * id_token, which keeps a JWKS implementation out of this codebase.
  */
 async function verifyIdToken(
-  provider: Provider,
+  provider: "line",
   idToken: string,
   nonce: string
 ): Promise<Identity> {
   const config = CONFIG[provider];
 
-  const claims =
-    provider === "line"
-      ? await postForm("https://api.line.me/oauth2/v2.1/verify", {
-          id_token: idToken,
-          client_id: config.clientId(),
-          nonce,
-        })
-      : await googleTokenInfo(idToken);
+  const claims = await postForm("https://api.line.me/oauth2/v2.1/verify", {
+    id_token: idToken,
+    client_id: config.clientId(),
+    nonce,
+  });
 
   const sub = claims.sub;
 
@@ -206,11 +275,6 @@ async function verifyIdToken(
     throw new Error(`${provider} id_token was issued for another client.`);
   }
 
-  // Google's tokeninfo does not accept a nonce parameter, so it is checked here.
-  if (provider === "google" && claims.nonce !== nonce) {
-    throw new Error("google id_token nonce mismatch.");
-  }
-
   return {
     provider,
     sub,
@@ -220,21 +284,8 @@ async function verifyIdToken(
   };
 }
 
-async function googleTokenInfo(idToken: string): Promise<Record<string, unknown>> {
-  const url = new URL("https://oauth2.googleapis.com/tokeninfo");
-  url.searchParams.set("id_token", idToken);
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`google tokeninfo failed: ${response.status}`);
-  }
-
-  return (await response.json()) as Record<string, unknown>;
-}
-
 export async function identityFromCode(
-  provider: Provider,
+  provider: "line",
   code: string,
   nonce: string
 ): Promise<Identity> {

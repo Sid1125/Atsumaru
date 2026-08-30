@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 
 import {
+  callbackWithState,
+  claimVerifier,
   emailForIdentity,
   isProvider,
   isSyntheticEmail,
+  pkcePair,
   signState,
+  stashVerifier,
+  supabaseAuthorizeUrl,
   verifyState,
   type Identity,
 } from "./oauth.js";
@@ -67,4 +73,46 @@ test("identities without an email get an internal synthetic one", () => {
 
   assert.equal(real, "yuki@example.com");
   assert.equal(isSyntheticEmail(real), false);
+});
+
+test("the PKCE challenge is the SHA-256 digest of the verifier, and only the digest travels", () => {
+  const { verifier, challenge } = pkcePair();
+
+  assert.equal(challenge, createHash("sha256").update(verifier).digest("base64url"));
+  assert.notEqual(verifier, challenge);
+
+  const url = new URL(supabaseAuthorizeUrl("google", "http://host/cb", challenge));
+
+  assert.equal(url.pathname, "/auth/v1/authorize");
+  assert.equal(url.searchParams.get("provider"), "google");
+  assert.equal(url.searchParams.get("code_challenge"), challenge);
+  assert.equal(url.searchParams.get("code_challenge_method"), "s256");
+  assert.equal(url.searchParams.get("redirect_to"), "http://host/cb");
+  assert.equal(url.toString().includes(verifier), false);
+});
+
+test("the callback carries the signed state, so Supabase can hand it back", () => {
+  const { state } = signState("google", true, NOW);
+  const url = new URL(callbackWithState(state));
+
+  assert.equal(url.searchParams.get("st"), state);
+  assert.equal(verifyState(url.searchParams.get("st")!, NOW)?.provider, "google");
+});
+
+test("a stashed verifier is returned once, then never again", () => {
+  const { state } = signState("google", true, NOW);
+
+  stashVerifier(state, "verifier-1", NOW);
+
+  assert.equal(claimVerifier(state, NOW), "verifier-1");
+  // Replayed callback: the code cannot be redeemed a second time.
+  assert.equal(claimVerifier(state, NOW), null);
+});
+
+test("a verifier expires with its state window", () => {
+  const { state } = signState("google", true, NOW);
+
+  stashVerifier(state, "verifier-2", NOW);
+
+  assert.equal(claimVerifier(state, NOW + 601_000), null);
 });

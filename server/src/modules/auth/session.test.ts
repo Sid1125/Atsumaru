@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { claimSession, stashSession, type AuthSession } from "./session.js";
+import { claimSession, isEmailTaken, stashSession, type AuthSession } from "./session.js";
 
 const NOW = Date.UTC(2026, 7, 28, 12, 0, 0);
 
@@ -28,4 +28,18 @@ test("a handoff code expires after a minute", () => {
 
 test("an unknown code is rejected", () => {
   assert.equal(claimSession("made-up", NOW), null);
+});
+
+test("a taken address is recognised so a second provider links instead of twinning", () => {
+  assert.ok(isEmailTaken({ code: "email_exists" }));
+  assert.ok(
+    isEmailTaken({
+      message: "A user with this email address has already been registered",
+    })
+  );
+
+  // Anything else must keep bubbling up as a provider error rather than silently
+  // adopting an account.
+  assert.equal(isEmailTaken({ code: "weak_password", message: "Password too short" }), false);
+  assert.equal(isEmailTaken({}), false);
 });

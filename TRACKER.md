@@ -49,11 +49,13 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 
 ### Auth (docs/TRD.md §5, §17 — OAuth only, no OTP)
 
-- [x] Google bridge — exercised end-to-end on the emulator via Expo Go + ngrok + `exp://` handoff (2026-08-30; `context.md` §8). LINE half still [~]: bridge written, no channel
+- [x] Google — **brokered by Supabase Auth over PKCE** since 2026-08-30: client id/secret live in the Supabase dashboard, the API drives `code_challenge` → `?grant_type=pkce`, verifier single-use and keyed by the signed state. Walked live on the emulator
+- [x] LINE — exchanged by the API (Supabase has no LINE provider): code → `id_token` → LINE verify → `createUser`/`generateLink`/`verifyOtp` on an isolated client. Walked live once the channel's email permission was approved
+- [x] One person, one account: a provider address that already has an account gets its identity **linked** instead of creating a twin (`isEmailTaken` → id resolved from `generateLink`). Verified live — the LINE identity attached to the existing Google account, auth-user count unchanged
 - [x] Supabase session minted through admin `generateLink` + `verifyOtp`; identities in `oauth_identities` — Google run produced the user + `oauth_identities` row (Supabase logs)
 - [~] Deep-link handoff: `?redirect_to=app` → one-time code → `POST /auth/session` (tokens never in a URL) — `exp://` variant walked; `atsumaru://` variant still needs a dev build
 - [~] `logout` revokes upstream; `503` when a provider is unconfigured
-- [x] State signing, tamper, expiry, and handoff single-use covered by tests
+- [x] State signing, tamper, expiry, handoff single-use, PKCE digest/verifier reuse covered by tests (34/34)
 
 ### Background work (docs/TRD.md §14)
 
@@ -97,8 +99,10 @@ API, so re-applying needs no browser.
 - [x] Walk Google OAuth end to end **via Expo Go on the Android emulator**: ngrok tunnel →
       code exchange → `exp://` handoff → Supabase session → real mutual connection
       (DingDong ↔ @harucafe) driven through feedback (2026-08-30; details in `context.md` §8).
-      LINE still deferred until a channel exists
-- [ ] LINE OAuth once a channel exists
+      Superseded the same day by the Supabase-brokered flow below, which needs no tunnel
+- [x] Re-point Google at Supabase Auth (PKCE) and walk it live; LINE walked live too after
+      its channel email permission was approved, linking onto the same account
+      (`context.md` §10)
 - [ ] Optional: set `REDIS_URL` (Upstash) and confirm the BullMQ driver takes over.
       **Blocked on the sweep atomicity issue below** — two drivers can currently
       double-notify
@@ -334,11 +338,17 @@ JWT-shaped literals anywhere.
       `NODE_ENV === "production"`
 - [ ] OAuth `state` is a stateless HMAC blob only, not bound to the browser or session, so
       any well-formed state is accepted from any client — login CSRF. Bounded by the
-      one-time deep-link code, but the binding is missing
-- [ ] Google identity trusts `email` without checking `email_verified` (`oauth.ts:217`).
-      Supabase Auth keys users by email, so an unverified address colliding with an
-      existing account is a takeover risk — check the claim, fall back to the synthetic
-      `@oauth.atsumaru.invalid` address when false
+      one-time deep-link code, and for Google now also by the PKCE verifier (a state with
+      no stashed verifier is rejected), but the browser binding is still missing
+- [x] The old Google `email_verified` hole is gone with the code that held it: Google no
+      longer produces an `Identity` here at all — Supabase Auth verifies the provider and
+      keys the user. **The equivalent risk now lives in identity linking** (`session.ts`):
+      an address that already has an account gets the new identity attached to it, which is
+      only safe while every linking provider verifies its addresses. LINE does, and only
+      real provider-supplied addresses are ever linked (never a synthetic one)
+- [ ] Linking has no re-authentication step: if a provider ever released an unverified
+      address, it would inherit the matching account. Gate any future provider on an
+      explicit verified-email claim before adding it to the linking path
 - [ ] `CORS_ORIGIN` defaults to `*` for both Express and Socket.io. Auth is a Bearer
       header rather than a cookie, so the exposure is low, but pin it in production
 - [ ] Mobile drops the `refresh_token`: `services/api/auth.ts` types it,
@@ -375,8 +385,9 @@ premium tier.
 
 | Area | Note |
 |---|---|
-| LINE credentials | The bridge is written but unexercised; a LINE Login channel is needed, and channels without the email scope fall back to a synthetic internal address |
-| Google OAuth | Exercised end-to-end via Expo Go + ngrok + `exp://` handoff (2026-08-30, `context.md` §8). Dev-build-only note: shipped builds use the canonical `atsumaru://auth` back to `APP_AUTH_REDIRECT`; only the `exp://` variant has been walked |
+| LINE credentials | **Live 2026-08-30.** Channel configured and walked end to end; email permission approved, so LINE returns the real address and its identity links onto the existing account instead of creating a twin. The synthetic `@oauth.atsumaru.invalid` fallback remains for channels without that permission |
+| Google OAuth | **Brokered by Supabase Auth (PKCE) since 2026-08-30**, so no public tunnel is needed and the client secret is out of the API. Walked live on the emulator. Three URLs must agree: Google console → Supabase's `/auth/v1/callback`, `OAUTH_CALLBACK_URL` → the API's own callback, and that same callback listed in Supabase → Redirect URLs (otherwise GoTrue silently falls back to Site URL — that failure looked like a broken app) |
+| Identity linking trust | Linking a second provider to an existing address trusts the provider's email claim. LINE only releases verified addresses, and Google is now verified by Supabase itself, but the `email_verified` gap in §5 is what keeps this honest — do not extend linking to a provider that does not verify |
 | Push receipts | Tickets are checked, but Expo's async receipt endpoint is not polled — a token can go stale for one cycle |
 | Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
 | Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both — and the sweep atomicity fix in §5 first |
@@ -385,6 +396,6 @@ premium tier.
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
 | Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
 | Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right settings gear, so Settings cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
-| Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain
+| Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain |
 | `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. See §5 |
 
