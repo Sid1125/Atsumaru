@@ -84,6 +84,21 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   meetup's status in TypeScript.
 - Vectors are pgvector `vector(384)` (MiniLM); round-trip with `parseVector` /
   `serializeVector`.
+- **Groq has exactly two jobs and HuggingFace one**, all in `services/ai.ts`:
+  `onboardingChat` (the conversational host), `vibeRecap` (the post-meetup recap), and
+  `embed` (interests + personality → `preference_vector`). Matching and feedback *consume
+  and update* that stored vector arithmetically — no service call. **Group chat, DMs, and
+  the sweep touch no model at all**: `modules/chat/routes.ts`,
+  `modules/connections/routes.ts` and `socket/index.ts` validate, persist, broadcast, and
+  nothing else — no summarisation, sentiment, smart replies, or embedding of messages
+  (`docs/AI.md` §10). Putting AI in chat is a product change, not a refactor.
+- The vibe recap (`modules/recap/`, `docs/AI.md` §6a) is **per-user, not per-meetup**: it
+  is built from the caller's own feedback rows, so two members see different text and
+  neither can infer the other's picks. `RecapPrompt` is the privacy boundary — anonymised
+  traits, a count, and the category, with no field a handle could occupy — and
+  `sanitizeRecap` rejects a model answer that invents one. Groq failing is **not** an
+  error here: `templateRecap()` is the floor, because a recap is passive and an empty card
+  reads as a bug. `meetup_recaps.source` records which path ran.
 - Matching is backend-authoritative in `modules/matching/score.ts`:
   `0.6*cosine + 0.2*group_balance + 0.2*normalized_reputation`. The app displays the
   score, never computes it. Reason strings come from `modules/matching/reasons.ts`
