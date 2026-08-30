@@ -391,14 +391,19 @@ async function seedMessages(
 /**
  * Short-lived access tokens for the demo users, so the app can be pointed at real data
  * before OAuth credentials exist. Same magic-link exchange the auth module uses.
+ *
+ * Each token is minted on a fresh client: verifyOtp stores a session on whichever
+ * client runs it, and supabase-js then sends that session's JWT on every later query
+ * from that client — which would demote the seeder mid-run into the deny-all RLS.
  */
-async function printTokens(client: SupabaseClient) {
+async function printTokens() {
   console.log("\nAccess tokens (expire with the project's JWT lifetime):");
 
   for (const user of USERS) {
     const email = emailFor(user.handle);
+    const minter = admin();
 
-    const { data: link, error: linkError } = await client.auth.admin.generateLink({
+    const { data: link, error: linkError } = await minter.auth.admin.generateLink({
       type: "magiclink",
       email,
     });
@@ -408,7 +413,7 @@ async function printTokens(client: SupabaseClient) {
       continue;
     }
 
-    const { data: session, error: verifyError } = await client.auth.verifyOtp({
+    const { data: session, error: verifyError } = await minter.auth.verifyOtp({
       type: "email",
       token_hash: link.properties.hashed_token,
     });
@@ -461,7 +466,7 @@ async function main() {
     );
   }
 
-  if (args.includes("--tokens")) await printTokens(client);
+  if (args.includes("--tokens")) await printTokens();
 
   console.log(
     `\nDone. Map centre for /events/nearby: lat=${SHIBUYA.lat}&lng=${SHIBUYA.lng}` +

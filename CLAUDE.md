@@ -36,10 +36,32 @@ npm run seed        # demo users/meetups; -- --tokens prints access tokens, -- -
 cd site && npm run dev     # marketing site on :3000
 cd site && npm run build   # also type-checks the site; there is no separate typecheck script
 cd site && npm run lint
+
+# DDL against the live project, without the dashboard. Needs SUPABASE_ACCESS_TOKEN and
+# SUPABASE_PROJECT_REF in the environment (values in access_token.txt, gitignored).
+node scripts/sql.mjs -f server/db/migrations/001_hardening.sql
+node scripts/sql.mjs -c "select count(*) from events"
 ```
 
 `npm run typecheck` does **not** cover `site/` — type-check it with `next build`.
 On Windows use `http://127.0.0.1:4000`, not `localhost`, when curling the API.
+The root `server` script proxies `npm run dev --prefix server`; there is no
+`server/package.json` script literally named `server`.
+
+## Database
+
+Live project `ucxgvtcqoeazuhsgwbhf` (`ap-northeast-1`). `schema.sql` is the base; each
+change after it is a numbered file in `server/db/migrations/` **and** a corresponding
+edit to `schema.sql`, so a fresh project gets the same result in one paste. PostGIS and
+pgvector live in the `extensions` schema, not `public` — `search_path` already covers it,
+so unqualified `st_dwithin` resolves, but an explicit cast needs `extensions.vector`.
+
+New functions are invisible to PostgREST until its schema cache reloads. After a
+migration that adds one, run `notify pgrst, 'reload schema'` or the REST call 404s with
+`PGRST202` while the function plainly exists in Postgres.
+
+A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` pings
+`ping_keepalive()` once a day with the anon key. Keep the service-role key out of CI.
 
 ## Server conventions
 
@@ -78,8 +100,17 @@ On Windows use `http://127.0.0.1:4000`, not `localhost`, when curling the API.
   drives it with BullMQ when `REDIS_URL` is set and a timer otherwise. Both drivers run
   the same body — if Redis is unreachable the API logs it and degrades to the timer.
 - Every integration degrades to a 503 instead of crashing: no Supabase →
-  `DB_UNAVAILABLE`, no `GROQ_API_KEY` → `AI_UNAVAILABLE`, no provider credentials →
-  `AUTH_PROVIDER_UNAVAILABLE`. Keep new ones behind a `has*` flag in `config/env.ts`.
+  `DB_UNAVAILABLE`, no `GROQ_API_KEY` → `AI_UNAVAILABLE`, no `HUGGINGFACE_API_KEY` →
+  `EMBEDDING_UNAVAILABLE`, no provider credentials → `AUTH_PROVIDER_UNAVAILABLE`. Keep
+  new ones behind a `has*` flag in `config/env.ts`.
+- **Never call `auth.verifyOtp` / `auth.signIn*` on the `db()` client.** supabase-js
+  resolves PostgREST's `Authorization` header through `auth.getSession()`, so minting a
+  session on the shared singleton demotes every later query in the process to that user
+  and hits the deny-all RLS. Use `authDb()` (`db/queries.ts`), which hands back a
+  throwaway client.
+- Third-party endpoints and model ids drift and fail silently. `api-inference.huggingface.co`
+  was retired, and `llama-3.3-70b-versatile` was decommissioned — both looked like working
+  code. Verify against the live service, not the docs.
 
 ## Demo mode (mobile)
 
@@ -223,10 +254,14 @@ renders a placeholder on purpose.
 
 The OAuth round-trip is wired but has only been exercised through the demo path — the
 provider redirect and `atsumaru://auth` handoff still need a real run against configured
-credentials in a dev build.
+credentials in a dev build. No LINE or Google credentials exist yet; `seed --tokens`
+mints real Supabase sessions, which is how the authenticated routes were verified.
 
-Backend: written and unit-tested, but never run against a live Supabase project — see
-`TRACKER.md` §1 for the verification checklist that blocks everything else.
+Backend: **verified against the live project** as of 2026-08-30 — see `TRACKER.md` §1 for
+the assertion list and §1b for the eight defects that only a real run could surface. Still
+open there: the sweep stamps its idempotency columns after the side effect rather than
+atomically, so a second driver (BullMQ, or a second instance) can double-notify. Fix that
+before setting `REDIS_URL`.
 
 ## Codex Review
 
