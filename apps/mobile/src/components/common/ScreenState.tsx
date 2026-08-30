@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "./Button";
 import { colors, spacing, type } from "../../theme";
@@ -11,30 +12,37 @@ interface ScreenStateProps {
 }
 
 const GLYPH: Record<ScreenStateProps["status"], string> = {
-  loading: "",
-  error: "⚠",
-  empty: "🗺",
+  loading: "⏳",
+  error: "⚠️",
+  empty: "🗺️",
 };
 
 /**
  * Loading / error / empty in one place so no screen ever renders blank
- * (docs/RULES.md §14). Each state answers "what happened" and, where there is
+ * (docs/RULES.md §13). Each state answers "what happened" and, where there is
  * one, "what can I do" — feedback with a path forward rather than a dead end.
+ *
+ * Branded with Atsumaru's kicker labels and emoji pairs so every state feels
+ * designed, not generic (docs/DESIGN.md §10).
  */
 export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container} accessibilityLiveRegion="polite">
+    <Animated.View
+      entering={FadeInDown.duration(280)}
+      style={styles.container}
+      accessibilityLiveRegion="polite"
+    >
       {status === "loading" ? (
         <>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.text}>{message ?? t("common.loading")}</Text>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.label}>{message ?? t("common.loading")}</Text>
         </>
       ) : (
         <>
           <Text style={styles.glyph}>{GLYPH[status]}</Text>
-          <Text style={styles.title}>
+          <Text style={styles.label}>
             {message ??
               (status === "error" ? t("common.error") : t("common.empty"))}
           </Text>
@@ -43,11 +51,12 @@ export function ScreenState({ status, message, onRetry }: ScreenStateProps) {
               label={t("common.retry")}
               onPress={onRetry}
               variant="secondary"
+              size="regular"
             />
           ) : null}
         </>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -56,11 +65,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
     padding: spacing.xl,
-    minHeight: 180,
+    minHeight: 200,
   },
-  glyph: { fontSize: 30, opacity: 0.5 },
-  title: { ...type.callout, color: colors.textMuted, textAlign: "center" },
-  text: { ...type.footnote, color: colors.textMuted, textAlign: "center" },
+  glyph: { fontSize: 40 },
+  label: {
+    ...type.callout,
+    color: colors.textMuted,
+    textAlign: "center",
+    maxWidth: 260,
+  },
 });

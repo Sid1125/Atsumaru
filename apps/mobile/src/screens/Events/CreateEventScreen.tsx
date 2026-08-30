@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
 import { eventsApi } from "../../services/api/events";
-import { colors, elevation, radius, spacing, type } from "../../theme";
+import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "CreateEvent">;
@@ -24,6 +26,8 @@ export function CreateEventScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
 
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
@@ -64,80 +68,85 @@ export function CreateEventScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.label}>{t("createEvent.name")}</Text>
-      <TextInput
-        accessibilityLabel={t("createEvent.name")}
-        value={title}
-        onChangeText={setTitle}
-        placeholder={t("createEvent.namePlaceholder")}
-        placeholderTextColor={colors.textMuted}
-        style={styles.input}
-      />
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
+        <Text style={styles.kicker}>HOST A MEETUP</Text>
+        <Text style={styles.kickerHint}>Fill in the details and post it to the board.</Text>
 
-      <Text style={styles.label}>{t("createEvent.venue")}</Text>
-      <TextInput
-        accessibilityLabel={t("createEvent.venue")}
-        value={venue}
-        onChangeText={setVenue}
-        placeholder={t("createEvent.venuePlaceholder")}
-        placeholderTextColor={colors.textMuted}
-        style={styles.input}
-      />
+        <Text style={styles.sectionLabel}>{t("createEvent.name")}</Text>
+        <TextInput
+          accessibilityLabel={t("createEvent.name")}
+          value={title}
+          onChangeText={setTitle}
+          placeholder={t("createEvent.namePlaceholder")}
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+        />
 
-      <Text style={styles.label}>{t("createEvent.description")}</Text>
-      <TextInput
-        accessibilityLabel={t("createEvent.description")}
-        value={description}
-        onChangeText={setDescription}
-        placeholder={t("createEvent.descriptionPlaceholder")}
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, styles.multiline]}
-        multiline
-      />
+        <Text style={styles.sectionLabel}>{t("createEvent.venue")}</Text>
+        <TextInput
+          accessibilityLabel={t("createEvent.venue")}
+          value={venue}
+          onChangeText={setVenue}
+          placeholder={t("createEvent.venuePlaceholder")}
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+        />
 
-      <Text style={styles.label}>{t("createEvent.category")}</Text>
-      <View style={styles.chips}>
-        {CATEGORIES.map((key) => (
-          <Chip
-            key={key}
-            label={t(`discover.categories.${key}`)}
-            selected={category === key}
-            onPress={() => setCategory(key)}
-          />
-        ))}
-      </View>
+        <Text style={styles.sectionLabel}>{t("createEvent.description")}</Text>
+        <TextInput
+          accessibilityLabel={t("createEvent.description")}
+          value={description}
+          onChangeText={setDescription}
+          placeholder={t("createEvent.descriptionPlaceholder")}
+          placeholderTextColor={colors.textMuted}
+          style={[styles.input, styles.multiline]}
+          multiline
+        />
 
-      <Text style={styles.label}>{t("createEvent.size")}</Text>
-      <View style={styles.chips}>
-        {SIZES.map((size) => (
-          <Chip
-            key={size}
-            label={String(size)}
-            selected={maxSize === size}
-            onPress={() => setMaxSize(size)}
-          />
-        ))}
-      </View>
+        <Text style={styles.sectionLabel}>{t("createEvent.category")}</Text>
+        <View style={styles.chips}>
+          {CATEGORIES.map((key) => (
+            <Chip
+              key={key}
+              label={t(`discover.categories.${key}`)}
+              selected={category === key}
+              onPress={() => setCategory(key)}
+            />
+          ))}
+        </View>
 
-      <Text style={styles.label}>{t("createEvent.startsIn")}</Text>
-      <TextInput
-        accessibilityLabel={t("createEvent.startsIn")}
-        value={hoursAhead}
-        onChangeText={setHoursAhead}
-        keyboardType="number-pad"
-        style={styles.input}
-      />
+        <Text style={styles.sectionLabel}>{t("createEvent.size")}</Text>
+        <View style={styles.chips}>
+          {SIZES.map((size) => (
+            <Chip
+              key={size}
+              label={String(size)}
+              selected={maxSize === size}
+              onPress={() => setMaxSize(size)}
+            />
+          ))}
+        </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Text style={styles.sectionLabel}>{t("createEvent.startsIn")}</Text>
+        <TextInput
+          accessibilityLabel={t("createEvent.startsIn")}
+          value={hoursAhead}
+          onChangeText={setHoursAhead}
+          keyboardType="number-pad"
+          style={styles.input}
+        />
 
-      <Button
-        label={t("createEvent.submit")}
-        onPress={submit}
-        loading={busy}
-        disabled={!canSubmit}
-        style={styles.cta}
-      />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Button
+          label={t("createEvent.submit")}
+          onPress={submit}
+          loading={busy}
+          disabled={!canSubmit}
+          style={styles.cta}
+        />
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -145,7 +154,9 @@ export function CreateEventScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.xs },
-  label: { ...type.body, fontWeight: "600", color: colors.text, marginTop: spacing.md },
+  kicker: { ...type.overline, color: colors.primary },
+  kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
+  sectionLabel: { ...type.footnote, color: colors.textMuted, marginTop: spacing.md },
   input: {
     minHeight: 48,
     backgroundColor: colors.surface,

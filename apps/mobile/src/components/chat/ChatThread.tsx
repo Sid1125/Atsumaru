@@ -22,21 +22,30 @@ interface ChatThreadProps {
 function Bubble({
   message,
   currentUserId,
+  showSender,
 }: {
   message: Message;
   currentUserId?: string;
+  showSender?: boolean;
 }) {
   const mine = message.sender_id === currentUserId;
 
   return (
-    <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-      <Text style={[styles.text, mine && styles.mineText]}>{message.message}</Text>
-      <Text style={[styles.time, mine && styles.mineTime]}>
-        {new Date(message.created_at).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        })}
-      </Text>
+    <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
+      <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+        {showSender && !mine ? (
+          <Text style={styles.sender}>{message.sender_id.slice(0, 8)}</Text>
+        ) : null}
+        <Text style={[styles.text, mine && styles.mineText]}>
+          {message.message}
+        </Text>
+        <Text style={[styles.time, mine && styles.mineTime]}>
+          {new Date(message.created_at).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -86,7 +95,10 @@ export function ChatThread({
       ) : null}
 
       {thread.messages.length === 0 ? (
-        <Text style={styles.empty}>{t("meetup.chatEmpty")}</Text>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyGlyph}>👋</Text>
+          <Text style={styles.empty}>{t("meetup.chatEmpty")}</Text>
+        </View>
       ) : fill ? (
         // Full-screen DM: a virtualized list owns the scroll.
         <FlatList
@@ -97,7 +109,11 @@ export function ChatThread({
           style={styles.fill}
           onContentSizeChange={() => listRef.current?.scrollToEnd()}
           renderItem={({ item }) => (
-            <Bubble message={item} currentUserId={currentUserId} />
+            <Bubble
+              message={item}
+              currentUserId={currentUserId}
+              showSender={scope === "group"}
+            />
           )}
         />
       ) : (
@@ -109,7 +125,12 @@ export function ChatThread({
          */
         <View style={styles.list}>
           {thread.messages.map((item) => (
-            <Bubble key={item.id} message={item} currentUserId={currentUserId} />
+            <Bubble
+              key={item.id}
+              message={item}
+              currentUserId={currentUserId}
+              showSender={scope === "group"}
+            />
           ))}
         </View>
       )}
@@ -134,18 +155,35 @@ export function ChatThread({
 const styles = StyleSheet.create({
   container: { gap: spacing.sm, minHeight: 220 },
   fill: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   title: { ...type.title3, color: colors.text },
   status: { ...type.caption, color: colors.danger },
-  list: { gap: spacing.xs + 2, paddingVertical: spacing.sm },
+  list: { gap: spacing.sm + 2, paddingVertical: spacing.sm },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  emptyGlyph: { fontSize: 32 },
   empty: {
     ...type.footnote,
     color: colors.textMuted,
     textAlign: "center",
-    paddingVertical: spacing.xl,
+  },
+  bubbleRow: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  bubbleRowMine: {
+    justifyContent: "flex-end",
   },
   bubble: {
-    maxWidth: "82%",
+    maxWidth: "80%",
     paddingHorizontal: spacing.md - 2,
     paddingVertical: spacing.sm,
     borderRadius: radius.lg,
@@ -153,21 +191,34 @@ const styles = StyleSheet.create({
   // The squared-off corner points at the sender — the bubble is anchored to
   // where it came from rather than floating free (skill §7).
   theirs: {
-    alignSelf: "flex-start",
     backgroundColor: colors.surface,
     borderBottomLeftRadius: radius.xs,
     ...elevation.low,
   },
   mine: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderBottomRightRadius: radius.xs,
+  },
+  sender: {
+    ...type.overline,
+    color: colors.textMuted,
+    marginBottom: 2,
   },
   text: { ...type.callout, color: colors.text },
   mineText: { color: colors.textOnColor },
-  time: { ...type.caption, fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  mineTime: { color: "rgba(255,255,255,0.8)" },
-  composer: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  time: {
+    ...type.caption,
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 2,
+    alignSelf: "flex-end",
+  },
+  mineTime: { color: "rgba(255,255,255,0.7)" },
+  composer: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+  },
   input: {
     flex: 1,
     minHeight: 46,

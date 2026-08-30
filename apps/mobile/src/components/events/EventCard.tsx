@@ -2,6 +2,11 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { PressableScale } from "../ui/PressableScale";
+import { Sticker } from "../ui/Sticker";
+import {
+  categoryGlyph,
+  categorySticker,
+} from "../../categoryMeta";
 import { colors, elevation, radius, spacing, type } from "../../theme";
 import type { MeetupEvent } from "../../types/api";
 
@@ -13,21 +18,25 @@ interface EventCardProps {
   onOpen?: () => void;
 }
 
-const CATEGORY_GLYPH: Record<string, string> = {
-  food: "🍜",
-  gaming: "🎮",
-  arts: "🎨",
-  outdoor: "🥾",
-};
-
 /** A filled arc of the group's occupancy — size read at a glance, not counted. */
-function OccupancyBar({ current, max }: { current: number; max: number }) {
+function OccupancyBar({
+  current,
+  max,
+  color,
+}: {
+  current: number;
+  max: number;
+  color: string;
+}) {
   return (
     <View style={styles.pips} accessibilityElementsHidden>
       {Array.from({ length: max }).map((_, index) => (
         <View
           key={index}
-          style={[styles.pip, index < current && styles.pipFilled]}
+          style={[
+            styles.pip,
+            index < current && { backgroundColor: color },
+          ]}
         />
       ))}
     </View>
@@ -52,6 +61,9 @@ export function EventCard({
   const full = event.current_size >= event.max_size;
   const score = matchScore != null ? Math.round(matchScore * 100) : null;
 
+  const sticker = categorySticker(event.category);
+  const glyph = categoryGlyph(event.category);
+
   return (
     <PressableScale
       accessibilityLabel={`${event.title}, ${event.venue_name}, ${when}, ${t(
@@ -63,13 +75,19 @@ export function EventCard({
       style={[styles.card, selected && styles.cardSelected]}
     >
       <View style={styles.row}>
-        <View style={[styles.glyphWell, selected && styles.glyphWellSelected]}>
-          <Text style={styles.glyph}>
-            {CATEGORY_GLYPH[event.category] ?? "📍"}
-          </Text>
-        </View>
+        <Sticker
+          color={sticker.bg}
+          borderRadius={radius.md}
+          rotate={selected ? -2 : 0}
+          style={styles.sticker}
+        >
+          <Text style={styles.glyph}>{glyph}</Text>
+        </Sticker>
 
         <View style={styles.body}>
+          <Text style={[styles.categoryKicker, { color: sticker.bg }]}>
+            {t(`discover.categories.${event.category}`)}
+          </Text>
           <Text style={styles.title} numberOfLines={1}>
             {event.title}
           </Text>
@@ -78,7 +96,11 @@ export function EventCard({
           </Text>
 
           <View style={styles.footer}>
-            <OccupancyBar current={event.current_size} max={event.max_size} />
+            <OccupancyBar
+              current={event.current_size}
+              max={event.max_size}
+              color={sticker.bg}
+            />
             <Text style={styles.size}>
               {full
                 ? t("discover.status.full")
@@ -115,17 +137,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
   },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md - 4 },
-  glyphWell: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.backgroundElevated,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  glyphWellSelected: { backgroundColor: colors.surface },
-  glyph: { fontSize: 22 },
+  sticker: { width: 56, height: 56 },
+  glyph: { fontSize: 26 },
   body: { flex: 1, gap: 2 },
+  categoryKicker: { ...type.kicker, fontSize: 9, lineHeight: 12, letterSpacing: 1.8 },
   title: { ...type.bodyEmphasized, color: colors.text },
   meta: { ...type.footnote, color: colors.textMuted },
   footer: {
@@ -141,7 +156,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.border,
   },
-  pipFilled: { backgroundColor: colors.accent },
   size: { ...type.caption, color: colors.textMuted },
   scoreWell: {
     flexDirection: "row",

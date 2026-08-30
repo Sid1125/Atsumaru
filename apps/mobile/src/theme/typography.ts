@@ -30,6 +30,15 @@ const systemFontMedium = Platform.select({
   default: "System",
 });
 
+/** The site's editorial kickers are its system mono stack (ui-monospace); here
+ *  the platform-equivalent fixed face. Kickers are Latin labels — CJK falls
+ *  back to the system JP face automatically. */
+const monoFont = Platform.select({
+  ios: "Menlo",
+  android: "monospace",
+  default: "monospace",
+});
+
 type Role =
   | "display"
   | "title1"
@@ -42,7 +51,9 @@ type Role =
   | "subhead"
   | "footnote"
   | "caption"
-  | "captionEmphasized";
+  | "captionEmphasized"
+  | "kicker"
+  | "overline";
 
 /**
  * letterSpacing in RN is absolute points, not em — so each entry is computed for
@@ -52,15 +63,15 @@ export const type: Record<Role, TextStyle> = {
   display: {
     fontFamily: systemFont,
     fontSize: 34,
-    lineHeight: 40, // 1.18 — tight, large text needs less air
-    letterSpacing: -0.8,
+    lineHeight: 38,
+    letterSpacing: -1.5,
     fontWeight: "700",
   },
   title1: {
     fontFamily: systemFont,
     fontSize: 28,
-    lineHeight: 34,
-    letterSpacing: -0.5,
+    lineHeight: 32,
+    letterSpacing: -1.0,
     fontWeight: "700",
   },
   title2: {
@@ -133,15 +144,43 @@ export const type: Record<Role, TextStyle> = {
     letterSpacing: 0.3,
     fontWeight: "600",
   },
+  /**
+   * The site's sticker/editorial label (site/globals.css kickers): fixed-width,
+   * bold, upper-case, generously tracked at 0.25em. Used for section headers,
+   * category labels and the login positioning line.
+   */
+  kicker: {
+    fontFamily: monoFont,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 2.6,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  /**
+   * Ultra-small editorial label — the site's `text-[10px] font-black uppercase
+   * tracking-[0.25em]` used for section kickers and micro-labels.
+   */
+  overline: {
+    fontFamily: monoFont,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 3.0,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
 };
 
 /**
- * Section headers in grouped lists: small, wide-tracked, uppercase. The wide
- * tracking is what stops uppercase micro-text from reading as a solid block.
+ * Section headers in grouped lists: the mono kicker face, slightly compressed
+ * so a long row of caps does not read as a solid block.
  */
 export const sectionHeader: TextStyle = {
-  ...type.captionEmphasized,
-  letterSpacing: 0.7,
+  fontFamily: monoFont,
+  fontSize: 10,
+  lineHeight: 13,
+  letterSpacing: 2.4,
+  fontWeight: "700",
   textTransform: "uppercase",
   color: undefined,
 };

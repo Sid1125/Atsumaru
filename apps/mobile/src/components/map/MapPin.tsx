@@ -9,6 +9,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { colors, elevation, radius, spacing, springs, type } from "../../theme";
+import {
+  categoryGlyph,
+  categorySticker,
+} from "../../categoryMeta";
 import type { MeetupEvent } from "../../types/api";
 
 interface MapPinProps {
@@ -21,13 +25,6 @@ interface MapPinProps {
   onPress: () => void;
   onOpen: () => void;
 }
-
-const CATEGORY_GLYPH: Record<string, string> = {
-  food: "🍜",
-  gaming: "🎮",
-  arts: "🎨",
-  outdoor: "🥾",
-};
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -91,12 +88,21 @@ export function MapPin({
   }));
 
   const full = event.current_size >= event.max_size;
+  const sticker = categorySticker(event.category);
+  const glyph = categoryGlyph(event.category);
 
   return (
     <View style={[styles.anchor, { left: x, top: y }]} pointerEvents="box-none">
       <Animated.View style={[styles.stack, containerStyle]} pointerEvents="box-none">
         {/* Selection halo — spatial context for which pin is active */}
-        <Animated.View style={[styles.halo, haloStyle]} pointerEvents="none" />
+        <Animated.View
+          style={[
+            styles.halo,
+            { backgroundColor: sticker.bg },
+            haloStyle,
+          ]}
+          pointerEvents="none"
+        />
 
         <AnimatedPressable
           accessibilityRole="button"
@@ -110,15 +116,20 @@ export function MapPin({
             pressed.value = withSpring(0, springs.snappy);
           }}
           onPress={selected ? onOpen : onPress}
-          style={[styles.bubble, selected && styles.bubbleSelected]}
+          style={[
+            styles.bubble,
+            { backgroundColor: sticker.bg },
+            selected && styles.bubbleSelected,
+          ]}
         >
-          <Text style={styles.glyph}>
-            {CATEGORY_GLYPH[event.category] ?? "📍"}
-          </Text>
+          <Text style={styles.glyph}>{glyph}</Text>
         </AnimatedPressable>
 
         {/* Stem grounds the bubble to its coordinate */}
-        <View style={[styles.stem, selected && styles.stemSelected]} />
+        <View
+          style={[styles.stem, { backgroundColor: sticker.bg }]}
+          pointerEvents="none"
+        />
 
         <Animated.View style={[styles.label, labelStyle]} pointerEvents="none">
           <Text style={styles.labelTitle} numberOfLines={1}>
@@ -151,32 +162,26 @@ const styles = StyleSheet.create({
     width: SIZE * 2.4,
     height: SIZE * 2.4,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
   },
   bubble: {
     width: SIZE,
     height: SIZE,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    ...elevation.medium,
   },
   bubbleSelected: {
-    backgroundColor: colors.primary,
-    borderColor: "#FFFFFF",
+    borderWidth: 3,
   },
   glyph: { fontSize: 20, lineHeight: 24 },
   stem: {
     width: 3,
     height: 10,
-    backgroundColor: colors.surface,
     marginTop: -1,
     borderRadius: 2,
   },
-  stemSelected: { backgroundColor: colors.primary },
   label: {
     marginTop: spacing.xs,
     maxWidth: 190,

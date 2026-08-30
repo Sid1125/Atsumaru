@@ -174,7 +174,14 @@ The UI follows Apple's fluid-interface and typography guidance. Import tokens fr
 - **Type** (`theme/typography.ts`): use the `type` roles. Tracking and leading are
   **size-specific** — display sizes carry negative tracking, caption sizes positive.
   Never reuse one letterSpacing across sizes. `typography` is the deprecated old scale,
-  kept only until the last caller migrates.
+  kept only until the last caller migrates. `type.kicker` / `sectionHeader` are the
+  site's mono editorial labels (system fixed face, uppercase, wide-tracked).
+- **Sticker palette** (`theme/colors.sticker`): category colours are **data-encoded** —
+  one `{ bg, on }` per category, keyed to the site's electric band, shared by card, map
+  pin, filter chip and meetup hero via `src/categoryMeta.ts` (the single glyph/colour
+  source — never add a per-screen category map). Colour always pairs with glyph + label
+  text. `components/ui/Sticker` renders the site's hard offset vinyl shadow as a plain
+  offset underlay (cross-platform; RN `elevation` cannot).
 - **Motion** (`theme/motion.ts`): specify springs as Apple's **damping + response**
   (`springs.standard/snappy/sheet/momentum/celebrate`), not raw stiffness. Default to
   critically damped (no overshoot); add bounce **only** where the gesture carried

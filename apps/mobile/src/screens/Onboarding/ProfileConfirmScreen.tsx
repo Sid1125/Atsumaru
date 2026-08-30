@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
@@ -13,6 +14,7 @@ import {
   sectionHeader,
   spacing,
   type,
+  useReducedMotion,
 } from "../../theme";
 
 /**
@@ -26,6 +28,7 @@ export function ProfileConfirmScreen() {
   const draft = useOnboardingDraft();
   const language = useUiStore((s) => s.language);
   const setUser = useAuthStore((s) => s.setUser);
+  const reducedMotion = useReducedMotion();
 
   const [handles, setHandles] = useState<string[]>([]);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -90,8 +93,9 @@ export function ProfileConfirmScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>{t("onboarding.confirmTitle")}</Text>
-      <Text style={styles.lede}>{t("onboarding.confirmLede")}</Text>
+      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
+        <Text style={styles.kicker}>{t("onboarding.confirmTitle")}</Text>
+        <Text style={styles.title}>{t("onboarding.confirmLede")}</Text>
 
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.interests")}</Text>
@@ -181,6 +185,7 @@ export function ProfileConfirmScreen() {
         haptic="success"
         style={styles.cta}
       />
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -188,8 +193,8 @@ export function ProfileConfirmScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.lg },
-  title: { ...type.title1, color: colors.text },
-  lede: { ...type.callout, color: colors.textMuted, marginTop: -spacing.md + 2 },
+  kicker: { ...type.overline, color: colors.primary },
+  title: { ...type.title1, color: colors.text, marginTop: -spacing.sm },
   group: { gap: spacing.sm },
   groupLabel: { ...sectionHeader, color: colors.textMuted },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
