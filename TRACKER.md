@@ -37,6 +37,9 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 - [~] Join/leave: `join_event` RPC holds a row lock, so the last seat cannot be double-booked
 - [~] Group chat + DMs: paginated `{ messages, page, limit, total }`, membership/connection gated
 - [~] Feedback: private ratings, reputation deltas, preference-vector learning, mutual-only unlock, replay-proof
+- [x] Vibe recap: `GET /events/:id/recap` — per-user Groq recap of the caller's own ratings,
+      cached in `meetup_recaps`, deterministic template fallback in en/ja/zh. **Verified
+      live 2026-08-30** (10/10 assertions, both the `ai` and `template` paths)
 - [~] Connections: mutual-only list, participants only
 - [~] Socket.io: `group:*`, `dm:*`, `member:joined`, `match:unlocked`, `typing`, `user:{id}` room; membership checked, persist-before-broadcast
 
@@ -46,6 +49,8 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 - [x] Preference update: fire pulls, meh pushes, good at half rate
 - [x] Reputation: credit for submitting, penalty for skipping, clamped 0–100
 - [x] Match reasons returned in the member's own language
+- [x] Vibe recap: `fire +2 / good +1 / meh -1` summed per trait, ties alphabetical so member
+      join order cannot leak who was rated (`modules/recap/vibe.ts`)
 
 ### Auth (docs/TRD.md §5, §17 — OAuth only, no OTP)
 
@@ -385,15 +390,18 @@ JWT-shaped literals anywhere.
       `join_event`
 - [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
       completed meetup and escape the ghost penalty before `settle()` runs
-- [ ] **GROQ and HuggingFace embeddings are not in group chats.** Both are wired for
-      onboarding only (GROQ chat completion + HuggingFace MiniLM preference vectors).
-      Group chat is pure text plumbing — no AI summarization, no sentiment, no smart
-      replies. DMs same. If AI is desired in chat, it needs new routes and a socket hook
+- [x] **AI surface, stated exactly.** GROQ has two jobs — the onboarding chat and the
+      post-meetup vibe recap (`docs/AI.md` §6a). HuggingFace has one: MiniLM preference
+      vectors at onboarding. Matching and feedback consume/update the stored vector with
+      plain arithmetic, no service call. **Group chat and DMs remain pure text plumbing** —
+      no summarization, sentiment, smart replies, or message embedding, and message content
+      is not a matching signal. Adding AI there is a product change (`docs/RULES.md` §10),
+      needing new routes plus a socket hook
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
 AI icebreakers, conversational feedback, women-only groups and safety layer, LINE
-messaging integration, gamification, vibe recap, recurring circles, venue partnerships,
+messaging integration, gamification, recurring circles, venue partnerships,
 premium tier.
 
 ## Known gaps and risks
@@ -412,5 +420,6 @@ premium tier.
 | Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
 | Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right settings gear, so Settings cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
 | Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain |
-| `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. See §5 |
+| `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. `004` is **not** part of this drift — it was written into `schema.sql` at the same time. See §5 |
+| Vibe recap in demo mode | `EXPO_PUBLIC_DEMO_MODE=1` always takes the `source: "template"` path — there is no Groq offline. The card, traits and privacy line are real; nothing pretends a model ran |
 

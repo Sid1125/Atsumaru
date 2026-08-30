@@ -109,6 +109,22 @@ create table if not exists push_tokens (
   unique (user_id, token)
 );
 
+-- One cached vibe recap per member per finished meetup (docs/AI.md §6a).
+-- Keyed by user, not just event: the text is derived from the caller's own ratings, so
+-- two members see different recaps and neither can infer the other's picks
+-- (docs/RULES.md §8). Nothing here records who was rated, only aggregate traits.
+-- `source` says whether Groq answered or the deterministic template did.
+create table if not exists meetup_recaps (
+  event_id uuid not null references events (id) on delete cascade,
+  user_id uuid not null references users (id) on delete cascade,
+  recap text not null check (length(recap) between 1 and 400),
+  traits text[] not null default '{}',
+  language text not null check (language in ('ja', 'en', 'zh')),
+  source text not null check (source in ('ai', 'template')),
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
 -- current_size for the API's Event model.
 create or replace view event_sizes as
   select e.id as event_id, count(gm.id) as current_size
@@ -313,3 +329,4 @@ alter table feedback enable row level security;
 alter table connections enable row level security;
 alter table oauth_identities enable row level security;
 alter table push_tokens enable row level security;
+alter table meetup_recaps enable row level security;

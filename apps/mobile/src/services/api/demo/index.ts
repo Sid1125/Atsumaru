@@ -19,6 +19,7 @@ import type {
   Message,
   Rating,
   User,
+  VibeRecap,
 } from "../../../types/api";
 import {
   COMPLETED_EVENT_ID,
@@ -113,8 +114,95 @@ function matchReasons(user: User, event: EventSeed): string[] {
   return reasons;
 }
 
-// ── Onboarding AI (scripted, but responsive to what the user typed) ──────────
+// ── Vibe recap (mirrors server/src/modules/recap/vibe.ts) ────────────────────
 
+/**
+ * The template half of the recap only. There is no Groq offline, so demo mode always
+ * takes the `source: "template"` path the server falls back to — which is the honest
+ * thing to show: the card, the traits, and the privacy line are all real, and nothing
+ * pretends a model ran.
+ *
+ * The weights and the trait ordering must match `traitsFromRatings` on the server; the
+ * wording matches `templateRecap` (docs/AI.md §6a).
+ */
+const RATING_WEIGHT: Record<Rating, number> = { fire: 2, good: 1, meh: -1 };
+
+const RECAP_TEXT: Record<
+  Language,
+  {
+    clicked: (traits: string) => string;
+    quiet: string;
+    join: string;
+    lastJoin: string;
+  }
+> = {
+  en: {
+    clicked: (traits) => `You clicked with people who love ${traits}.`,
+    quiet: "A quieter meetup — your next group will tune to your taste.",
+    join: ", ",
+    lastJoin: " and ",
+  },
+  ja: {
+    clicked: (traits) => `${traits}が好きな人と気が合ったようです。`,
+    quiet: "今回は静かな集まりでした。次のグループはもっと好みに近づきます。",
+    join: "、",
+    lastJoin: "、",
+  },
+  zh: {
+    clicked: (traits) => `你和喜欢${traits}的人很投缘。`,
+    quiet: "这次比较安静，下一个小组会更贴近你的喜好。",
+    join: "、",
+    lastJoin: "、",
+  },
+};
+
+/** The caller's own ratings → anonymised traits, strongest first, ties alphabetical. */
+function recapTraits(user: User, eventId: string): string[] {
+  const world = getWorld();
+  const weights = new Map<string, number>();
+
+  const own = world.feedback.filter(
+    (row) => row.event_id === eventId && row.from_user === user.id
+  );
+
+  for (const row of own) {
+    const rated = world.users.get(row.to_user);
+    if (!rated) continue;
+
+    const traits = new Set(
+      [...rated.interests, ...rated.personality].map((t) => t.trim().toLowerCase())
+    );
+
+    for (const trait of traits) {
+      weights.set(trait, (weights.get(trait) ?? 0) + RATING_WEIGHT[row.rating]);
+    }
+  }
+
+  return [...weights.entries()]
+    .filter(([, weight]) => weight >= 1)
+    .sort(([aT, aW], [bT, bW]) => bW - aW || aT.localeCompare(bT))
+    .slice(0, 3)
+    .map(([trait]) => trait);
+}
+
+function buildRecap(user: User, eventId: string): VibeRecap {
+  const traits = recapTraits(user, eventId);
+  const text = RECAP_TEXT[user.language] ?? RECAP_TEXT.en;
+
+  let recap: string;
+
+  if (traits.length === 0) recap = text.quiet;
+  else if (traits.length === 1) recap = text.clicked(traits[0]!);
+  else {
+    const listed = [...traits];
+    const tail = listed.pop()!;
+    recap = text.clicked(`${listed.join(text.join)}${text.lastJoin}${tail}`);
+  }
+
+  return { recap, traits, source: "template", created_at: new Date().toISOString() };
+}
+
+// ── Onboarding AI (scripted, but responsive to what the user typed) ──────────
 const INTEREST_VOCAB: Record<string, string[]> = {
   hiking: ["hike", "hiking", "mountain", "trail", "outdoor", "山", "ハイキング"],
   coffee: ["coffee", "cafe", "café", "espresso", "roast", "コーヒー", "咖啡"],
@@ -477,6 +565,47 @@ export async function demoRequest<T>(
         match_score: Math.round(matchScore(user, seed) * 100) / 100,
         why: matchReasons(user, seed),
       } as T);
+    }
+
+    // Same four gates as server/src/modules/recap/routes.ts, in the same order.
+    if (tail === "recap" && method === "GET") {
+      const seed = findEvent(eventId);
+      const user = requireUser();
+
+      if (!memberIds(eventId).includes(user.id)) {
+        throw new ApiError("NOT_A_MEMBER", "You are not in this group.", 403);
+      }
+
+      if (toApiEvent(seed).status !== "completed") {
+        throw new ApiError(
+          "MEETUP_NOT_FINISHED",
+          "The recap arrives once the meetup has finished.",
+          409
+        );
+      }
+
+      const cacheKey = `${eventId}:${user.id}`;
+      const cached = world.recaps.get(cacheKey);
+
+      if (cached) return settle(cached as T);
+
+      // Derived from the caller's own ratings, so it does not exist until they submit.
+      const own = world.feedback.filter(
+        (row) => row.event_id === eventId && row.from_user === user.id
+      );
+
+      if (own.length === 0) {
+        throw new ApiError(
+          "NO_FEEDBACK_YET",
+          "Leave your feedback first and the recap will follow.",
+          404
+        );
+      }
+
+      const recap = buildRecap(user, eventId);
+      world.recaps.set(cacheKey, recap);
+
+      return settle(recap as T);
     }
 
     if (tail === "join" && method === "POST") {

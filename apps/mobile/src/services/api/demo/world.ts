@@ -22,6 +22,7 @@ import type {
   Message,
   Rating,
   User,
+  VibeRecap,
 } from "../../../types/api";
 
 const MEETUP_DURATION_MS = 2 * 60 * 60 * 1000;
@@ -211,6 +212,8 @@ interface WorldState {
   messages: Message[];
   feedback: FeedbackRow[];
   connections: Connection[];
+  /** Cached vibe recaps, keyed `${event_id}:${user_id}` — see demo/index.ts. */
+  recaps: Map<string, VibeRecap>;
   /** The signed-in user's id, or null before onboarding completes. */
   currentUserId: string | null;
   /** Set at demo sign-in; the profile row appears only after onboarding. */
@@ -261,6 +264,7 @@ export function resetWorld() {
     messages,
     feedback,
     connections: [],
+    recaps: new Map(),
     currentUserId: null,
     authenticated: false,
     pushToken: null,

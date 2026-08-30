@@ -127,7 +127,9 @@ Nice-to-haves beyond the MVP — great for the pitch as "where this goes next":
 - **Safety layer** — women-only group option, verified profiles, in-app emergency check-in, block/report.
 - **LINE integration** — reminders & notifications via LINE (Japan-native touch).
 - **Gamification** — attendance streaks, badges, "reliable member" status (reputation made visible & fun).
-- **Vibe recap** — AI summary after each meetup ("You clicked with people who love the outdoors").
+- **Vibe recap** — ~~AI summary after each meetup~~ **built** (`docs/AI.md` §6a): each member
+  who leaves feedback gets a one-line recap of the traits they rated highly, from their own
+  ratings only.
 - **Recurring interest circles** — groups that liked each other can auto-schedule the next meetup.
 - **Venue partnerships** — cafés/spaces host events, offer discounts (business model seed).
 - **JP/EN language toggle** — expand beyond Japanese-only (unlike Pairs/Omiai).

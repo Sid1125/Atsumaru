@@ -105,6 +105,52 @@ new =
 
 The product concept specifies feedback as the main personalization signal rather than continuous GPS tracking. fileciteturn0file1L72-L83
 
+## 6a. Vibe Recap
+
+After a meetup completes, each member who submitted feedback gets one short line about
+what their **own** ratings imply:
+
+```text
+You clicked with people who love hiking, coffee and board games.
+```
+
+`GET /events/:id/recap` → `{ recap, traits, source, created_at }`.
+
+Groq's second and only other job. The flow:
+
+```text
+the caller's own feedback rows
+        ↓
+traitsFromRatings()   fire +2, good +1, meh -1, summed per trait
+        ↓
+liked / cooled traits + count + meetup category   ← anonymous by construction
+        ↓
+Groq (one sentence)  ──fails/absent──▶  templateRecap()  in en/ja/zh
+        ↓
+sanitizeRecap()      reject a hallucinated @handle
+        ↓
+meetup_recaps (cached per event+user)
+```
+
+**Per-user, not per-meetup.** The recap is derived from the caller's own ratings, so two
+members of one meetup see different text and neither can infer the other's picks
+(`docs/RULES.md` §8). `meetup_recaps` is keyed `(event_id, user_id)` for that reason, and
+records only the aggregate traits — never who was rated.
+
+**Nothing identifying reaches the model.** `RecapPrompt` in `modules/recap/vibe.ts` holds
+traits, a count, and the category; there is no field a handle or user id could travel in.
+Output still passes `sanitizeRecap()`, because a model can invent a name it was never
+given.
+
+**The template is the floor, not an error path.** No `GROQ_API_KEY`, an unusable answer,
+or a rate-limited caller all fall back to `templateRecap()` in the member's language. A
+recap is passive — the member did not ask for it and is not waiting — so an error would
+render an empty card that looks like a bug. `source` records which path ran.
+
+Gates, in order: membership → meetup completed (409 `MEETUP_NOT_FINISHED`) → the caller
+has submitted their own feedback (404 `NO_FEEDBACK_YET`). Generation is capped at 10/hour
+per user; cache reads are free.
+
 ## 7. Reputation
 
 Reputation should reflect participation/reliability signals.

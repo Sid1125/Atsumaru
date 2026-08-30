@@ -83,6 +83,18 @@ export interface MatchPreview {
   why: string[];
 }
 
+/**
+ * Post-meetup vibe recap (docs/AI.md §6a). Derived from the caller's own private
+ * ratings, so it is per-user, not per-meetup. `source` says whether Groq wrote it or the
+ * deterministic template did — the UI renders both identically; it is for diagnostics.
+ */
+export interface VibeRecap {
+  recap: string;
+  traits: string[];
+  source: "ai" | "template";
+  created_at: string;
+}
+
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;

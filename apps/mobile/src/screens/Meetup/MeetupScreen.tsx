@@ -15,6 +15,7 @@ import { Sticker } from "../../components/ui/Sticker";
 import { categoryGlyph, categorySticker } from "../../categoryMeta";
 import { ChatThread } from "../../components/chat/ChatThread";
 import { FeedbackPanel } from "../../components/feedback/FeedbackPanel";
+import { VibeRecapCard } from "../../components/recap/VibeRecapCard";
 import {
   useEvent,
   useEventMembers,
@@ -267,7 +268,22 @@ export function MeetupScreen() {
       ) : null}
 
       {isMember && isCompleted ? (
-        <FeedbackPanel eventId={eventId} onOpenConnection={openConnection} />
+        <>
+          {/* Recap sits above the form: once feedback exists it is the payoff for it,
+              and before that it renders nothing at all. */}
+          <VibeRecapCard eventId={eventId} enabled={isMember && isCompleted} />
+          <FeedbackPanel
+            eventId={eventId}
+            onOpenConnection={openConnection}
+            onSubmitted={() =>
+              // The recap is generated from the ratings that just landed, so the query
+              // that 404'd a moment ago now has an answer.
+              queryClient.invalidateQueries({
+                queryKey: ["events", eventId, "recap"],
+              })
+            }
+          />
+        </>
       ) : null}
     </ScrollView>
   );
