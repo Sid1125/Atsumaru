@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="./assets/atsumaru-mark.png" width="52" valign="middle"> ATSUMARU
+# <img src="./assets/atsumaru-mark.png" width="300" valign="middle"> <br>ATSUMARU
 
 ### **集まる — Meet people. Not profiles.**
 
