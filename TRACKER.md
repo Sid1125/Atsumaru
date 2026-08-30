@@ -195,6 +195,66 @@ Defects found on device:
       both removes the native-build requirement that `expo run:android` introduced
 - [ ] `expo install --check`: `expo@57.0.17` → `~57.0.18` still pending
 
+### 1e. Independent re-verification with `server/.env`, 2026-08-30
+
+`server/.env` landed, so everything that needed live credentials was re-run from a clean
+process. Configured: Supabase, Groq, HuggingFace. Still empty: both OAuth providers and
+`REDIS_URL`.
+
+- [x] Boot: `supabase:true, groq:true, oauth:{line:false,google:false}`, timer driver
+      selected ("set REDIS_URL for BullMQ"), and the boot sweep ran — `1 completed,
+      0 reminders, 0 settled`
+- [x] `GET /api/auth/google` with no credentials → `503 AUTH_PROVIDER_UNAVAILABLE`
+- [x] `npm run seed -- --tokens`: 6 users, all six **with vector**, 4 meetups. Idempotent
+      re-run (find-by-title then update) — no duplicate rows
+- [x] `GET /users/me` returns exactly `PUBLIC_USER_COLUMNS`; `real_name` absent from the
+      caller's own row and from every expanded member row
+- [x] PostGIS + `event_status()`: Shibuya centre → 3 events (2 open, 1 ongoing), the
+      finished one correctly excluded; Osaka → 0. `GET /events/mine` → 3, one per state
+- [x] `join_event` live: non-member join → `joined` (2/6 → 3/6), second join idempotent,
+      `leave` restored 2/6. A non-member joining the **ongoing** meetup →
+      `409 EVENT_CLOSED`
+- [x] Groq live in both languages on `openai/gpt-oss-120b`; handle suggest returns 6 free
+      handles, `check-handle` on a taken one → `available:false`
+- [x] pgvector cosine is live: match previews returned 0.47 / 0.79 / 0.79 — above the 0.40
+      ceiling a null vector imposes. `why` strings localized
+- [x] Feedback gates: form on a group I am not in → `403 NOT_A_MEMBER`; submit on an open
+      meetup → `409 MEETUP_NOT_FINISHED`; the form excludes the caller
+- [x] Chat REST: paging envelope correct, non-member history → `403`, insert returned a
+      row id
+- [x] `POST /users/me/push-token` accepts an Expo token twice with no duplicate-key error
+      (the `push_tokens` PK from `migrations/001` is live) and rejects a malformed token
+      with `400`
+- [x] Socket.io against the live DB: garbage handshake token → `unauthorized`; `group:join`
+      on a non-member group → `NOT_A_MEMBER`; member send persisted **and** broadcast with
+      its row id; empty body → `INVALID_MESSAGE`; **`typing` into a room the socket never
+      joined was not echoed** — the spoofing fix holds
+- [x] Postgres text never surfaces: unknown id → `404 NOT_FOUND`, and a DB-level failure
+      returns only `DB_ERROR / "Database request failed."`
+
+New defects this run surfaced:
+
+- [ ] **Message ordering has no tiebreaker.** `listMessages` sorts on `created_at` alone.
+      The two seeded messages share an identical timestamp (one batch insert), and the API
+      returned them in the opposite order to the seed. Equal timestamps also make paging
+      able to skip or repeat a row. Add `id` as a secondary sort key, and stagger the
+      timestamps in `seed.ts`
+- [ ] A malformed path param (`GET /events/not-a-uuid`) returns **`500 DB_ERROR`** where it
+      should be `400`. Nothing leaks — Postgres' `invalid input syntax for uuid` is
+      swallowed correctly — but the status is wrong. Validate id params as UUIDs in
+      `utils/request.ts`
+- [ ] `join_event`'s already-a-member early return reports `matched` / `joined` from size
+      alone, ignoring derived status, so re-joining a **completed** meetup answers
+      `matched`. Cosmetic, but it is the one join response that can contradict
+      `event_status()`
+- [ ] Left behind in the live project by this run: one `"env smoke test"` message and one
+      `"socket smoke test"` message on Morning Trail Run, plus an
+      `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. `npm run seed -- --reset`
+      clears them along with all demo data
+- [ ] Still unexercised, and still needs provider credentials: the `verifyOtp` /
+      `authDb()` path in `modules/auth/session.ts`. `seed --tokens` mints sessions through
+      the same helper, but the API process itself only runs it during an OAuth callback
+
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
 Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
