@@ -390,6 +390,17 @@ JWT-shaped literals anywhere.
       `join_event`
 - [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
       completed meetup and escape the ghost penalty before `settle()` runs
+- [ ] **All-meh recap inverts the caller's dislikes into a compliment.** A member who
+      rates everyone `meh` gets `liked: []` but the AI path still runs — `vibeRecap`
+      sees the `cooled` traits in `recapPrompt`, and the system prompt's "never say
+      anyone was rated negatively" leaves the model nothing to write about except the
+      very traits the caller disliked. Live proof (flood test 2026-08-30): sotaruns
+      rated three members `meh` on Morning Trail Run and received "あなたはアウトドアで、
+      活動的でボードゲーム好き、そしてリラックスした雰囲気の人と仲良くなれました。"
+      The template path already handles this (`quiet` when `liked.length === 0` in
+      `templateRecap`), so the fix is to skip the AI branch on an empty `liked` list
+- [x] `connections/routes.ts:32` interpolates `userId` into a PostgREST `.or()` filter.
+      Safe today (it is a UUID off the verified JWT); defence-in-depth only
 - [x] **AI surface, stated exactly.** GROQ has two jobs — the onboarding chat and the
       post-meetup vibe recap (`docs/AI.md` §6a). HuggingFace has one: MiniLM preference
       vectors at onboarding. Matching and feedback consume/update the stored vector with

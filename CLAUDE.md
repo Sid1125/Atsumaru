@@ -20,6 +20,9 @@ docs/          IDEA, PRD, DESIGN, TRD, FRONTEND, RULES, API_STRUCTURE, AI, PROJE
 graphify-out/  Generated code-graph artifact. Never hand-edit; regenerate or ignore.
 ```
 
+WIRING.md is the how-it's-wired + boot map; README.md is marketing. Docs in `docs/`
+still rule on disagreements.
+
 Three npm packages, no workspaces: `server`, `apps/mobile`, and `site` each install
 separately. `npm run setup` installs the first two only — `site` needs its own
 `npm install` inside `site/`.

@@ -180,9 +180,15 @@ recapRouter.get(
 
     // Over budget falls back to the template rather than 429ing: the member still gets a
     // real sentence, and the cheap path is the one being protected.
-    const generated = recapLimiter.take(userId)
-      ? await vibeRecap(recapPrompt(language, event.category, summary))
-      : null;
+    //
+    // An empty `liked` list also skips the model: rated people but nothing positive came
+    // through, so `templateRecap` answers with the "quieter meetup" line. Sending Groq the
+    // `cooled` traits in that state is why an all-meh rater once received a compliment for
+    // exactly the members they disliked (TRACKER.md §5).
+    const generated =
+      summary.liked.length > 0 && recapLimiter.take(userId)
+        ? await vibeRecap(recapPrompt(language, event.category, summary))
+        : null;
 
     const recap = generated ?? template;
     const source: "ai" | "template" = generated ? "ai" : "template";
