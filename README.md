@@ -1069,6 +1069,7 @@ If Redis becomes unreachable, the API falls back automatically.
 | [`API_STRUCTURE.md`](./docs/API_STRUCTURE.md) | API contract |
 | [`AI.md`](./docs/AI.md) | AI & matching architecture |
 | [`TRACKER.md`](./TRACKER.md) | Build status |
+| [`WIRING.md`](./WIRING.md) | How it's wired + how to boot |
 
 ---
 

@@ -506,6 +506,37 @@ hiking"* — one separator was used for both the run and the final join. Fixed w
 pinning the exact string. The unit tests had used a loose regex that matched the broken
 output.
 
+### Brute re-verification (2026-08-30, the "test it brutally" pass)
+
+Same live API, adversarial this time — every gate hammered instead of walked, then all
+harness rows deleted. 48/48 tests + typecheck held.
+
+- **Rate-limit flood** — a fresh user with 11 seeded completed meetups, hit sequentially:
+  calls 1–10 → all `source: "ai"`, call **11 → `source: "template"`**. The 10/hour cap
+  lands exactly, and the over-budget member still gets a real sentence.
+- **Concurrency** — 8 parallel `/recap` on one fresh meetup: all 8 → 200, byte-identical
+  `created_at`, and exactly **one** row in `meetup_recaps`. `onConflict` holds under the
+  race the cache-first read creates.
+- **RLS** — anon and authenticated users (even the recap's owner) both get `[]` from Raw
+  REST on `meetup_recaps`; **no policy is defined**, so the table is service-role-only —
+  the recap is reachable solely through the gated API route. Strongest posture, not a leak.
+- **Isolation** — ramenkenji reading trailbrew's recap row → `[]`; only the API route
+  (membership-gated) serves recaps. sotaruns' all-meh recap proves the per-caller trait
+  buckets: `traits: []` stored, but see the finding below.
+- **Auth** — garbage and expired JWTs → 401 `UNAUTHORIZED`; non-member → 403 `NOT_A_MEMBER`;
+  no-feedback member → 404 `NO_FEEDBACK_YET`; open meetup → 409 `MEETUP_NOT_FINISHED`.
+- **`vibeRecap` never throws** — a failed or unparseable model answer returns null and the
+  route falls back, confirmed by reading `ai.ts` (returns null on any catch).
+
+**One new defect, now in `TRACKER.md` §5:** an **all-`meh` recap inverts the caller's
+dislikes into a compliment.** A member who rates everyone `meh` gets `liked: []` but the AI
+path still runs: the `cooled` traits reach Groq in `recapPrompt`, and the "never say anyone
+was rated negatively" instruction leaves the model nothing to praise except the very people
+the caller disliked. Live: sotaruns rated three members `meh` and was told "あなたは
+アウトドアで、活動的でボードゲーム好き、そしてリラックスした雰囲気の人と仲良くなれました。"
+The template path already does the right thing (`quiet` when `liked.length === 0`), so the
+fix is a one-line gate: skip the AI branch on an empty `liked` list.
+
 48/48 tests (14 new), `npm run typecheck` clean on both packages.
 
 ### State
