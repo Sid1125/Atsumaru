@@ -55,7 +55,9 @@ Working: the full documented API against Supabase — OAuth sign-in for LINE and
 users, onboarding chat + handle suggestion/availability + profile completion (with
 embedding), events (nearby/detail/create/mine/join/leave/members/match-preview), group
 chat, private feedback with reputation + preference-vector learning and mutual-only
-connection unlock, DMs, and Socket.io rooms (`group:{event_id}`, `dm:{connection_id}`,
+connection unlock, the post-meetup vibe recap (`GET /events/:id/recap` — a Groq one-liner
+from your own ratings, cached per member, with a deterministic template fallback), DMs,
+and Socket.io rooms (`group:{event_id}`, `dm:{connection_id}`,
 `user:{user_id}`) that check membership and persist before broadcast. A post-meetup
 sweep closes meetups out, sends the Expo feedback reminder ~1h after `start_time`, and
 docks reputation from members who never submit feedback. The mobile shell is complete
@@ -105,7 +107,9 @@ Two endpoints go beyond `docs/API_STRUCTURE.md`, both needed by the documented f
 
 Data routes answer `503 DB_UNAVAILABLE` until `server/.env` has Supabase keys,
 onboarding chat answers `503 AI_UNAVAILABLE` without `GROQ_API_KEY`, and login answers
-`503 AUTH_PROVIDER_UNAVAILABLE` without that provider's credentials.
+`503 AUTH_PROVIDER_UNAVAILABLE` without that provider's credentials. The vibe recap is the
+exception: with no `GROQ_API_KEY` it returns a template line rather than an error, because
+nobody is waiting on it and an empty card reads as a bug.
 
 The map renders a placeholder until `EXPO_PUBLIC_MAPBOX_TOKEN` is set **and** the app
 runs in a dev build — `@rnmapbox/maps` needs native code and does not work in Expo Go.

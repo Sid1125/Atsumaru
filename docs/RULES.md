@@ -124,8 +124,13 @@ Never show:
 
 A successful feedback submission may return unlocked connections. fileciteturn0file0L151-L157
 
-## 9. Connection Rules
+### Vibe recap
+The post-meetup recap (`docs/AI.md` §6a) is derived from the caller's **own** ratings only.
+Never build one from the group's feedback, never key the cache by event alone, and never
+let a handle, display name, or user id reach the model. A recap that reveals what someone
+else rated is the same violation as showing their rating directly.
 
+## 9. Connection Rules
 A connection is created/unlocked only when both participants select each other.
 
 Expected UX:
@@ -157,6 +162,13 @@ Only users with an unlocked connection may access the DM.
 - handle sending failures
 - show reconnecting state
 - avoid duplicate messages
+
+### No AI in chat
+Group chat and DMs are plain text plumbing: validate, persist, broadcast. Do not add
+summarisation, sentiment analysis, smart replies, translation, or message embedding to
+`modules/chat/routes.ts`, `modules/connections/routes.ts`, or `socket/index.ts`. Message
+content is not a matching signal — the preference vector moves only through onboarding and
+post-meetup feedback. See §13 and `docs/AI.md` §10.
 
 ## 11. Location Rules
 
@@ -196,6 +208,15 @@ The AI's job is:
 3. support the feedback loop
 
 The AI is not the primary social experience.
+
+Concretely: Groq answers the onboarding chat and writes the post-meetup vibe recap;
+HuggingFace embeds the extracted interests + personality into `preference_vector`. Matching
+and feedback then read and update that stored vector arithmetically, without calling a
+model. Chat, DMs, and the sweep call no model at all (§10, `docs/AI.md` §10).
+
+Where a model's output is decorative rather than requested — the vibe recap — a failure
+must degrade to a deterministic fallback, not an error. Where the user is actively waiting
+— onboarding — a 503 is correct.
 
 ## 14. Error Handling
 

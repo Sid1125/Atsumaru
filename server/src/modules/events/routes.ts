@@ -19,6 +19,7 @@ import { param } from "../../utils/request.js";
 import { parseVector } from "../../utils/vector.js";
 import { chatRouter } from "../chat/routes.js";
 import { feedbackRouter } from "../feedback/routes.js";
+import { recapRouter } from "../recap/routes.js";
 
 const coordsSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -287,3 +288,4 @@ eventsRouter.get(
 // Per-event sub-resources live in their own modules.
 eventsRouter.use("/", chatRouter);
 eventsRouter.use("/", feedbackRouter);
+eventsRouter.use("/", recapRouter);

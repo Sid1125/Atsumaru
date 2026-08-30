@@ -84,6 +84,10 @@
     "privacyNote": "選んだ内容は非公開です。相手には知られません。",
     "thanksTitle": "ありがとうございます — 内容は非公開です"
   },
+  "recap": {
+    "title": "あなたのバイブまとめ",
+    "privacyNote": "あなたの評価から作成されました。他の人には表示されません。"
+  },
   "connection": {
     "mutualTitle": "お互いにつながりました！",
     "mutualBody": "@{{handle}}さんとお互いにつながりを希望しました。",

@@ -6,6 +6,7 @@ import type {
   MeetupEvent,
   Message,
   MessagePage,
+  VibeRecap,
 } from "../../types/api";
 
 export const eventsApi = {
@@ -43,6 +44,9 @@ export const eventsApi = {
 
   matchPreview: (id: string) =>
     api.get<MatchPreview>(`/events/${id}/match-preview`),
+
+  /** 404 `NO_FEEDBACK_YET` until the caller has submitted their own feedback. */
+  recap: (id: string) => api.get<VibeRecap>(`/events/${id}/recap`),
 
   messages: (id: string, page = 1, limit = 30) =>
     api.get<MessagePage>(`/events/${id}/messages`, { page, limit }),
