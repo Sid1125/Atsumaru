@@ -528,23 +528,49 @@ harness rows deleted. 48/48 tests + typecheck held.
 - **`vibeRecap` never throws** — a failed or unparseable model answer returns null and the
   route falls back, confirmed by reading `ai.ts` (returns null on any catch).
 
-**One new defect, now in `TRACKER.md` §5:** an **all-`meh` recap inverts the caller's
-dislikes into a compliment.** A member who rates everyone `meh` gets `liked: []` but the AI
-path still runs: the `cooled` traits reach Groq in `recapPrompt`, and the "never say anyone
-was rated negatively" instruction leaves the model nothing to praise except the very people
-the caller disliked. Live: sotaruns rated three members `meh` and was told "あなたは
+**One defect, fixed and re-verified (now `TRACKER.md` §5):** an **all-`meh` recap inverts
+the caller's dislikes into a compliment.** A member who rates everyone `meh` gets
+`liked: []` but the AI path still ran: the `cooled` traits reach Groq in `recapPrompt`,
+and the "never say anyone was rated negatively" instruction leaves the model nothing to
+praise except the very people the caller disliked. Live: sotaruns rated three members
+`meh` and was told "あなたは
 アウトドアで、活動的でボードゲーム好き、そしてリラックスした雰囲気の人と仲良くなれました。"
 The template path already does the right thing (`quiet` when `liked.length === 0`), so the
-fix is a one-line gate: skip the AI branch on an empty `liked` list.
+fix landed as a one-line gate in `routes.ts`: skip the AI branch on an empty `liked` list
+(`summary.liked.length > 0 && recapLimiter.take(userId)`). **Re-verified live** after the
+edit — sotaruns, one all-`meh` feedback on Morning Trail Run, answered `source:"template"`,
+`"今回は静かな集まりでした。次のグループはもっと好みに近づきます。"`, `traits: []`;
+the throwaway feedback row and recap were then deleted (DB back to seed state).
 
 48/48 tests (14 new), `npm run typecheck` clean on both packages.
 
+**Edge pass (2026-08-30, "test more edge cases"):** a fresh live harness — linlens zh,
+two completed events, three helper members with controlled traits (`coffee/cheerful`,
+`ramen/quiet`, `bouldering/calm`) — then deleted along with its rows:
+
+- **Mixed fire+meh** — stored `traits` equalled the liked bucket **exactly**
+  (`["cheerful","coffee"]`), and the AI text named only those: the meh member's
+  `ramen/quiet` never surfaced. This is the all-meh inversion bug, checked at its
+  non-degenerate neighbour.
+- **All-fire** — bucket `["cheerful","coffee","quiet"]`: alphabetical top-3, `ramen`
+  correctly sliced off at `MAX_RECAP_TRAITS`. Stored traits are the contract; the text is
+  the model's paraphrase.
+- **Cache-first beats new feedback** — after recap B was cached, adding a third member
+  plus a `fire` rating changed nothing: re-GET was byte-identical (`created_at` the same),
+  traits still 3. Confirms "the recap never changes" — later feedback is invisible by
+  design, worth knowing before anyone expects a recap to update.
+- Third live language exercised: **zh** (trailbrew en, ramenkenji ja, linlens zh).
+
+Test count now 49/49 (the extra one pins the single-`good` boundary: weight 1 clears
+`MIN_TRAIT_WEIGHT=1` into `liked`).
+
 ### State
 
-Branch `feat-2-ai-vibe-recap`, cut from `main` at `403672f` after pulling 14 commits.
-Commit `f48646c`, pushed to `origin` with upstream set. Staged diff was scanned for
-`sbp_`/`ghp_`/`hf_`/`gsk_`/JWT prefixes — 0 matches; `access_token.txt` and both `.env`
-files confirmed gitignored. No PR opened yet.
+Merged into `main` (PR #2). The all-meh fix and `WIRING.md` (wiring + boot map, linked from
+the README docs table and referenced by `CLAUDE.md`) landed as commit `0e3eebd` on `main`;
+working tree clean. The earlier feature-branch push (`f48646c`) was scanned for
+`sbp_`/`ghp_`/`hf_`/`gsk_`/JWT prefixes before it left — 0 matches; `access_token.txt` and
+both `.env` files are gitignored. No PR open beyond the merged one.
 
 **Not touched:** the map. It was never in scope for this task and its state is unverified
 here — `components/map/` is still the hand-authored SVG city, and the Mapbox path still
