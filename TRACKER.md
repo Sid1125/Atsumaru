@@ -10,7 +10,9 @@ Verification baseline right now: `npm run typecheck` clean (both packages),
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
-(`next build` clean).
+(`next build` clean). The mobile app has since been walked end to end on a **Pixel 10a
+emulator** in Expo Go, demo mode (§1d) — the loop holds; the defects that run surfaced
+are listed there, and the security review of the backend push is in §5.
 
 ## Done
 
@@ -139,6 +141,60 @@ Every one of these was invisible without live credentials.
       `react-native-worklets` were imported but only resolved transitively — all three
       now declared
 
+### 1d. Pixel 10a emulator run, 2026-08-30 — Expo Go, demo mode
+
+First on-device walkthrough after the backend push. `EXPO_PUBLIC_DEMO_MODE=1`, Expo Go,
+`emulator-5554`, 1757 modules bundled. The whole loop works; the defects below are what
+the run surfaced.
+
+Passed end to end: onboarding chat (3 exchanges → `hiking`/`coffee`/`chill`) → handle
+suggestions with live availability → Discover (hand-authored map, category chips, pins,
+"For you" sheet) → meetup detail → join (2/6 → 3/6, score recomputed 43% → 46%) → group
+chat with reply → private feedback (emoji **and** text on every rating) → mutual
+connection unlocked → DM sent → host a meetup (auto-joined, 1/6). No `real_name`
+anywhere; handles only.
+
+Two blockers had to be cleared before it would boot at all:
+
+- [x] `apps/mobile/package.json` pinned `react-native-worklets ~0.7.0` while
+      `react-native-reanimated@4.5.1` requires peer `0.10.x`, so `npm install` failed
+      `ERESOLVE` outright. Set to `0.10.1` (the version Expo SDK 57 expects);
+      `expo-constants` → `~57.0.16` at the same time
+- [x] After that bump, a redbox: `[Worklets] Mismatch between JavaScript code version and
+      Worklets Babel plugin version (0.10.1 vs. 0.10.4)` — a stale Metro transform cache.
+      `expo start --clear` clears it. Worth knowing after any worklets version change
+
+Defects found on device:
+
+- [ ] **Connections row hangs on "Loading…" forever** with a `?` avatar. Two causes, both
+      need fixing: `demo/index.ts` has no `GET /users/:id` (throws `501`), *and*
+      `ConnectionRow` renders `display_name ?? t("common.loading")` with no error branch —
+      so a failed lookup is indistinguishable from loading against the real API too.
+      Better still, return the other participant's public projection inside
+      `GET /connections` and drop the per-row request entirely
+- [ ] "Shibuya Café Crawl · Leave feedback" still shows on Discover after feedback was
+      submitted — that card is never invalidated
+- [ ] A joined upcoming meetup never appears under YOUR MEETUPS (joined Morning Hike &
+      Coffee; the section still listed only the feedback-pending one)
+- [ ] The host sees "Leave group" on their own meetup. The server answers
+      `403 HOST_CANNOT_LEAVE`, so the button should be hidden for the host
+- [ ] DM empty state puts the composer at the top of the screen; it only pins to the
+      bottom once a message exists
+- [ ] A fully expanded Discover sheet covers the profile pill / heart / settings header
+      ("Find your people nearby" is clipped) — the sheet's max height ignores the header
+- [ ] Meetup detail says "YOUR GROUP · 2/6 PEOPLE" before you have joined, while the CTA
+      on the same screen still reads "Join group"
+- [ ] Match-% pill is green at every value — 26% reads as positive. The site got a ramp
+      (`site/src/lib/match.ts`, ≥95 green / 90–94 amber / <90 red); mobile did not
+- [ ] Nit: a Discover card needs two taps to open — the first selects its map pin
+- [ ] Not testable in Expo Go: **Settings** (language override, sign out). Expo Go's
+      dev-launcher floating button sits exactly on the app's header gear and intercepts
+      every tap. Needs a dev build, or a temporary second entry point
+- [ ] `@rnmapbox/maps` is imported nowhere in `src/`, but its `app.json` plugin still
+      injects a Mapbox maven repo and a native module into the Android build. Dropping
+      both removes the native-build requirement that `expo run:android` introduced
+- [ ] `expo install --check`: `expo@57.0.17` → `~57.0.18` still pending
+
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
 Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
@@ -191,15 +247,51 @@ interactive Vibe Check squad-pass toy, draggable hero stickers, and punchier cop
 
 ### 5. Polish and hardening
 
+Reviewed 2026-08-30 against the backend push. Dependency audits: server **0
+vulnerabilities**; mobile 11 moderate, all one advisory (`uuid <11.1.1` via `xcode` →
+`@expo/config-plugins`), build tooling only, no fix available, nothing in the shipped
+bundle. No secrets tracked — nothing matching `.env`/token/key in `git ls-files`, no
+JWT-shaped literals anywhere.
+
+- [ ] **`schema.sql` does not mirror `migrations/001`, `002`, or `003`.** `CLAUDE.md`
+      requires both, so that a fresh project comes up identical in one paste. Today a
+      fresh paste gets `event_sizes` **without** `security_invoker` — the exact RLS bypass
+      001 exists to close, leaking every event id and group size to the anon key — plus no
+      FK on `messages.connection_id`, no PK on `push_tokens`, none of the 8 indexes, no
+      pinned `search_path`, and no `keepalive`/`ping_keepalive()`. The live project is
+      fine; any new environment is not. Highest-priority item in this section
+- [ ] **`AUTH_STATE_SECRET` ships a hardcoded default and production only warns.**
+      `config/env.ts:35` defaults to `"atsumaru-dev-state-secret"` and line 63 logs a
+      warning and continues — that value is in the repo, so the OAuth `state` HMAC is
+      forgeable on any deploy that forgets the env var. Make it `process.exit(1)` when
+      `NODE_ENV === "production"`
+- [ ] OAuth `state` is a stateless HMAC blob only, not bound to the browser or session, so
+      any well-formed state is accepted from any client — login CSRF. Bounded by the
+      one-time deep-link code, but the binding is missing
+- [ ] Google identity trusts `email` without checking `email_verified` (`oauth.ts:217`).
+      Supabase Auth keys users by email, so an unverified address colliding with an
+      existing account is a takeover risk — check the claim, fall back to the synthetic
+      `@oauth.atsumaru.invalid` address when false
+- [ ] `CORS_ORIGIN` defaults to `*` for both Express and Socket.io. Auth is a Bearer
+      header rather than a cookie, so the exposure is low, but pin it in production
+- [ ] Mobile drops the `refresh_token`: `services/api/auth.ts` types it,
+      `storage/session.ts` stores only the access token, and there is no 401 handling
+      outside the demo layer. When the Supabase access token expires the app dead-ends
+      into silent failures with no re-auth path
+- [ ] `utils/rateLimit.ts` exposes `prune()` but nothing calls it, so the onboarding
+      limiter's counter map grows one entry per user for the process lifetime
+- [ ] `POST /events` accepts a `start_time` in the past, which creates a meetup that is
+      already `completed` by `event_status()`
 - [ ] **Sweep side effects are not atomic with their stamps.** `remind()` pushes then
       stamps; `settle()` docks then stamps. One driver is safe (verified), but two —
       BullMQ plus the boot-time `sweepOnce()`, or two API instances — can double-notify
       and double-dock. Make the stamp a conditional update before enabling Redis
+- [ ] `connections/routes.ts:32` interpolates `userId` into a PostgREST `.or()` filter.
+      Safe today (it is a UUID off the verified JWT); defence-in-depth only
 - [ ] Accessibility pass: emoji ratings need text equivalents, touch targets, no colour-only state (docs/DESIGN.md §10)
 - [x] Index on `events (start_time, status)` — added in `migrations/001` along with the
       other 7 unindexed filter columns
 - [ ] Move OAuth handoff codes out of memory if the API ever runs more than one instance
-- [ ] Rotate `AUTH_STATE_SECRET` per deployment (the dev default warns in production)
 - [ ] `POST /events` inserts the event and the host's `group_members` row in two
       statements; a failure between them leaves a hostless group. Move into an RPC like
       `join_event`
@@ -224,6 +316,8 @@ premium tier.
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
-| Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode; and connect-picks for unrated members are dropped. Real API mode is unaffected |
-| Mobile loop against the real API | The backend is proven and the app bundles against it (1782 modules, `DEMO_MODE=0`), but the on-device walkthrough has only ever been done in demo mode. Needs an emulator run |
+| Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
+| Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right settings gear, so Settings cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
+| Mobile loop against the real API | The backend is proven and the app bundles against it (1782 modules, `DEMO_MODE=0`), but every on-device walkthrough so far — including the Pixel 10a run in §1d — has been in demo mode. Still needs a run with `DEMO_MODE=0` against `:4000` |
+| `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. See §5 |
 
