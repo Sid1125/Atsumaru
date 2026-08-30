@@ -1,4 +1,4 @@
-# context.md — working context for the Atsumaru backend wiring
+# context.md — working context for the Atsumaru backend + OAuth wiring
 
 > Purpose: a durable record of *why* this work is happening and *what* was decided, so a
 > fresh session (or a context reset mid-task) can resume without re-deriving anything.
@@ -7,28 +7,31 @@
 >
 > Started 2026-08-30. Update the Change Log section as work lands.
 >
-> The previous task (mobile rewire + backend bring-up against the live project) is
-> recorded in `TRACKER.md` §2–3 and in this file's §2–7; the *current* task is the Google
-> OAuth round-trip and the real mutual connection described in §1 and logged in §8.
+> Two tasks are recorded here: the backend bring-up (B1–B10, §2–7) and the OAuth/session
+> task (Google login through Expo Go + a real mutual connection, §1 + §8). The OAuth task
+> is **complete** as of 2026-08-30; see §8 for evidence and §9 for what is left.
 
 ---
 
-## 1. The ask (current task)
+## 1. The ask (OAuth task — COMPLETED 2026-08-30)
 
 Make real Google OAuth login work on the Android emulator through Expo Go (the previous
 task left OAuth "wired but unexercised"), then drive a **real mutual 1:1 connection** for
 the Google-authenticated user through the live stack (ngrok tunnel → Express OAuth bridge →
 exp:// handoff → Supabase session → in-app feedback → connections row).
 
-The backend bring-up task (B1–B10) is complete and recorded below; its ask was to stand
-the API up against the live project, which recorded the eight defects that only a real
-run could surface.
+**Status: done.** Google sign-in walks end-to-end in Expo Go and the connection
+`DingDong ↔ @harucafe` exists in the live `connections` table (see §8).
+
+The backend bring-up task (B1–B10) below was complete before this one; its ask was to
+stand the API up against the live project, which recorded the eight defects that only a
+real run could surface.
 
 ## 2. Environment (verified, not assumed)
 
 | Fact | Value |
 |---|---|
-| Repo root | `C:\Users\saksh\Documents\Japan\Atsumaru` |
+| Repo root | `D:\WeLiveAppathon` (workspace; repo root may differ from the original author's machine — paths in this file are relative unless noted) |
 | Branch | `feat-backend-app`, cut from `main` at `d50d19e` |
 | Node / npm | v22.14.0 / 11.7.0 |
 | Supabase project | `ucxgvtcqoeazuhsgwbhf`, `ap-northeast-1` (Tokyo), ACTIVE_HEALTHY |
@@ -38,7 +41,7 @@ run could surface.
 | Extensions | `postgis` 3.3.7, `vector` 0.8.2 — installed into `extensions`, not `public` |
 | `server/.env` | **created by this task** (gitignored) |
 | `apps/mobile/.env` | **created by this task**, `EXPO_PUBLIC_DEMO_MODE=0` |
-| Credentials | Supabase (URL + anon + service-role + `sbp_` management), HuggingFace, Groq, GitHub `ghp_` — all in `access_token.txt` (gitignored) |
+| Credentials | Supabase URL/anon/service-role + HuggingFace + Groq live in `server/.env` (gitignored). **`access_token.txt` does NOT exist at this checkout** — so `scripts/sql.mjs` (Management API) is blocked; admin work uses a service-role `createClient` instead |
 | Deps | all three packages installed (`server`, `apps/mobile`, `site`) |
 | Redis | intentionally absent — the in-process timer is the driver under test (see §4) |
 | OAuth | previously "no LINE or Google credentials; `seed --tokens` mints real sessions". **Now LIVE**: Google creds exist in `server/.env` (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), verified end-to-end on the emulator 2026-08-30 — see §8 |
@@ -259,16 +262,20 @@ demo world and the harness deleted.
 
 | Service | Result |
 |---|---|
-| API `:4000` | `{"status":"ok","supabase":true,"groq":true,"oauth":{"line":false,"google":false}}` |
+| API `:4000` | `{"status":"ok","supabase":true,"groq":true,"oauth":{"line":false,"google":true}}` — Google creds present; LINE still empty |
 | Metro `:8081` | HTTP 200, bundles the app against the real API |
 | Site `:3000` | HTTP 200 |
 | Keepalive workflow | ran the workflow's exact shell body locally against the live project — `ping_count` incremented, exit 0; anon can call the function but **cannot read the table** (401) |
 
-**Known limitations.** Push has never actually delivered: Expo Go dropped Android remote
-push and `app.json` has no `extra.eas.projectId`, so no token can be minted — the sweep's
-reminder branch is verified only as far as `pushTargets` returning zero devices. The
-mobile loop has been walked on-device in *demo* mode only; the app bundles against the
-real API but has not been driven through it on an emulator. OAuth remains unexercised.
+**Known limitations (as of this task's end).** Push has never actually delivered: Expo Go
+dropped Android remote push and `app.json` has no `extra.eas.projectId`, so no token can
+be minted — the sweep's reminder branch is verified only as far as `pushTargets` returning
+zero devices. The mobile loop has **now** been driven through the real API on the emulator
+(demo is still the shortcut for a zero-config run): Google sign-in, onboarding,
+discovery, feedback, mutual unlock, and the DM thread screen all walked live in this
+session. OAuth is **no longer** unexercised — only the `atsumaru://` deep-link variant
+(dev-build-only deeplinking into the running app) remains untested by design; Expo Go goes
+through `exp://` instead.
 
 **Housekeeping.** The `sbp_` management token is account-wide across 9 projects and the
 `ghp_` token carries `admin:enterprise` and `delete:packages` for what only needed
@@ -304,8 +311,9 @@ and the push URL credential was stripped from `.git/config` afterwards.
 3. **Result (verified from the live DB, table `connections`):**
    `harucafe 44428a51-8d37-4138-9348-3add3b14f0f5 ↔ DingDong 751fcbc7-…`, created
    `2026-08-30T10:12:25Z`. App landed straight in the new DM thread ("No messages yet.
-   Say hello 👋"). No `dms` row until the first message (thread screen opens off the
-   connection; message insert creates it).
+   Say hello 👋"). **No `dms` table exists** — the first verify script 404'd on it; DM
+   persistence lives in `messages` (`connection_id` FK), which returned `[]` at submit
+   time because no message had been sent yet.
 4. Side note: a stray tap also rated @sotaruns `fire` with `wants_connection=true`, but
    he never reciprocated → **no** extra connection surfaced (privacy rule held; only
    mutual pairs appear).
@@ -323,3 +331,23 @@ and the push URL credential was stripped from `.git/config` afterwards.
 - Metro: `npx expo start --port 8081` (npm swallows `--port`); log at
   `C:\Users\siddh\AppData\Local\Temp\opencode\metro.log`; tunnel expires on ngrok
   restart — refresh `.env` + Google console together.
+
+---
+
+## 9. What is left (after this task)
+
+1. **DM round-trip test**: the thread screen is open; send one message in-app to verify
+   the `messages.connection_id` insert + `dm:{connection_id}` socket stream + REST history.
+2. **`atsumaru://` handoff**: only the `exp://` variant was walked (Expo Go). Shipping
+   build (dev build or release) should re-run with `APP_AUTH_REDIRECT=atsumaru://auth`.
+3. **LINE OAuth**: bridge written, no channel yet; needs credentials + Google-console-style
+   callback URI setup.
+4. **OAuth hardening TODOs** (recorded in `TRACKER.md`): bind `state` to browser/session,
+   check Google `email_verified`, move handoff codes out of process memory (`TRACKER.md:328-334`).
+5. **Sweep atomicity** — still the gate on `REDIS_URL` + BullMQ double-driver.
+6. **Push** — needs EAS projectId + a dev build; reminder branch currently unseen beyond
+   zero-device `pushTargets`.
+7. **Credential rotation** — `sbp_` management token, `ghp_`, and the service-role key
+   passed through chat transcripts (previous task's housekeeping); rotate before anything ships.
+8. **Mobile gaps (by design, `CLAUDE.md` "Not implemented")**: map refetch debounce,
+   message-history infinite scroll, venue picker in create-event.
