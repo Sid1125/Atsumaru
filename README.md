@@ -1058,7 +1058,7 @@ It's:
 
 <br>
 
-<img src="./assets/atsumaru-mark.png" width="72">
+<img src="./assets/atsumaru-mark.png" width="480">
 
 <br><br>
 
