@@ -75,10 +75,11 @@ Post-meetup feedback and mutual connection are states of the Meetup flow rather 
 ## Authentication
 
 MVP uses:
-- LINE OAuth
-- Google OAuth
+- LINE OAuth — exchanged by the API (Supabase has no LINE provider)
+- Google OAuth — brokered by Supabase Auth over PKCE
 
-No phone OTP.
+No phone OTP. The app receives a one-time code, never a provider token, and trades it at
+`POST /api/auth/session`. See `TRD.md` §5 for the redirect-URL topology.
 
 ## Core Privacy Rules
 

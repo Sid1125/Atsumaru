@@ -7,9 +7,9 @@
 >
 > Started 2026-08-30. Update the Change Log section as work lands.
 >
-> Two tasks are recorded here: the backend bring-up (B1–B10, §2–7) and the OAuth/session
-> task (Google login through Expo Go + a real mutual connection, §1 + §8). The OAuth task
-> is **complete** as of 2026-08-30; see §8 for evidence and §9 for what is left.
+> Two tasks are recorded here: the backend bring-up (B1–B10, §2–7) and the auth task
+> (§1 + §8 for the original bridge run, §10 for the move onto Supabase Auth plus LINE and
+> identity linking). Both are **complete** as of 2026-08-30; §9 is the live to-do list.
 
 ---
 
@@ -44,9 +44,10 @@ real run could surface.
 | Credentials | Supabase URL/anon/service-role + HuggingFace + Groq live in `server/.env` (gitignored). **`access_token.txt` does NOT exist at this checkout** — so `scripts/sql.mjs` (Management API) is blocked; admin work uses a service-role `createClient` instead |
 | Deps | all three packages installed (`server`, `apps/mobile`, `site`) |
 | Redis | intentionally absent — the in-process timer is the driver under test (see §4) |
-| OAuth | previously "no LINE or Google credentials; `seed --tokens` mints real sessions". **Now LIVE**: Google creds exist in `server/.env` (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), verified end-to-end on the emulator 2026-08-30 — see §8 |
-| ngrok tunnel | `https://7577-106-219-157-93.ngrok-free.app` → `:4000` (site tunnel reclaimed). Domain rotates on restart — update `server/.env` `OAUTH_CALLBACK_URL` + Google console redirect together |
-| Handoff scheme | `APP_AUTH_REDIRECT=exp://192.168.1.11:8081/--/auth` (Expo Go can't take `atsumaru://`; dev-only — shipped builds use the canonical scheme) |
+| OAuth | **Google is brokered by Supabase Auth (PKCE) as of 2026-08-30** — client id/secret live in the Supabase dashboard, not `server/.env`. LINE is exchanged by the API and is also live (channel email permission approved). Both walked end to end on the emulator; see §8 and §10 |
+| ngrok tunnel | **No longer used.** It was needed only while Google's callback had to reach our server from the public internet; Supabase's callback is public, so the tunnel was retired (process stopped) |
+| Handoff scheme | `APP_AUTH_REDIRECT=exp://10.0.2.2:8081/--/auth` — must match the origin Expo Go loaded the bundle from. Shipped builds use `atsumaru://auth` |
+| Metro host | Expo Go must load the project as `exp://10.0.2.2:8081`; Metro mirrors the request host into `hostUri`, and loading it via a vEthernet IP (`192.168.236.1`) makes the bundle unreachable and hangs on the splash |
 | JDK | Temurin **21** at `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`; JDK 25 breaks the RN CMake task — 21 is what a dev build (`expo run:android`) would use |
 
 Baseline before changes: `tsc` exit 0 on both packages, 29/29 unit tests passing. **Every
@@ -152,11 +153,10 @@ verifying the sweep while fighting that bug. One driver, deterministic. **The at
 fix is a prerequisite for setting `REDIS_URL`**; it is written up in `TRACKER.md` §5 and
 was left unfixed on purpose rather than bundled in silently.
 
-**OAuth stays deferred.** *SUPERSEDED — now live, see §8.* Originally: `seed --tokens`
+**OAuth stays deferred.** *SUPERSEDED — see §8 and §10.* Originally: `seed --tokens`
 mints genuine Supabase sessions through the admin API, so every authenticated route was
-verified without a provider. Only the provider redirect and the `atsumaru://auth` handoff
-remained unexercised. The current task closed that gap: Google redirect + code exchange +
-`exp://` handoff run on-device in Expo Go.
+verified without a provider. Both providers are now live: Google through Supabase Auth
+(PKCE) and LINE through the API's own bridge, with identities linked onto one account.
 
 **Extensions go in `extensions`, not `public`.** Supabase convention; keeps several
 hundred PostGIS functions out of the table namespace. `search_path` already covers it, so
@@ -334,20 +334,88 @@ and the push URL credential was stripped from `.git/config` afterwards.
 
 ---
 
-## 9. What is left (after this task)
+## 9. What is left (updated after §10)
 
-1. **DM round-trip test**: the thread screen is open; send one message in-app to verify
+**Done since this list was first written:** LINE OAuth (live), identity linking so one
+person keeps one account across providers, and the move of Google onto Supabase Auth
+(which retired the ngrok dependency).
+
+1. **DM round-trip test**: the thread screen has been opened but no message sent — verify
    the `messages.connection_id` insert + `dm:{connection_id}` socket stream + REST history.
-2. **`atsumaru://` handoff**: only the `exp://` variant was walked (Expo Go). Shipping
-   build (dev build or release) should re-run with `APP_AUTH_REDIRECT=atsumaru://auth`.
-3. **LINE OAuth**: bridge written, no channel yet; needs credentials + Google-console-style
-   callback URI setup.
-4. **OAuth hardening TODOs** (recorded in `TRACKER.md`): bind `state` to browser/session,
-   check Google `email_verified`, move handoff codes out of process memory (`TRACKER.md:328-334`).
-5. **Sweep atomicity** — still the gate on `REDIS_URL` + BullMQ double-driver.
-6. **Push** — needs EAS projectId + a dev build; reminder branch currently unseen beyond
-   zero-device `pushTargets`.
-7. **Credential rotation** — `sbp_` management token, `ghp_`, and the service-role key
-   passed through chat transcripts (previous task's housekeeping); rotate before anything ships.
-8. **Mobile gaps (by design, `CLAUDE.md` "Not implemented")**: map refetch debounce,
-   message-history infinite scroll, venue picker in create-event.
+2. **`atsumaru://` handoff**: only `exp://` has been walked. A dev build (JDK 21 is ready)
+   should re-run with `APP_AUTH_REDIRECT=atsumaru://auth`.
+3. **Production URL set**: Google console keeps Supabase's callback, but `OAUTH_CALLBACK_URL`
+   and the Supabase Redirect URLs list both need the deployed API origin instead of
+   `10.0.2.2` before anything ships.
+4. **`AUTH_STATE_SECRET` hardcoded default** — production only warns; make it exit
+   (`TRACKER.md` §5). Now doubly relevant: the state also keys the PKCE verifier.
+5. **Sweep atomicity** — still the gate on `REDIS_URL` + BullMQ.
+6. **Push** — needs an EAS projectId and a dev build.
+7. **`schema.sql` drift** vs `migrations/001–003` — a fresh project still comes up without
+   the `event_sizes` RLS fix. Highest-priority item in `TRACKER.md` §5.
+8. **Credential rotation** — `sbp_`, `ghp_`, service-role key all passed through chat
+   transcripts. Google's client secret is now also in the Supabase dashboard; the copy in
+   `server/.env` is unused and can be blanked.
+9. **Mobile gaps (by design)**: map refetch debounce, message-history infinite scroll,
+   venue picker in create-event.
+
+---
+
+## 10. Session log — Google moved onto Supabase Auth, LINE live, accounts linked (2026-08-30)
+
+### Why
+
+The Google flow worked but depended on an ngrok tunnel whose domain rotated on every
+restart, forcing a paired edit of `server/.env` and the Google console each time. Handing
+the provider exchange to Supabase removes the public-callback requirement entirely, because
+Supabase's own callback is already public.
+
+Two shapes were considered. The thin one (redirect straight to Supabase and let it return
+tokens in the URL fragment) was rejected: it would have put tokens in a URL, which is the
+exact property `TRD.md` §5 and the one-time handoff code exist to avoid. The chosen shape
+keeps that property.
+
+### What changed
+
+| File | Change |
+|---|---|
+| `modules/auth/oauth.ts` | `pkcePair()` (SHA-256 challenge), `supabaseAuthorizeUrl()`, `callbackWithState()`, and a single-use verifier store keyed by the signed state. Google's own authorize/token/tokeninfo code **deleted** — Supabase holds those credentials now; `CONFIG` narrowed to LINE. `providerConfigured("google")` now means "Supabase reachable" |
+| `modules/auth/session.ts` | `sessionFromSupabaseCode()` redeems `?grant_type=pkce` with a bare `fetch` (supabase-js would save the session onto the client — the same trap `verifyOtp` sets). `isEmailTaken()` + link path: a provider address that already has an account gets the identity attached instead of a twin, id resolved from `generateLink`. `is_new` now means "no profile row" on **both** providers |
+| `modules/auth/routes.ts` | `/auth/google` mints PKCE and redirects to Supabase; `/auth/callback` accepts our state back as `?st=` (GoTrue issues its own `state` to Google and forwards nothing of ours) and branches google → Supabase, line → the existing bridge. Handoff code and `?redirect_to=app` unchanged, so **mobile code needed no change at all** |
+| `.env` / `.env.example` | `OAUTH_CALLBACK_URL` back to our own callback; topology documented in comments |
+| tests | PKCE digest, authorize params, state round-trip through the callback URL, verifier single-use + expiry, `isEmailTaken` branch. 29 → **34 passing** |
+| docs | `TRD.md` §5 rewritten with the three-URL table, `docs/README.md` + root `README.md` auth sections, `TRACKER.md` |
+
+### Verified live (not inferred)
+
+- `/auth/v1/settings` reported `google: false` at first — the dashboard toggle had not
+  saved. That is why the authorize call answered
+  `{"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}`.
+- Before the Redirect URLs list included our callback, Supabase silently redirected to
+  **Site URL** instead: Chrome sat on `localhost:3000/?code=…` with
+  `ERR_CONNECTION_REFUSED`. The code was valid; the destination was wrong. Worth
+  remembering — it looks like an app bug and is not one.
+- Redirect chain, after both were fixed: our `/api/auth/google` → Supabase authorize →
+  `accounts.google.com` with `redirect_uri=https://<ref>.supabase.co/auth/v1/callback` and
+  our `st` preserved on `redirect_to`.
+- Google sign-in on the emulator attached a **`google` identity to the existing user**
+  `751fcbc7` (`identities=[email, google]`), so `@drivinggaming`'s profile, membership and
+  the harucafe connection survived the auth swap.
+- LINE sign-in, after its channel email permission was approved, returned the real address
+  → `createUser` answered "already registered" → the new link path attached
+  `line/U5d0cc9b3c54…` to the same `751fcbc7`. Auth-user count stayed at **7**; the earlier
+  twin (`e243beff`, no profile) was deleted first. LINE now lands on `@drivinggaming`
+  directly, `is_new` false.
+
+### Traps hit on the way
+
+- **Endless Expo Go spinner was not our code.** Metro advertised
+  `hostUri=192.168.236.1:8081` (a Hyper-V adapter), so the bundle URL was unroutable from
+  the emulator: `ReactNativeJS: Cannot connect to Expo CLI`. Metro mirrors the host it was
+  asked on, so opening `exp://10.0.2.2:8081` fixes it — and that origin must match
+  `APP_AUTH_REDIRECT`, or the handoff deep link goes nowhere.
+- A LINE login that *looked* like it opened the Google account had simply never reached the
+  app: the deep-link origin was stale, so the app kept its existing session. The giveaway
+  was `e243beff` having no `public.users` row.
+- `sql.mjs` is still unusable here (no `SUPABASE_ACCESS_TOKEN`); every admin check in this
+  session used a throwaway service-role `createClient` script, deleted after each run.

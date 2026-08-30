@@ -65,8 +65,6 @@ OAuth only:
 The supplied API guide explicitly says there is no phone OTP because SMS requires a paid provider. fileciteturn0file0L94-L107
 
 ### Frontend
-Use Supabase OAuth with an Expo redirect URI.
-
 Store session credentials using Expo SecureStore.
 
 Attach the access token to REST requests:
@@ -82,6 +80,45 @@ io(WS_URL, {
   auth: { token }
 })
 ```
+
+The app never talks to a provider directly and never receives provider tokens. It opens
+`GET /api/auth/{provider}?redirect_to=app`, and the API deep-links back with a **one-time
+code** which the app trades at `POST /api/auth/session`. Tokens therefore never travel in
+a URL.
+
+### Provider brokering
+
+The two providers reach a Supabase session by different routes, because Supabase Auth has
+no LINE provider.
+
+**Google — brokered by Supabase Auth.** The Google Cloud client id and secret live in
+Supabase (Auth → Providers → Google), not in the API. `GET /api/auth/google` mints a PKCE
+verifier, keeps it in memory keyed by the signed `state`, and redirects to
+`…/auth/v1/authorize?provider=google&code_challenge=…&redirect_to=<API callback>`.
+Supabase talks to Google, then redirects back to the API callback with `?code=`, which the
+API redeems at `…/auth/v1/token?grant_type=pkce`. PKCE is what makes Supabase return a
+code rather than tokens in a URL fragment; the verifier is single-use, so a replayed
+callback cannot redeem a second session.
+
+URLs live in three separate places and are easy to confuse:
+
+| Setting | Value |
+|---|---|
+| Google Cloud console → authorized redirect URI | Supabase's `https://<ref>.supabase.co/auth/v1/callback` |
+| `OAUTH_CALLBACK_URL` (API env) | the API's own `/api/auth/callback` |
+| Supabase → Auth → URL Configuration → Redirect URLs | must list that API callback, or GoTrue silently falls back to Site URL |
+
+**LINE — exchanged by the API.** The API swaps the code for an `id_token`, verifies it
+through LINE's own verify endpoint (signature, audience, nonce), then maps the provider
+subject to a Supabase user: `auth.admin.createUser` → `generateLink` → `verifyOtp`, the
+last on an isolated client so the shared service-role client never adopts a user session.
+A channel without email permission returns no address, so the API substitutes an internal
+`@oauth.atsumaru.invalid` one that never leaves the server.
+
+When a provider *does* return an address that already has an account, the second identity
+is **linked** to it instead of creating a twin, so one person keeps one profile across
+providers. Linking only ever happens for a real provider-supplied address, never a
+synthetic one.
 
 ## 6. Suggested React Native Structure
 
