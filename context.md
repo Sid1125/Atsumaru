@@ -7,20 +7,22 @@
 >
 > Started 2026-08-30. Update the Change Log section as work lands.
 >
-> The previous task (the mobile rewire, D1–D13) is finished and recorded in
-> `TRACKER.md` §2–3; its detail is in git history up to `d50d19e`. This file has been
-> replaced with the task now in flight.
+> The previous task (mobile rewire + backend bring-up against the live project) is
+> recorded in `TRACKER.md` §2–3 and in this file's §2–7; the *current* task is the Google
+> OAuth round-trip and the real mutual connection described in §1 and logged in §8.
 
 ---
 
-## 1. The ask
+## 1. The ask (current task)
 
-Stand the backend up against a real Supabase project, fix whatever that exposes, get all
-three dev servers running, and push the work to `feat-backend-app` without opening a PR.
-Then keep the free-tier project from pausing.
+Make real Google OAuth login work on the Android emulator through Expo Go (the previous
+task left OAuth "wired but unexercised"), then drive a **real mutual 1:1 connection** for
+the Google-authenticated user through the live stack (ngrok tunnel → Express OAuth bridge →
+exp:// handoff → Supabase session → in-app feedback → connections row).
 
-`TRACKER.md` §1 opened with "blocks everything else", and it was right: the API was
-code-complete, unit-tested, and had never once spoken to a database.
+The backend bring-up task (B1–B10) is complete and recorded below; its ask was to stand
+the API up against the live project, which recorded the eight defects that only a real
+run could surface.
 
 ## 2. Environment (verified, not assumed)
 
@@ -39,7 +41,10 @@ code-complete, unit-tested, and had never once spoken to a database.
 | Credentials | Supabase (URL + anon + service-role + `sbp_` management), HuggingFace, Groq, GitHub `ghp_` — all in `access_token.txt` (gitignored) |
 | Deps | all three packages installed (`server`, `apps/mobile`, `site`) |
 | Redis | intentionally absent — the in-process timer is the driver under test (see §4) |
-| OAuth | no LINE or Google credentials; `seed --tokens` mints real sessions instead |
+| OAuth | previously "no LINE or Google credentials; `seed --tokens` mints real sessions". **Now LIVE**: Google creds exist in `server/.env` (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), verified end-to-end on the emulator 2026-08-30 — see §8 |
+| ngrok tunnel | `https://7577-106-219-157-93.ngrok-free.app` → `:4000` (site tunnel reclaimed). Domain rotates on restart — update `server/.env` `OAUTH_CALLBACK_URL` + Google console redirect together |
+| Handoff scheme | `APP_AUTH_REDIRECT=exp://192.168.1.11:8081/--/auth` (Expo Go can't take `atsumaru://`; dev-only — shipped builds use the canonical scheme) |
+| JDK | Temurin **21** at `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`; JDK 25 breaks the RN CMake task — 21 is what a dev build (`expo run:android`) would use |
 
 Baseline before changes: `tsc` exit 0 on both packages, 29/29 unit tests passing. **Every
 test was pure logic — nothing in the suite touched a database, which is why all nine
@@ -144,9 +149,11 @@ verifying the sweep while fighting that bug. One driver, deterministic. **The at
 fix is a prerequisite for setting `REDIS_URL`**; it is written up in `TRACKER.md` §5 and
 was left unfixed on purpose rather than bundled in silently.
 
-**OAuth stays deferred.** `seed --tokens` mints genuine Supabase sessions through the
-admin API, so every authenticated route was verified without a provider. Only the
-provider redirect and the `atsumaru://auth` handoff remain unexercised.
+**OAuth stays deferred.** *SUPERSEDED — now live, see §8.* Originally: `seed --tokens`
+mints genuine Supabase sessions through the admin API, so every authenticated route was
+verified without a provider. Only the provider redirect and the `atsumaru://auth` handoff
+remained unexercised. The current task closed that gap: Google redirect + code exchange +
+`exp://` handoff run on-device in Expo Go.
 
 **Extensions go in `extensions`, not `public`.** Supabase convention; keeps several
 hundred PostGIS functions out of the table namespace. `search_path` already covers it, so
@@ -268,3 +275,51 @@ real API but has not been driven through it on an emulator. OAuth remains unexer
 `Contents:write`; both, plus the service-role key, passed through a chat transcript and
 should be rotated. The commit diff was scanned for all four token prefixes (0 matches),
 and the push URL credential was stripped from `.git/config` afterwards.
+
+---
+
+## 8. Session log — real Google OAuth + real mutual connection (2026-08-30)
+
+### What was set up
+
+| Item | State |
+|---|---|
+| Google creds | `server/.env`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_STATE_SECRET` (len 64). Console authorized redirect = the ngrok domain |
+| `server/.env` fixes | `OAUTH_CALLBACK_URL` was wrong (`supabase.co/auth/v1/callback`) → now the tunnel; `APP_AUTH_REDIRECT=exp://192.168.1.11:8081/--/auth`, comment documenting it is dev-only |
+| `apps/mobile/.env` | `EXPO_PUBLIC_DEMO_MODE=0`, API/WS URLs → tunnel |
+| `useOAuthLogin.ts` | `exchange()` takes **any** URL with a `code` param (host-agnostic), so both `atsumaru://auth` and `exp://…/--/auth` handoffs work; listener + `getInitialURL` no longer filter on `://auth`. `tsc --noEmit` clean |
+| JDK | Temurin 21 installed (machine scope) after JDK 25 CMake failure; dev build (`expo run:android`) was started then **aborted by user** — Expo Go chosen instead |
+| Tunnel | `https://7577-106-219-157-93.ngrok-free.app` → `:4000`; OAuth verified through it (code exchange + session 200s in Supabase logs) |
+| Google identity | provider_sub `103310651711276628766` → user `751fcbc7-991d-4f50-ab4d-5bb64a7c92cb`, handle **`@drivinggaming`**, display **DingDong** |
+
+### The unlock (verification)
+
+1. Drove feedback for completed **Morning Trail Run**
+   `bfd54de8-cff6-4d8f-b88a-1c4c48d1adce`: added DingDong to `group_members`, pre-seeded
+   `@harucafe`'s reciprocal pick (`fire`, `wants_connection=true`) via a throwaway
+   service-role script (no `SUPABASE_ACCESS_TOKEN` exists anywhere, so `sql.mjs` was
+   unusable).
+2. In-app: opened the event, tapped **🔥 Great vibe** on @harucafe, **REJOIN=Yes**, ticked
+   **@harucafe** in the connect chips, **Submit**.
+3. **Result (verified from the live DB, table `connections`):**
+   `harucafe 44428a51-8d37-4138-9348-3add3b14f0f5 ↔ DingDong 751fcbc7-…`, created
+   `2026-08-30T10:12:25Z`. App landed straight in the new DM thread ("No messages yet.
+   Say hello 👋"). No `dms` row until the first message (thread screen opens off the
+   connection; message insert creates it).
+4. Side note: a stray tap also rated @sotaruns `fire` with `wants_connection=true`, but
+   he never reciprocated → **no** extra connection surfaced (privacy rule held; only
+   mutual pairs appear).
+
+### Gotchas encountered
+
+- Expo Go cannot route `atsumaru://`; it does handle `exp://` (verified in the manifest).
+  `exp://host:8081/--/auth?code=…` delivered the handoff back to the app.
+- The app bounced to LoginScreen on a hard reload (auth store not rehydrated); a second
+  Google tap re-authenticates instantly with the existing consent.
+- Sticking `pending` spinner on the Google button mid-`openURL` once; driving Chrome
+  directly (`am start -a VIEW -d <authorize URL>`) ran the same handoff path fine.
+- `sql.mjs` (Management API) is blocked here: `access_token.txt` does not exist in the
+  repo the way §2 says — service-role `createClient` is the working substitute.
+- Metro: `npx expo start --port 8081` (npm swallows `--port`); log at
+  `C:\Users\siddh\AppData\Local\Temp\opencode\metro.log`; tunnel expires on ngrok
+  restart — refresh `.env` + Google console together.

@@ -91,8 +91,11 @@ API, so re-applying needs no browser.
 - [x] Groq onboarding chat live, in English and Japanese; handle suggest/check working
 - [x] pgvector round-trip: all 6 seeded users have a 384-dim `preference_vector`, and
       match scores land at 0.47–0.82 (a null vector caps the score at 0.40)
-- [ ] Walk Google OAuth end to end; then LINE once a channel exists — still deferred,
-      `seed --tokens` covers authenticated routes without a provider
+- [x] Walk Google OAuth end to end **via Expo Go on the Android emulator**: ngrok tunnel →
+      code exchange → `exp://` handoff → Supabase session → real mutual connection
+      (DingDong ↔ @harucafe) driven through feedback (2026-08-30; details in `context.md` §8).
+      LINE still deferred until a channel exists
+- [ ] LINE OAuth once a channel exists
 - [ ] Optional: set `REDIS_URL` (Upstash) and confirm the BullMQ driver takes over.
       **Blocked on the sweep atomicity issue below** — two drivers can currently
       double-notify
@@ -369,7 +372,7 @@ premium tier.
 | Area | Note |
 |---|---|
 | LINE credentials | The bridge is written but unexercised; a LINE Login channel is needed, and channels without the email scope fall back to a synthetic internal address |
-| Google OAuth | Same — the code path is unexercised. `seed --tokens` mints real Supabase sessions, which is how every authenticated route was verified |
+| Google OAuth | Exercised end-to-end via Expo Go + ngrok + `exp://` handoff (2026-08-30, `context.md` §8). Dev-build-only note: shipped builds use the canonical `atsumaru://auth` back to `APP_AUTH_REDIRECT`; only the `exp://` variant has been walked |
 | Push receipts | Tickets are checked, but Expo's async receipt endpoint is not polled — a token can go stale for one cycle |
 | Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
 | Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both — and the sweep atomicity fix in §5 first |
