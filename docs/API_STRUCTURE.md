@@ -156,6 +156,19 @@
 
 > Submitting feedback updates reputation + your preference vector, and returns any **mutual matches** unlocked.
 
+### 3.7a Vibe recap (post-meetup)
+| Method | Path | Body | Returns |
+|--------|------|------|---------|
+| GET | `/events/:id/recap` | — | `{ recap, traits[], source, created_at }` |
+
+> One AI-written line about the kind of people **you** clicked with, from your own ratings
+> only (`docs/AI.md` §6a). Cached per member per meetup, so it never changes once written.
+> `source` is `"ai"` or `"template"` — Groq wrote it, or the deterministic fallback did.
+>
+> `409 MEETUP_NOT_FINISHED` before the meetup ends; `404 NO_FEEDBACK_YET` until you have
+> submitted your own feedback. Two members of one meetup get different recaps, and neither
+> reveals the other's picks (`docs/RULES.md` §8).
+
 ### 3.8 Connections (unlocked 1:1)
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
@@ -199,7 +212,7 @@ Connect: `io(WS_URL, { auth: { token } })`
 | **Event detail** | `/events/:id`, `/events/:id/match-preview` |
 | **Join → Group** | `/events/:id/join`, `/events/:id/members` |
 | **Group chat** | Socket.io `group:*` + `/events/:id/messages` |
-| **Post-meetup feedback** | `/events/:id/feedback-form`, `/events/:id/feedback` |
+| **Post-meetup feedback** | `/events/:id/feedback-form`, `/events/:id/feedback`, `/events/:id/recap` |
 | **Matches (1:1)** | `/connections`, Socket.io `dm:*` |
 | **Profile** | `/users/me` |
 
@@ -255,6 +268,9 @@ flowchart TD
         C1 --> C6[Update reputation_score]
         C1 --> C7{Both liked?}
         C7 -- Yes --> C8[Unlock 1:1 connection]
+        C1 --> C9[Aggregate own ratings into traits]
+        C9 --> C10[Groq one-line recap / template fallback]
+        C10 --> C11[(meetup_recaps, per event+user)]
     end
 
     A5 --> B2

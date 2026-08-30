@@ -4,6 +4,11 @@ import { z } from "zod";
 import { env, hasEmbeddings, hasGroq } from "../config/env.js";
 import type { Language } from "../types.js";
 import { HttpError } from "../utils/response.js";
+import {
+  MAX_RECAP_CHARS,
+  sanitizeRecap,
+  type RecapPrompt,
+} from "../modules/recap/vibe.js";
 
 /** `preference_vector` is `vector(384)` in schema.sql (MiniLM all-MiniLM-L6-v2). */
 export const EMBEDDING_DIMS = 384;
@@ -129,4 +134,62 @@ export async function embed(text: string): Promise<number[]> {
   }
 
   return vector;
+}
+
+const RECAP_SYSTEM_PROMPT = `You write one-sentence recaps for Atsumaru, a
+friendship-first group meetup app in Japan.
+
+You receive anonymised traits from one member's private post-meetup ratings. Write a
+single warm sentence, under 160 characters, telling that member what kind of people they
+clicked with. Address them as "you".
+
+Rules:
+- Never invent or mention a name, handle, or person. You are given none.
+- Never say how many people were rated, or that anyone was rated negatively.
+- Never imply anyone disliked the reader.
+- Reply in the requested language.
+
+Reply with JSON only: {"recap": "..."}`;
+
+const recapSchema = z.object({ recap: z.string().min(1).max(MAX_RECAP_CHARS) });
+
+/**
+ * Groq's second and only other job: the post-meetup vibe recap (docs/AI.md §6a).
+ *
+ * Returns null rather than throwing, because a recap is passive — the member did not ask
+ * for it and is not waiting on it, so the route answers with `templateRecap()` instead of
+ * an error. A 503 here would render an empty card that looks like a bug.
+ *
+ * The `RecapPrompt` shape is the privacy boundary: it holds anonymised traits, a count,
+ * and the meetup category, and there is no field a handle or user id could occupy. Output
+ * still goes through `sanitizeRecap`, since a model can hallucinate a name it was never
+ * given.
+ */
+export async function vibeRecap(prompt: RecapPrompt): Promise<string | null> {
+  if (!hasGroq) return null;
+
+  try {
+    const completion = await client().chat.completions.create({
+      model: env.GROQ_MODEL,
+      temperature: 0.8,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: RECAP_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(prompt) },
+      ],
+    });
+
+    const parsed = recapSchema.safeParse(
+      JSON.parse(completion.choices[0]?.message?.content ?? "{}")
+    );
+
+    if (!parsed.success) return null;
+
+    return sanitizeRecap(parsed.data.recap);
+  } catch (error) {
+    // Network failure, a decommissioned model id, malformed JSON — all the same to the
+    // caller, which falls back to the deterministic template.
+    console.warn("Vibe recap unavailable, using the template instead:", error);
+    return null;
+  }
 }

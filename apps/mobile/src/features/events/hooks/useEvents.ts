@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { eventsApi } from "../../../services/api/events";
+import { ApiError } from "../../../services/api/errors";
 import type { Coords } from "../../../types/api";
 
 export function useNearbyEvents(coords: Coords | null, category?: string | null) {
@@ -49,5 +50,27 @@ export function useMatchPreview(id: string) {
   return useQuery({
     queryKey: ["events", id, "match-preview"],
     queryFn: () => eventsApi.matchPreview(id),
+  });
+}
+
+/**
+ * The post-meetup vibe recap (docs/AI.md §6a). Only fetched once the caller could
+ * actually have one — a completed meetup they are in — because the endpoint is a 409
+ * before that and a 404 until they have submitted their own feedback.
+ *
+ * `NO_FEEDBACK_YET` is the expected pre-submission state, not a failure, so it must not
+ * retry: the server is telling us the answer will not change until the user acts. The
+ * recap is immutable once written, hence `staleTime: Infinity`.
+ */
+export function useVibeRecap(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["events", id, "recap"],
+    queryFn: () => eventsApi.recap(id),
+    enabled,
+    staleTime: Infinity,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) return false;
+      return failureCount < 2;
+    },
   });
 }

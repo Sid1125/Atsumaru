@@ -20,9 +20,15 @@ interface FeedbackPanelProps {
   eventId: string;
   /** Routes into the new 1:1 thread once a mutual connection unlocks. */
   onOpenConnection?: (connection: Connection) => void;
+  /** Fired after a successful submit — the vibe recap becomes available at that point. */
+  onSubmitted?: () => void;
 }
 
-export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps) {
+export function FeedbackPanel({
+  eventId,
+  onOpenConnection,
+  onSubmitted,
+}: FeedbackPanelProps) {
   const { t } = useTranslation();
   const query = useFeedbackForm(eventId);
 
@@ -47,6 +53,7 @@ export function FeedbackPanel({ eventId, onOpenConnection }: FeedbackPanelProps)
         connect_with: connectWith,
       });
       setUnlocked(result.connections_unlocked);
+      onSubmitted?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {

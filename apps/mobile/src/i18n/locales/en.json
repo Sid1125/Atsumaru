@@ -84,6 +84,10 @@
     "privacyNote": "Your choices stay private. Nobody sees who you picked.",
     "thanksTitle": "Thanks — that stays private"
   },
+  "recap": {
+    "title": "Your vibe recap",
+    "privacyNote": "Built from your own ratings. Only you see this."
+  },
   "connection": {
     "mutualTitle": "It's a mutual connection!",
     "mutualBody": "You and @{{handle}} both want to stay connected.",
