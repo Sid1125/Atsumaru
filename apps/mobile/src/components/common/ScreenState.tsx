@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "./Button";
+import { IconMap, IconWarning } from "../ui/Icons";
 import { colors, spacing, type } from "../../theme";
 
 interface ScreenStateProps {
@@ -12,14 +13,9 @@ interface ScreenStateProps {
   dark?: boolean;
 }
 
-const GLYPH: Record<ScreenStateProps["status"], string> = {
-  loading: "⏳",
-  error: "⚠️",
-  empty: "🗺️",
-};
-
 export function ScreenState({ status, message, onRetry, dark }: ScreenStateProps) {
   const { t } = useTranslation();
+  const tint = dark ? colors.nightMuted : colors.textMuted;
 
   return (
     <Animated.View
@@ -36,7 +32,11 @@ export function ScreenState({ status, message, onRetry, dark }: ScreenStateProps
         </>
       ) : (
         <>
-          <Text style={styles.glyph}>{GLYPH[status]}</Text>
+          {status === "error" ? (
+            <IconWarning size={40} color={tint} />
+          ) : (
+            <IconMap size={40} color={tint} />
+          )}
           <Text style={[styles.label, dark && styles.labelDark]}>
             {message ??
               (status === "error" ? t("common.error") : t("common.empty"))}
@@ -64,7 +64,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     minHeight: 200,
   },
-  glyph: { fontSize: 40 },
   label: {
     ...type.callout,
     color: colors.textMuted,

@@ -13,8 +13,7 @@ import { MeetupScreen } from "../../screens/Meetup/MeetupScreen";
 import { ConnectionsScreen } from "../../screens/Connections/ConnectionsScreen";
 import { DmScreen } from "../../screens/Connections/DmScreen";
 import { CreateEventScreen } from "../../screens/Events/CreateEventScreen";
-import { SettingsScreen } from "../../screens/Settings/SettingsScreen";
-import { useAuthStore } from "../../store";
+import { ProfileScreen } from "../../screens/Settings/ProfileScreen";import { useAuthStore } from "../../store";
 import { colors, type } from "../../theme";
 import { linking } from "./linking";
 import type {
@@ -124,9 +123,9 @@ export function RootNavigator() {
             options={{ title: t("createEvent.title"), presentation: "modal" }}
           />
           <AppStack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{ title: t("settings.title") }}
+            name="Profile"
+            component={ProfileScreen}
+            options={{ title: t("profile.title") }}
           />
         </AppStack.Navigator>
       )}

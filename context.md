@@ -666,3 +666,161 @@ startup with `TurboModule method "installTurboModule" called with 0 arguments` o
 **Reproduced on `main` with these changes stashed**, so it predates this work — but it means
 the vector-city branch was not re-confirmed on a device either. Worth chasing before the
 next on-device pass; a dev build would clear both this and the Mapbox gate at once.
+
+---
+
+## 13. Session log — Warm Japanese Editorial visual overhaul (2026-09-01)
+
+### The ask
+
+The user opened with a hard rule set, not a soft "make it prettier" brief:
+"Not better pills — FEWER PILLS and a replaced visual grammar." The whole app
+was to stop reading as one padded rounded rectangle after another and take on
+the marketing site's editorial DNA (`site/globals.css`). Specific mandates that
+shaped everything:
+
+- **Pills only for compact metadata** (tags / status / match% / filters). Never
+  pills for nav, primary/secondary actions, menus, settings rows, event
+  containers, section headers, chat controls, profile sections, generic cards.
+- **Primary CTA = substantial rectangular** with restrained radius
+  (`JOIN MEETUP →`), not a capsule.
+- **NAV = typography + active indicator** (coral line/weight/movement), not
+  capsules.
+- **Cards = hierarchy via composition** (thin rules, edge-to-edge, asymmetric,
+  image-led, 1-2 rounded corners, or no container), not floating rounded rects.
+- **Settings = whitespace + hairline rules**, not rounded cards.
+- **Colour-blind-safe**: emoji/colour always pairs with text.
+- Visual test the user described: hide colours/images/icons — geometry alone
+  must carry hierarchy.
+
+Also three explicit feature changes that rode along:
+1. **Username removed** from the top of the Discover map.
+2. **Discover nav** = top-left connections circle (SVG) + top-right profile
+   avatar circle.
+3. **One Profile page** (profile view + stats + settings index + app settings)
+   replacing the old Settings screen.
+
+### Palette decision (superseded an earlier critique)
+
+The marketing site is the north star and its brand accent is `#FF432A`, so
+**coral = `#FF432A`** (== existing `colors.primary`, unchanged). `neon` folds
+**into** coral (one action register; the neon-lime as a general accent is gone)
+and `neonText` → cream `#F7F4EE`. Sage `#719B86` is the secondary semantic.
+Cream `#F7F4EE` content ground; warm-ink `#171717` night family. Food sticker
+lime → warm amber `#D9A441`. No fake toggles on the Profile page — it shows only
+real, functional settings (Language, Sign out, static About/Safety/privacy).
+
+### What was built
+
+| Area | Change |
+|---|---|
+| `theme/tokens.ts` | rebalanced: `primary` kept `#FF432A`; `neon`→`#FF432A`, `neonText`→`#F7F4EE` (lime gone as general accent); `accent`→sage `#719B86`; bg→cream; night→warm ink; food→warm amber; added `nightRaisedSoft` `#2C2925` for the completed-tile background |
+| `components/ui/Icons.tsx` | **new** — stroke-based 24×24 `currentColor` SVG set: `IconConnections`, `IconProfile`, `IconGear`, `IconChevronRight`, `IconSparkle`, `IconMap`, `IconWarning`, `IconSend`, `IconWave` (all in one file, `react-native-svg` 15.15.4 already present) |
+| `components/common/Button.tsx` | `base.borderRadius` `radius.pill`→`radius.xs` — all variants rectangular, no capsule anywhere |
+| `components/events/EventCard.tsx` | floating rect (bg/radius/elevation/border) → rounded editorial tile: `nightRaised` bg, `radius.lg`, hairline border; score moved from a soft `accentSoft` pill to a coral numeric mark in the kicker row; trail `→` affordance |
+| `screens/Discover/DiscoverScreen.tsx` | identity band → two `circleButton` anchors (connections SVG left, profile avatar right), username removed; feedback/location rows floating-rect → editorial transparent+hairline; `section` gap; `bandBottom` onLayout still anchors the filter rail |
+| `screens/Settings/ProfileScreen.tsx` | **new** — editorial Profile page: night hero (avatar/kicker/handle/name), stats row (rep/connections/meetups), numbered interests index, mono group labels (APPS PREFS / ACCOUNT), language menu with coral check, sign-out, privacy note. Uses `useConnections` + `useMyEvents` |
+| `app/navigation/{types,RootNavigator,linking}.tsx` | `Settings` route → `Profile`; old `SettingsScreen.tsx` deleted |
+| `components/common/ScreenState.tsx` | ⏳ (loading, stays ActivityIndicator), ⚠️→`IconWarning`, 🗺️→`IconMap` |
+| `components/feedback/FeedbackPanel.tsx`, `screens/Meetup/MeetupScreen.tsx` | 🎉→`IconSparkle` |
+| `components/chat/ChatThread.tsx`, `screens/Onboarding/AIChatScreen.tsx` | 👋→`IconWave`, send ↑→`IconSend` |
+| i18n `en/ja/zh` | added `profile.*` keys (title/heroKicker/statConnections/statMeetups/prefsGroup/accountGroup) |
+| `docs/DESIGN.md` | new §1b "Visual World — Warm Japanese Editorial" codifying palette + component grammar |
+| `docs/VISUAL_OVERHAUL.md` | **new** — checkpoint of the whole pass |
+
+### User follow-ups (end of session)
+
+1. **Discover tile contrast** — upcoming meetups slightly greyer
+   (`EventCard` `nightRaised`), completed "leave feedback" tiles lighter
+   (`FeedbackRow` `nightRaisedSoft`). Rediscovered both lists looked identical
+   and had sharp (square) corners, so both became `radius.lg` rounded tiles with
+   clearly different fills (`#1E1C1A` vs `#2C2925`), `section` gap restored so
+   they read as separate cards, selected state = thicker coral border + lighter
+   fill.
+2. **LINE button lime green** on the login — `#06C755` style override (LINE's
+   brand colour, matching the in-app `LineLogo`).
+
+### Verified
+
+- `npm run typecheck` clean on both packages after every batch.
+- Emoji that *live as data marks* deliberately stay: category glyphs
+  (🍜🎮🎨⛰), rating faces (😐🙂🔥), and the greet-emoji inside i18n copy
+  strings. Only UI *chrome* was swapped to SVG.
+- **Visual QA left to a human eye on the emulator** — the model cannot read
+  screenshots (CLAUDE.md). The handle/empty/selection states were the final
+  point to eyeball.
+
+### Not touched (deliberate)
+
+No backend/AI code changed in this session — those fixes (all-meh recap gate,
+vibe recap, B1–B10) belong to §11 and the earlier sections. This is a purely
+frontend presentation pass. Category `categoryMeta.ts` single-source stays the
+glyph/colour authority; stickers keep their emoji as compact data marks.
+
+## 14. Session log — recap prompt + onboarding prompt + AI hardening + E2E (2026-08-31)
+
+Backend/AI pass (distinct from the visual overhaul in §13; git history hygiene
+commit `aa7c849` + prompt work landed before the UI session). All folded into
+`TRACKER.md §5`. The user's specific asks, captured here:
+
+### Recap prompt — fixes "recap too vague"
+
+`recapPrompt` is now `recapPrompt(language, event.category, summary)`
+(`routes.ts:190`), so the **meetup category reaches Groq** — the one public,
+non-member field a sparse recap can anchor on. Wording live-validated
+(verdict: good):
+
+- 3 traits → names them all: "people who love hiking, coffee, and ramen"
+- 1 trait → category anchor: "people who love strategy at this board games meetup"
+- 0 traits → category-alone (JA): "料理のミートアップで良い雰囲気でした…"
+- Category detail surfaces exactly as requested (option 1).
+
+Type change: `RecapPrompt` interface in `modules/recap/vibe.ts` — anonymous by
+construction (no handle/id field can travel), so verification at the call site
+is guaranteed, not remembered.
+
+Route stores `vibeRecap()` output which is internally sanitized → OK. New recaps
+get the concrete wording; already-cached recaps stay old (immutable by design).
+
+**Open decision:** reword the deterministic `templateRecap` category-anchor fallback
+the same way, or is the Groq path enough? (Groq runs first; `templateRecap` is only
+the fallback when Groq fails/sanitizes to null.)
+
+### Onboarding prompt
+
+- Rich input draws more out of the user; "idk" → concrete Japanese draw-out;
+  hostile redirect stays in character; still JSON-only.
+- **Deployed `SYSTEM_PROMPT` matches `extractionSchema` (interests + personality, no
+  `goals`).** The pasted reference had a `goals` field — the deployed one correctly
+  omits it; no action needed. `groq/compound` tests pin the contract (§11).
+- Verdict: clean.
+
+### Code fixes
+
+- **`sanitizeRecap` collapses Unicode NEL U+0085** (`vibe.ts:202`, regex now
+  `[\s\u0085]+`). `\s` misses the NEL separator a model can emit around an em-dash —
+  a latent line-break hole. Pinned by `vibe.test.ts`. (The earlier "newline in
+  recap" was actually terminal text-wrapping of a wide CJK line — no real bug.)
+- **`onboardingChat` returns graceful retry on Groq request failure**
+  (`services/ai.ts:104-120`). The old JSON-mode guard only caught Groq returning
+  *malformed* JSON (ai.ts:81-90), not *rejecting the request* (intermittent
+  `invalid_request_error` / "Failed to generate JSON" in `json_object` mode) — that
+  threw through the route to a 500. Root-cause single-point fix: wrap
+  `create()` in the same try/catch that already guards `JSON.parse`, return
+  `RETRY_REPLY` on throw. One guard in the shared function covers the route.
+  Finding 1 resolved.
+
+### E2E report — 44 checks, 43 PASS / 1 FAIL (live project, 2026-08-31)
+
+Server :4000 (health ok, supabase:true groq:true oauth:line google), emulator :5554.
+
+- PART A fresh user + onboarding AI + events: 21/21
+- PART B post-meetup feedback + AI vibe recap: 5/5 (recap source=ai, real Groq)
+- PART C group chat + connections/DMs + privacy gates: 12/12
+- Finding 1 (the 1 FAIL): multi-turn onboarding chat → intermittent 500 (~3 of 4
+  calls) — exactly the missing try/catch above. Fixed, retested 8/8 → 200 with real
+  replies.
+- Finding 2 (non-issue): no slash-commands in group chat — never specified, by design.
+- Notables: two earlier "failures" were test bugs, not app bugs (pgvector string-vs-
+  array; wrong harness field). Frontend wiring of every tested route verified.
+

@@ -15,6 +15,7 @@ import Animated, {
 import { Button } from "../../components/common/Button";
 import { LineLogo, GoogleLogo } from "../../components/common/BrandLogos";
 import { Sticker } from "../../components/ui/Sticker";
+import { CATEGORY_ORDER, categoryGlyph, categorySticker } from "../../categoryMeta";
 import { DEMO_MODE } from "../../config/env";
 import { useOAuthLogin } from "../../features/auth/hooks/useOAuthLogin";
 import {
@@ -28,13 +29,25 @@ import {
 } from "../../theme";
 
 /**
+ * The night ground + warm ambient tints restage the site's hero. The washes are
+ * the site's dark-ambient palette (coral + sage, fades to transparent — the same
+ * gentle 0.06-0.08 lift as site/globals.css `.ambient-surface-dark`). The loud
+ * rainbow washes are gone; alpha-composition fades have no token, so they live
+ * here as named constants rather than raw literals in the render tree.
+ */
+const NIGHT_GROUND = [colors.night, colors.night, colors.nightRaised] as const;
+const CORAL_WASH = ["rgba(255,67,42,0)", "rgba(255,67,42,0.08)"] as const;
+const SAGE_WASH = ["rgba(122,158,126,0)", "rgba(122,158,126,0.07)"] as const;
+
+/**
  * OAuth is LINE + Google only — no phone OTP (docs/TRD.md §5).
  *
- * The night ground + neon CTA + manic ticker restage the site's hero
- * (site/globals.css `bg-dark`, `.cta-neon`, the marquee strip) as the login.
- * The entrance staggers title → actions on critically damped springs: nothing
- * here was thrown by the user (skill §4). Floater stickers bob for breath; they
- * are decorative and never touch the map or buttons.
+ * The night ground + coral CTA + manic ticker restage the site's hero
+ * (site/globals.css `bg-dark`, the marquee strip) as the login. The coral
+ * (brand) lower wash clips the bright CTA into place; a faint sage lift breathes
+ * warmth into the corner. The entrance staggers title → actions on critically
+ * damped springs: nothing here was thrown by the user (skill §4). Floater
+ * stickers bob for breath; they are decorative and never touch the map/buttons.
  */
 export function LoginScreen() {
   const { t } = useTranslation();
@@ -67,18 +80,18 @@ export function LoginScreen() {
     <View style={styles.root}>
       {/* Night ground — the site's dark hero section */}
       <LinearGradient
-        colors={[colors.night, "#0B0A0C", colors.nightRaised]}
+        colors={NIGHT_GROUND}
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />
-      {/* Electric washes — the site's ambient tints, neon top-left, lilac bottom-right */}
+      {/* Warm ambient tints — coral glow upper, faint sage in the corner */}
       <LinearGradient
-        colors={["rgba(200,255,0,0)", "rgba(200,255,0,0.07)"]}
+        colors={CORAL_WASH}
         style={styles.neonWash}
         pointerEvents="none"
       />
       <LinearGradient
-        colors={["rgba(138,79,255,0)", "rgba(138,79,255,0.18)"]}
+        colors={SAGE_WASH}
         style={styles.ambient}
         pointerEvents="none"
       />
@@ -103,6 +116,7 @@ export function LoginScreen() {
           <Button
             label={t("auth.continueWithLine")}
             variant="neon"
+            style={{ backgroundColor: "#06C755" }}
             onPress={() => start("line")}
             loading={pending === "line"}
             disabled={pending !== null}
@@ -132,12 +146,27 @@ export function LoginScreen() {
   );
 }
 
-const FLOATERS = [
-  { glyph: "🍜", color: colors.sticker.food.bg, on: colors.sticker.food.on, top: 120, align: "left" as const, inset: -20, size: 156, spin: -8, delay: 0 },
-  { glyph: "🎮", color: colors.sticker.gaming.bg, on: colors.sticker.gaming.on, top: 200, align: "right" as const, inset: -15, size: 132, spin: 6, delay: 700 },
-  { glyph: "🎨", color: colors.sticker.arts.bg, on: colors.sticker.arts.on, top: 500, align: "left" as const, inset: 30, size: 120, spin: -4, delay: 1400 },
-  { glyph: "🥾", color: colors.sticker.outdoor.bg, on: colors.sticker.outdoor.on, top: 560, align: "right" as const, inset: 20, size: 114, spin: 5, delay: 2100 },
+/**
+ * Decorative category stickers drifting beside the wordmark. Glyph and colour
+ * come from the single category source (categoryMeta); only the placement is
+ * this screen's.
+ */
+const FLOATER_LAYOUT = [
+  { top: 120, align: "left" as const, inset: -20, size: 156, spin: -8, delay: 0 },
+  { top: 200, align: "right" as const, inset: -15, size: 132, spin: 6, delay: 700 },
+  { top: 500, align: "left" as const, inset: 30, size: 120, spin: -4, delay: 1400 },
+  { top: 560, align: "right" as const, inset: 20, size: 114, spin: 5, delay: 2100 },
 ];
+
+const FLOATERS = CATEGORY_ORDER.map((category, i) => {
+  const sticker = categorySticker(category);
+  return {
+    glyph: categoryGlyph(category),
+    color: sticker.bg,
+    on: sticker.on,
+    ...FLOATER_LAYOUT[i]!,
+  };
+});
 
 /**
  * Decorative category stickers drifting beside the wordmark. They bob on a

@@ -10,37 +10,44 @@
 import { Platform } from "react-native";
 
 export const palette = {
-  // Warm paper ground — the product should read calm, not clinical.
+  // Warm paper ground — the cream surface the product reads on (docs/DESIGN.md
+  // §1). Warmer than before: the site's `#FAF7F2` pulled down slightly so cards
+  // and hairline rules still separate on it.
   sand50: "#FDFBF8",
-  sand100: "#FBF7F2",
-  sand200: "#F4EEE6",
-  sand300: "#E8DFD4",
-  sand400: "#D5C8B8",
+  sand100: "#F7F4EE",
+  sand200: "#F0EBE2",
+  sand300: "#E4DDD1",
+  sand400: "#D0C6B6",
 
-  ink900: "#1A1613",
-  ink700: "#3D362F",
-  ink500: "#6E655C",
+  ink900: "#171717",
+  ink700: "#3A362F",
+  ink500: "#77716A",
   ink300: "#9C9188",
 
+  // Coral — the Atsumaru brand/action colour (site `--color-accent`). Coral is
+  // THE one action register; it also carries the celebration payoff, elevated.
   clay500: "#FF432A",
   clay600: "#E02E17",
   clay100: "#FFF0ED",
 
-  pine500: "#2F6F62",
-  pine600: "#265A50",
-  pine100: "#E3EFEB",
+  // Sage — the warm-nature secondary (trust / AI / compatibility / success).
+  pine500: "#719B86",
+  pine600: "#5E8570",
+  pine100: "#E8F0EA",
 
   amber500: "#C98A2E",
   rose500: "#B3402C",
 
-  // Electric band — the rail site stickers live on (site/globals.css).
-  // Each maps to a category; the pair decides text colour per WCAG.
-  neon500: "#C8FF00",
+  // Category sticker band (site/globals.css). Each maps to a category; the pair
+  // decides text colour per WCAG. These are DATA-ENCODED content accents only —
+  // they never decorate generic UI chrome. Food lost the neon lime, settling on
+  // a warm amber distinct from both brand coral and sage.
+  neon500: "#FF432A",
   hotpink500: "#FF2E93",
   lilac500: "#8A4FFF",
   sage500: "#7A9E7E",
-  /** The site's near-black, used as ink ON a sticker (site $000 shadow / ink). */
-  stickerInk: "#09090B",
+  /** Warm ink, used as text ON a sticker (site $000 ink rule). */
+  stickerInk: "#171717",
 } as const;
 
 /**
@@ -48,19 +55,19 @@ export const palette = {
  * future dark theme is a single swap rather than a survey of every file.
  */
 export const colors = {
-  background: "#FBF7F2",
+  background: "#F7F4EE",
   /** One step above background — grouped list backdrop. */
-  backgroundElevated: "#F4EEE6",
+  backgroundElevated: "#F0EBE2",
   surface: "#FFFFFF",
   /** Surface resting on an image or the map; needs its own contrast. */
   surfaceRaised: "#FFFFFF",
-  border: "#E8DFD4",
+  border: "#E4DDD1",
   /** Hairline used between rows inside a grouped card. */
-  separator: "rgba(26,22,19,0.08)",
+  separator: "rgba(23,23,23,0.08)",
 
-  text: "#1A1613",
-  textSecondary: "#3D362F",
-  textMuted: "#6E655C",
+  text: "#171717",
+  textSecondary: "#3A362F",
+  textMuted: "#77716A",
   textOnColor: "#FFFFFF",
 
   primary: "#FF432A",
@@ -68,41 +75,51 @@ export const colors = {
   primaryText: "#FFFFFF",
   primarySoft: "#FFF0ED",
 
-  accent: "#2F6F62",
-  accentPressed: "#265A50",
-  accentSoft: "#E3EFEB",
+  accent: "#719B86",
+  accentPressed: "#5E8570",
+  accentSoft: "#E8F0EA",
 
   danger: "#B3402C",
   dangerLight: "#FF8A7A",
   warning: "#C98A2E",
 
   // Night surfaces — the site's dark sections (site/globals.css `bg-dark` /
-  // `bg-warm`). Login and the editorial chrome sit on these; content stays warm.
-  night: "#09090B",
-  nightRaised: "#141210",
-  nightText: "#FAF7F2",
-  nightMuted: "rgba(250,247,242,0.72)",
-  nightSeparator: "#242428",
-  /** Electric CTA — the site's neon pill, dark ink on it (contrast 16.6:1). */
-  neon: "#C8FF00",
-  neonText: "#09090B",
+  // `bg-warm`), warmed toward the ink family: near-black `#09090B` became
+  // `#171717` so dark chrome reads as warm Japanese ink, not cold black.
+  // Login and the editorial chrome sit on these; content stays warm cream.
+  night: "#171717",
+  nightRaised: "#1E1C1A",
+  /** One step up again — completed-meetup feedback tiles read clearly lighter. */
+  nightRaisedSoft: "#2C2925",
+  nightText: "#F7F4EE",
+  nightMuted: "rgba(247,244,238,0.72)",
+  nightSeparator: "#2A2724",
+  /**
+   * Payoff register — the celebration / Discover chrome / rep-value accents.
+   * Neon lime is gone as a general-purpose accent (per the palette direction);
+   * `neon` now ALIASES the brand coral so "best moment" resolves to the same
+   * action coral as everything else — elevated by size and craft, not a second
+   * hue. Cream ink clears ~4.2:1 on coral, AA for large button labels.
+   */
+  neon: "#FF432A",
+  neonText: "#F7F4EE",
 
   /** Scrim behind modal surfaces — dim to focus (skill §12). */
-  scrim: "rgba(26,22,19,0.32)",
+  scrim: "rgba(23,23,23,0.32)",
 
   /**
    * Category sticker palette (mirrors the site's electric rail). The sticker is
    * a data carrier, never decoration alone — colour always pairs with the glyph
    * and the label text beside it (docs/DESIGN.md §10). Each entry is its own
-   * { bg, on } pair so ink stays WCAG-AA on the specific colour: neon/hot pink/
-   * sage take the near-black ink, lilac takes white (site rule: soft = ink, hot
+   * { bg, on } pair so ink stays WCAG-AA on the specific colour: warm amber and
+   * hot pink take the ink text, lilac takes white (site rule: soft = ink, hot
    * = white).
    */
   sticker: {
-    food: { bg: "#C8FF00", on: "#09090B" },
-    gaming: { bg: "#FF2E93", on: "#09090B" },
+    food: { bg: "#D9A441", on: "#171717" },
+    gaming: { bg: "#FF2E93", on: "#171717" },
     arts: { bg: "#8A4FFF", on: "#FFFFFF" },
-    outdoor: { bg: "#7A9E7E", on: "#09090B" },
+    outdoor: { bg: "#7A9E7E", on: "#171717" },
   } as const,
 } as const;
 

@@ -7,7 +7,7 @@ import {
   categoryGlyph,
   categorySticker,
 } from "../../categoryMeta";
-import { colors, elevation, radius, spacing, type } from "../../theme";
+import { colors, radius, spacing, type } from "../../theme";
 import type { MeetupEvent } from "../../types/api";
 
 interface EventCardProps {
@@ -64,6 +64,7 @@ export function EventCard({
 
   const sticker = categorySticker(event.category);
   const glyph = categoryGlyph(event.category);
+  const text = dark ? styles.textDark : styles.text;
 
   return (
     <PressableScale
@@ -76,57 +77,54 @@ export function EventCard({
       style={[
         styles.card,
         dark && styles.cardDark,
-        selected && (dark ? styles.cardSelectedDark : styles.cardSelected),
+        selected && styles.cardSelected,
       ]}
     >
-      {/* Category accent strip */}
-      <View style={[styles.accentStrip, { backgroundColor: sticker.bg }]} />
+      <Sticker
+        color={sticker.bg}
+        borderRadius={radius.md}
+        rotate={selected ? -2 : 0}
+        style={styles.sticker}
+      >
+        <Text style={styles.glyph}>{glyph}</Text>
+      </Sticker>
 
-      <View style={styles.row}>
-        <Sticker
-          color={sticker.bg}
-          borderRadius={radius.md}
-          rotate={selected ? -2 : 0}
-          style={styles.sticker}
-        >
-          <Text style={styles.glyph}>{glyph}</Text>
-        </Sticker>
-
-        <View style={styles.body}>
+      <View style={styles.body}>
+        <View style={styles.kickerRow}>
           <Text style={[styles.categoryKicker, { color: sticker.bg }]}>
             {t(`discover.categories.${event.category}`)}
           </Text>
-          <Text style={[styles.title, dark && styles.titleDark]} numberOfLines={1}>
-            {event.title}
-          </Text>
-          <Text style={[styles.meta, dark && styles.metaDark]} numberOfLines={1}>
-            {event.venue_name} · {when}
-          </Text>
-
-          <View style={styles.footer}>
-            <OccupancyBar
-              current={event.current_size}
-              max={event.max_size}
-              color={sticker.bg}
-            />
-            <Text style={[styles.size, dark && styles.sizeDark]}>
-              {full
-                ? t("discover.status.full")
-                : t("discover.size", {
-                    current: event.current_size,
-                    max: event.max_size,
-                  })}
-            </Text>
-          </View>
+          {score != null ? (
+            <Text style={styles.scoreMark}>{score}%</Text>
+          ) : null}
         </View>
 
-        {score != null ? (
-          <View style={styles.scoreWell}>
-            <Text style={styles.scoreValue}>{score}</Text>
-            <Text style={styles.scoreUnit}>%</Text>
-          </View>
-        ) : null}
+        <Text style={[styles.title, text]} numberOfLines={1}>
+          {event.title}
+        </Text>
+        <Text style={[styles.meta, dark && styles.metaDark]} numberOfLines={1}>
+          {event.venue_name} · {when}
+        </Text>
+
+        <View style={styles.footer}>
+          <OccupancyBar
+            current={event.current_size}
+            max={event.max_size}
+            color={sticker.bg}
+          />
+          <Text style={[styles.size, dark && styles.sizeDark]}>
+            {full
+              ? t("discover.status.full")
+              : t("discover.size", {
+                  current: event.current_size,
+                  max: event.max_size,
+                })}
+          </Text>
+        </View>
       </View>
+
+      {/* Trailing open affordance — an editorial arrow, not a button */}
+      <Text style={[styles.openMark, dark && styles.openMarkDark]}>→</Text>
     </PressableScale>
   );
 }
@@ -134,12 +132,14 @@ export function EventCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    backgroundColor: colors.surface,
+    alignItems: "center",
+    gap: spacing.md - 2,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md - 2,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     overflow: "hidden",
-    ...elevation.low,
   },
   cardDark: {
     backgroundColor: colors.nightRaised,
@@ -147,28 +147,21 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
+    borderWidth: 1.5,
+    backgroundColor: colors.nightRaisedSoft,
   },
-  cardSelectedDark: {
-    borderColor: colors.neon,
-    backgroundColor: colors.nightRaised,
-  },
-  accentStrip: {
-    width: 4,
-  },
-  row: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md - 4,
-    padding: spacing.md - 2,
-  },
+  text: { color: colors.text },
+  textDark: { color: colors.nightText },
   sticker: { width: 52, height: 52 },
   glyph: { fontSize: 24 },
-  body: { flex: 1, gap: 2 },
+  body: { flex: 1, gap: spacing.xxs },
+  kickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   categoryKicker: { ...type.kicker, fontSize: 9, lineHeight: 12, letterSpacing: 1.8 },
-  title: { ...type.bodyEmphasized, color: colors.text },
-  titleDark: { color: colors.nightText },
+  title: { ...type.bodyEmphasized },
   meta: { ...type.footnote, color: colors.textMuted },
   metaDark: { color: colors.nightMuted },
   footer: {
@@ -180,20 +173,18 @@ const styles = StyleSheet.create({
   pips: { flexDirection: "row", gap: 3 },
   pip: {
     width: 14,
-    height: 4,
+    height: spacing.xs,
     borderRadius: 2,
     backgroundColor: colors.border,
   },
   size: { ...type.caption, color: colors.textMuted },
   sizeDark: { color: colors.nightMuted },
-  scoreWell: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accentSoft,
+  scoreMark: {
+    ...type.caption,
+    color: colors.primary,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
-  scoreValue: { ...type.title3, color: colors.accent, fontWeight: "700" },
-  scoreUnit: { ...type.caption, color: colors.accent, fontWeight: "700" },
+  openMark: { ...type.headline, color: colors.textMuted, paddingLeft: spacing.xs },
+  openMarkDark: { color: colors.nightMuted },
 });

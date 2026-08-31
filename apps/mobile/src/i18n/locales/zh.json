@@ -30,6 +30,7 @@
     "language": "语言",
     "cta": "找到我的同好",
     "opener": "聊聊你真正喜欢的事 — 不用填表，聊天就好。",
+    "chatTitle": "聊起来吧",
     "confirmTitle": "我听到的是这些",
     "confirmLede": "有不合适的地方可以修改。",
     "displayNamePlaceholder": "希望大家怎么称呼你？",
@@ -51,6 +52,9 @@
     "view": "查看",
     "yourMeetups": "你的聚会",
     "leaveFeedback": "留下反馈",
+    "locationDenied": "正在显示涩谷附近的聚会",
+    "allowLocation": "点击允许定位以查看你附近的聚会",
+    "titleKicker": "DISCOVER",
     "status": {
       "open": "开放中",
       "full": "已满",
@@ -82,7 +86,9 @@
     "connectPrompt": "你想和谁保持联系？",
     "submitPrivately": "私密提交",
     "privacyNote": "你的选择保持私密，对方不会知道。",
-    "thanksTitle": "谢谢 — 你的选择保持私密"
+    "thanksTitle": "谢谢 — 你的选择保持私密",
+    "mutualKicker": "MUTUAL MATCH",
+    "thanksKicker": "THANK YOU"
   },
   "recap": {
     "title": "你的氛围回顾",
@@ -94,6 +100,7 @@
     "startChatting": "开始聊天",
     "title": "联系人",
     "subtitle": "你们互相选择的人。",
+    "titleKicker": "CONNECTIONS",
     "empty": "还没有联系人。聚会之后才会解锁。",
     "messagePlaceholder": "给 @{{handle}} 发消息..."
   },
@@ -101,7 +108,16 @@
     "title": "设置",
     "language": "语言",
     "reputation": "信誉分 {{score}}/100",
+    "repLabel": "信誉",
     "privacyNote": "你的真实姓名不会展示给其他成员。"
+  },
+  "profile": {
+    "title": "个人主页",
+    "heroKicker": "你的个人主页",
+    "statConnections": "好友",
+    "statMeetups": "聚会",
+    "prefsGroup": "应用设置",
+    "accountGroup": "账户"
   },
   "createEvent": {
     "title": "发起聚会",
@@ -115,6 +131,10 @@
     "category": "分类",
     "size": "小组人数",
     "startsIn": "距开始（小时）",
-    "submit": "创建聚会"
+    "submit": "创建聚会",
+    "hostKicker": "HOST A MEETUP",
+    "hostHint": "填写详细信息并发布到活动板。",
+    "detailsKicker": "DETAILS",
+    "groupKicker": "GROUP"
   }
 }

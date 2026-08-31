@@ -22,6 +22,53 @@ Avoid:
 - nightclub/hookup aesthetics
 - overly corporate enterprise styling
 
+## 1b. Visual World — Warm Japanese Editorial
+
+The app shares the marketing site's visual DNA (`site/globals.css`, the north
+star for look-and-feel). The register is **editorial restraint + real-world
+activity + Japanese warmth + playful social discovery** — never sterile
+minimalism.
+
+### Palette (theme/tokens.ts is canonical)
+
+| Role | Token | Value |
+|---|---|---|
+| Warm content ground | `colors.background` | cream `#F7F4EE` |
+| Ink (primary text) | `colors.text` | `#171717` |
+| **Brand / action / payoff** | `colors.primary` | coral `#FF432A` |
+| **Secondary semantic** (trust / AI / compat / success) | `colors.accent` | sage `#719B86` |
+| Night surfaces | `colors.night` | warm ink `#171717` (dark, not cold black) |
+
+Rules:
+- **Coral is THE one action register.** The mutual-match celebration is the
+  same coral, elevated by size + craft (`ZoomIn` spring), never a second hue.
+- **Sage is the secondary semantic** register — never used for primary actions.
+- **Category colors are data-encoded content accents only** (food=warm amber,
+  gaming=hot pink, arts=lilac, outdoor=sage), paired with glyph + label text.
+  They never decorate generic chrome (buttons, nav, surfaces).
+- **Night stays dark** but uses the warm ink family, not neon-lime or pure
+  black. Login and the Discover editorial band sit on it; content stays cream.
+- The product should read warm, calm, playful and social — not a loud neon
+  palette and not a sterile one.
+
+### Component grammar
+
+- **Editorial labels**: mono uppercase kickers (`type.kicker`/`overline`) for
+  section headers and micro-labels on every surface.
+- **Kill the pill smell**: primary nav and chrome are mono kicker links /
+  numbered indices, not round `radius.pill` icon buttons. Category filter chips
+  are the one legitimate pill family (they are data selectors) and render their
+  selected state as a sticker.
+- **Sticker/vinyl pops**: the site's hard-offset-shadow, slightly-rotated,
+  die-cut stickers and tape badges carry the playful moments (category marks,
+  status tapes, decals). This is what keeps the system warm, not generic.
+- **Cards form a small family** — featured / standard / compact — sharing the
+  accent strip, category kicker, and occupancy pips; never one identical padded
+  rectangle everywhere.
+- **Chat** keeps meetup identity present; sender bubbles use the brand coral.
+- **Decorative washes** (login, hero) are subtle site-style ambients (coral /
+  sage at 5–8% alpha), never rainbow gradients.
+
 ## 2. Primary Navigation
 
 The MVP has three primary product surfaces:

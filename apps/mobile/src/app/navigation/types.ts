@@ -14,5 +14,5 @@ export type AppStackParamList = {
   /** `handle` is passed for the title so the thread does not flash an empty header. */
   Dm: { connectionId: string; handle?: string };
   CreateEvent: undefined;
-  Settings: undefined;
+  Profile: undefined;
 };

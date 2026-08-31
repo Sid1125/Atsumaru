@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../common/Button";
+import { IconWave } from "../ui/Icons";
 import { ScreenState } from "../common/ScreenState";
 import { useLiveThread } from "../../features/chat/hooks/useLiveThread";
 import { colors, elevation, radius, spacing, type } from "../../theme";
@@ -96,7 +97,7 @@ export function ChatThread({
 
       {thread.messages.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyGlyph}>👋</Text>
+          <IconWave size={32} color={colors.textMuted} />
           <Text style={styles.empty}>{t("meetup.chatEmpty")}</Text>
         </View>
       ) : fill ? (
@@ -169,7 +170,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     gap: spacing.sm,
   },
-  emptyGlyph: { fontSize: 32 },
   empty: {
     ...type.footnote,
     color: colors.textMuted,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   sender: {
     ...type.overline,
     color: colors.textMuted,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   text: { ...type.callout, color: colors.text },
   mineText: { color: colors.textOnColor },
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontSize: 10,
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: spacing.xxs,
     alignSelf: "flex-end",
   },
   mineTime: { color: "rgba(255,255,255,0.7)" },

@@ -1,6 +1,6 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-08-31.
+Status of the build against `docs/`. Updated 2026-09-01.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
@@ -335,7 +335,7 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 ### 3. Mobile — P1 features
 
 - [x] Create-event screen (FR-13) — posts a fixed Shibuya point; a venue picker is still to do
-- [x] Settings: language override → `PATCH /users/me`, sign out
+- [x] **Profile page (2026-09-01)** replaces the old Settings screen: hero (avatar/kicker/handle/name), stats row (rep/connections/meetups), numbered interests index, language override → `PATCH /users/me`, sign out. Editorial grammar (whitespace + hairline rules, no rounded settings cards). Old `SettingsScreen`/`Settings` route removed → `Profile`
 - [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
 - [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `BottomSheet`, `LoadingSkeleton` (docs/DESIGN.md §7)
 - [ ] Infinite scroll on message history now that the paging envelope is returned
@@ -450,6 +450,41 @@ JWT-shaped literals anywhere.
       which also stops an all-meh member from burning the generation cap. Re-verified
       live after the edit: all-meh member → `source:"template"`, `traits: []`, the quiet
       Japanese sentence; harness rows deleted, DB restored
+- [x] **Recap prompt made concrete, not vague (2026-08-31).** `recapPrompt` (moved to
+      `modules/recap/vibe.ts`, `legend`→`text.clicked`), now declared type-safe via the
+      `RecapPrompt` interface and called as `recapPrompt(language, event.category, summary)`
+      (`routes.ts:190`) so the **category reaches Groq** — the one public, non-member field
+      that lets a sparse recap anchor on something real. Wording live-validated and fixed
+      2026-08-31 ("recap too vague"): 3 traits → names them all ("people who love hiking,
+      coffee, and ramen"); 1 trait → category anchor ("people who love strategy at this
+      board games meetup"); 0 traits → category-alone, Japanese ("料理のミートアップで良い
+      雰囲気でした…"). Groq-path verdict: **good, live-validated**. Open: reword the
+      deterministic `templateRecap` category-anchor path the same way, or leave the Groq
+      path as the floor? (Groq path runs first; `templateRecap` is only the fallback)
+- [x] **Onboarding SYSTEM_PROMPT tuned (2026-08-31).** Rich input draws more out of the
+      user; "idk" → concrete Japanese draw-out; hostile redirect stays in character; still
+      JSON-only. **Deployed `SYSTEM_PROMPT` matches `extractionSchema` (interests +
+      personality, no `goals`)** — the pasted reference carrying a `goals` field was
+      stale; no action needed. `groq/compound` tests pin the en/ja contract (context.md §11)
+- [x] **`sanitizeRecap` collapses Unicode NEL (2026-08-31, `modules/recap/vibe.ts`).**
+      Regex now `[\s\u0085]+` — `\s` misses the U+0085 NEL separator a model can emit
+      around an em-dash, a latent line-break hole. `vibe.test.ts` pins it. (The earlier
+      "newline in recap" was actually console text-wrapping of a wide CJK line — not a bug)
+- [x] **`onboardingChat` graceful retry on Groq request failure (2026-08-31,
+      `services/ai.ts:104-120`).** The existing JSON-mode protection only handled Groq
+      returning *malformed* JSON, not *rejecting the request* (`invalid_request_error`,
+      intermittent "Failed to generate JSON" in `json_object` mode) — that threw through
+      the route to a 500. Root-cause fix: wrap `client().chat.completions.create()` in the
+      same try/catch that already guards `JSON.parse`, returning `RETRY_REPLY` on throw.
+      One guard in the shared function covers every caller
+- [x] **E2E report (2026-08-31, live project) — 44 checks, 43 PASS / 1 FAIL.** The single
+      FAIL was Finding 1 (multi-turn onboarding chat → intermittent 500, ~3 of 4 calls),
+      root-caused and fixed by the try/catch above; retested 8/8 multi-turn calls → 200
+      with real replies. All AI features (onboarding chat, vibe recap source=ai, MiniLM
+      embedding 384-dim) + full authenticated API + frontend wiring verified. Group
+      chat/DMs model-free by design (no regression). Two earlier "failures" were test
+      bugs, not app bugs (pgvector string-vs-array read; wrong harness response field)
+
 - [x] `connections/routes.ts:32` interpolates `userId` into a PostgREST `.or()` filter.
       Safe today (it is a UUID off the verified JWT); defence-in-depth only
 - [x] **AI surface, stated exactly.** GROQ has two jobs — the onboarding chat and the
@@ -459,6 +494,47 @@ JWT-shaped literals anywhere.
       no summarization, sentiment, smart replies, or message embedding, and message content
       is not a matching signal. Adding AI there is a product change (`docs/RULES.md` §10),
       needing new routes plus a socket hook
+
+### 5b. Warm Japanese Editorial mobile overhaul (2026-09-01)
+
+The app was brought into the marketing site's visual language (`docs/DESIGN.md` §1b,
+`docs/VISUAL_OVERHAUL.md`). User-mandated grammar: **fewer pills**, replaced visual
+grammar — pills only for compact metadata; primary CTA = substantial rectangular
+(`radius.xs`), never capsule; cards = composition (thin rules / edge-to-edge / rounded
+tiles), not floating rects; settings = whitespace + hairline rules.
+
+- [x] **Tokens** — `primary` stays site coral `#FF432A`; `neon` folds INTO coral
+      (lime gone as a general accent), `neonText`→cream `#F7F4EE`; `accent`→sage
+      `#719B86`; bg→cream `#F7F4EE`; night→warm ink `#171717`; food sticker lime→warm
+      amber `#D9A441`; added `nightRaisedSoft` `#2C2925`
+- [x] **SVG icon set** — `components/ui/Icons.tsx` (new): `IconConnections`, `IconProfile`,
+      `IconGear`, `IconChevronRight`, `IconSparkle`, `IconMap`, `IconWarning`, `IconSend`,
+      `IconWave`. Stroke-based 24×24 `currentColor`; `react-native-svg` 15.15.4
+- [x] **Discover nav** — username removed from the map band; top-left = connections SVG
+      circle, top-right = profile avatar circle (`circleButton`), filter rail anchored by
+      `bandBottom` onLayout
+- [x] **Profile page** replaces old Settings screen (see §3) — `Profile` route wired,
+      `SettingsScreen.tsx`/`Settings` deleted from types/linking/RootNavigator
+- [x] **Button** — rectangular across all variants (`radius.pill` → `radius.xs`)
+- [x] **EventCard** — floating rect → rounded editorial tile (`nightRaised` bg,
+      `radius.lg`, hairline border), score as coral numeric mark (not a soft pill),
+      trail `→` affordance
+- [x] **Discover rows** — feedback/location rows from floating rects → editorial
+      transparent + hairline rule
+- [x] **Emoji→SVG chrome swap** — ScreenState ⚠️→`IconWarning` / 🗺️→`IconMap`; celebration
+      🎉→`IconSparkle` (Meetup + Feedback); chat empty 👋→`IconWave`; AIChat send ↑→
+      `IconSend`, opener 👋→`IconWave`. Dead glyph styles stripped. Category emoji
+      (🍜🎮🎨⛰), rating faces (😐🙂🔥), and greet-emoji inside i18n copy **stay** — they are
+      data marks or content, not chrome
+- [x] **i18n** — `profile.*` keys added to en/ja/zh
+- [x] **User follow-ups** — upcoming tiles greyer (`nightRaised`), completed tiles lighter
+      (`nightRaisedSoft`), both `radius.lg` rounded (fixes the "same background + sharp
+      vertices" regression from the first pass), selected = thicker coral border; LINE login
+      button lime-green `#06C755`
+- [x] `npm run typecheck` green (server + mobile) after every batch
+- [ ] **Visual QA is a human-eye job on the emulator** — the model cannot read screenshots.
+      Discovery band, tile contrast, Profile hero and the empty/selection states were the
+      handoff points
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
@@ -480,7 +556,7 @@ premium tier.
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
 | Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
-| Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right settings gear, so Settings cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
+| Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right profile avatar circle, so the Profile page cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
 | Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain |
 | `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. `004` is **not** part of this drift — it was written into `schema.sql` at the same time. See §5 |
 | Vibe recap in demo mode | `EXPO_PUBLIC_DEMO_MODE=1` always takes the `source: "template"` path — there is no Groq offline. The card, traits and privacy line are real; nothing pretends a model ran |

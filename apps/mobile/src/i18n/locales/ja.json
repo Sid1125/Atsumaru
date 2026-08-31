@@ -30,6 +30,7 @@
     "language": "言語",
     "cta": "仲間をさがす",
     "opener": "好きなことを教えてください。フォームはありません、会話だけ。",
+    "chatTitle": "おしゃべりしよう",
     "confirmTitle": "こう受け取りました",
     "confirmLede": "違うところは自由に直してください。",
     "displayNamePlaceholder": "何と呼ばれたいですか？",
@@ -51,6 +52,9 @@
     "view": "見る",
     "yourMeetups": "参加中の集まり",
     "leaveFeedback": "フィードバックを送る",
+    "locationDenied": "渋谷周辺の集まりを表示中",
+    "allowLocation": "タップして現在地を許可",
+    "titleKicker": "DISCOVER",
     "status": {
       "open": "募集中",
       "full": "満員",
@@ -82,7 +86,9 @@
     "connectPrompt": "つながりたい人はいますか？",
     "submitPrivately": "非公開で送信",
     "privacyNote": "選んだ内容は非公開です。相手には知られません。",
-    "thanksTitle": "ありがとうございます — 内容は非公開です"
+    "thanksTitle": "ありがとうございます — 内容は非公開です",
+    "mutualKicker": "MUTUAL MATCH",
+    "thanksKicker": "THANK YOU"
   },
   "recap": {
     "title": "あなたのバイブまとめ",
@@ -94,6 +100,7 @@
     "startChatting": "チャットをはじめる",
     "title": "つながり",
     "subtitle": "お互いに選んだ相手です。",
+    "titleKicker": "CONNECTIONS",
     "empty": "まだつながりはありません。集まりのあとに解放されます。",
     "messagePlaceholder": "@{{handle}} にメッセージ..."
   },
@@ -101,7 +108,16 @@
     "title": "設定",
     "language": "言語",
     "reputation": "信頼スコア {{score}}/100",
+    "repLabel": "rep",
     "privacyNote": "本名が他のメンバーに表示されることはありません。"
+  },
+  "profile": {
+    "title": "プロフィール",
+    "heroKicker": "あなたのプロフィール",
+    "statConnections": "つながり",
+    "statMeetups": "ミートアップ",
+    "prefsGroup": "アプリ設定",
+    "accountGroup": "アカウント"
   },
   "createEvent": {
     "title": "集まりを主催する",
@@ -115,6 +131,10 @@
     "category": "カテゴリー",
     "size": "グループの人数",
     "startsIn": "開始まで（時間）",
-    "submit": "集まりをつくる"
+    "submit": "集まりをつくる",
+    "hostKicker": "HOST A MEETUP",
+    "hostHint": "詳細を入力してボードに投稿してください。",
+    "detailsKicker": "DETAILS",
+    "groupKicker": "GROUP"
   }
 }

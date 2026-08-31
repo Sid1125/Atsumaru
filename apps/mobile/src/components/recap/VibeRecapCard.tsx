@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.nightRaised,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
   },
   traitText: { ...type.caption, color: colors.nightMuted },
   privacy: { ...type.overline, color: colors.nightMuted },

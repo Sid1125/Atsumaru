@@ -13,7 +13,7 @@ import {
   SHEET_MAX_EXPOSURE,
 } from "./framing";
 import { loadMapbox } from "./mapbox";
-import { colors } from "../../theme";
+import { colors, spacing } from "../../theme";
 import type { Coords, MeetupEvent } from "../../types/api";
 
 interface MapboxMapProps {
@@ -116,8 +116,8 @@ export function MapboxMap({
     () => ({
       paddingTop: CHROME_HEIGHT,
       paddingBottom: height * (1 - EXPOSED_FRACTION),
-      paddingLeft: 24,
-      paddingRight: 24,
+      paddingLeft: spacing.lg,
+      paddingRight: spacing.lg,
     }),
     [height]
   );
@@ -128,7 +128,7 @@ export function MapboxMap({
    * instead, where they stay legible.
    */
   const ornamentPosition = useMemo(
-    () => ({ bottom: height * (1 - SHEET_MAX_EXPOSURE) + 8, left: 8 }),
+    () => ({ bottom: height * (1 - SHEET_MAX_EXPOSURE) + spacing.sm, left: spacing.sm }),
     [height]
   );
 

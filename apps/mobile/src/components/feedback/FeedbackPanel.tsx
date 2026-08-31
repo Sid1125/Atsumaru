@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "../common/Button";
 import { Chip } from "../common/Chip";
+import { IconSparkle } from "../ui/Icons";
 import { ScreenState } from "../common/ScreenState";
 import { useFeedbackForm } from "../../features/feedback/hooks/useFeedbackForm";
 import { useVibeRecap } from "../../features/events/hooks/useEvents";
@@ -83,8 +84,8 @@ export function FeedbackPanel({
       <View style={[styles.card, styles.celebration]}>
         {unlocked && unlocked.length > 0 ? (
           <>
-            <Text style={styles.celebrationGlyph}>🎉</Text>
-            <Text style={styles.celebrationKicker}>MUTUAL MATCH</Text>
+            <IconSparkle size={40} color={colors.primary} />
+            <Text style={styles.celebrationKicker}>{t("feedback.mutualKicker")}</Text>
             <Text style={styles.celebrationTitle}>{t("connection.mutualTitle")}</Text>
             <Text style={styles.privacy}>{t("feedback.privacyNote")}</Text>
             {onOpenConnection
@@ -100,7 +101,7 @@ export function FeedbackPanel({
           </>
         ) : (
           <>
-            <Text style={styles.celebrationKicker}>THANK YOU</Text>
+            <Text style={styles.celebrationKicker}>{t("feedback.thanksKicker")}</Text>
             <Text style={styles.celebrationTitle}>{t("feedback.thanksTitle")}</Text>
             <Text style={styles.privacy}>{t("feedback.privacyNote")}</Text>
           </>
@@ -195,7 +196,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.xl,
   },
-  celebrationGlyph: { fontSize: 44 },
   celebrationKicker: { ...type.overline, color: colors.neon },
   celebrationTitle: {
     ...type.title2,

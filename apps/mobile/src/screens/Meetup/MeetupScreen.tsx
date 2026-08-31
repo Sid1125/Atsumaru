@@ -12,6 +12,7 @@ import { Button } from "../../components/common/Button";
 import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
 import { Sticker } from "../../components/ui/Sticker";
+import { IconSparkle } from "../../components/ui/Icons";
 import { categoryGlyph, categorySticker } from "../../categoryMeta";
 import { ChatThread } from "../../components/chat/ChatThread";
 import { FeedbackPanel } from "../../components/feedback/FeedbackPanel";
@@ -241,7 +242,7 @@ export function MeetupScreen() {
           entering={reducedMotion ? undefined : ZoomIn.springify().damping(9)}
           style={styles.celebration}
         >
-          <Text style={styles.celebrationGlyph}>🎉</Text>
+          <IconSparkle size={40} color={colors.primary} />
           <Text style={styles.celebrationTitle}>
             {t("connection.mutualTitle")}
           </Text>
@@ -309,12 +310,12 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
   },
-  statusTape: { marginTop: 2 },
+  statusTape: { marginTop: spacing.xxs },
   statusTapeText: {
     ...type.kicker,
-    fontSize: 8,
-    lineHeight: 11,
-    letterSpacing: 1.8,
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 2,
     color: colors.nightMuted,
     paddingHorizontal: spacing.sm,
   },
@@ -365,7 +366,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...elevation.medium,
   },
-  celebrationGlyph: { fontSize: 40 },
   celebrationTitle: {
     ...type.title3,
     color: colors.nightText,

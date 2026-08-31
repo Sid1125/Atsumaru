@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...type.headline,
-    color: "#FFFFFF",
+    color: colors.textOnColor,
     fontWeight: "700",
   },
 });

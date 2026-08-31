@@ -136,7 +136,7 @@ export function ProfileConfirmScreen() {
             autoCorrect={false}
             value={draft.handle}
             onChangeText={draft.setHandle}
-            placeholder="handle"
+            placeholder={t("onboarding.handle")}
             placeholderTextColor={colors.textMuted}
             style={styles.input}
           />

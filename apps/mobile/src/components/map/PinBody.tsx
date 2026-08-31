@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -107,6 +108,7 @@ export function PinBody({
     ],
   }));
 
+  const { t } = useTranslation();
   const full = event.current_size >= event.max_size;
   const sticker = categorySticker(event.category);
   const glyph = categoryGlyph(event.category);
@@ -159,7 +161,7 @@ export function PinBody({
             {event.title}
           </Text>
           <Text style={styles.labelMeta} numberOfLines={1}>
-            {full ? "Full" : `${event.current_size}/${event.max_size}`} ·{" "}
+            {full ? t("discover.status.full") : `${event.current_size}/${event.max_size}`} ·{" "}
             {event.venue_name}
           </Text>
         </Animated.View>
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
     height: BUBBLE,
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: colors.textOnColor,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -85,7 +85,7 @@ export function ConnectionsScreen() {
   return (
     <View style={styles.container}>
       <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)} style={{ flex: 1 }}>
-        <Text style={styles.kicker}>CONNECTIONS</Text>
+        <Text style={styles.kicker}>{t("connection.titleKicker")}</Text>
         <Text style={styles.subtitle}>{t("connection.subtitle")}</Text>
         <FlatList
           data={connections}
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 2,
     ...elevation.low,
   },
-  rowBody: { flex: 1, gap: 2 },
+  rowBody: { flex: 1, gap: spacing.xxs },
   handle: { ...type.bodyEmphasized, color: colors.text },
   meta: { ...type.footnote, color: colors.textMuted },
   chevronWrap: {

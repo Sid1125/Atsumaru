@@ -89,7 +89,9 @@ const styles = StyleSheet.create({
   base: {
     minHeight: MIN_TARGET,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
+    // Substantial, rectangular — restrained corner, never a capsule. The CTA
+    // reads as a solid editorial slab (JOIN MEETUP →), not a rounded button.
+    borderRadius: radius.xs,
     alignItems: "center",
     justifyContent: "center",
   },

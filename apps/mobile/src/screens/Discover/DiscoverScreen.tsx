@@ -13,9 +13,11 @@ import {
   categorySticker,
 } from "../../categoryMeta";
 import { Chip } from "../../components/common/Chip";
+import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
 import { MapSurface } from "../../components/map/MapSurface";
+import { IconConnections } from "../../components/ui/Icons";
 import {
   BottomSheet,
   type BottomSheetHandle,
@@ -29,7 +31,6 @@ import { eventsApi } from "../../services/api/events";
 import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
-  elevation,
   radius,
   spacing,
   type,
@@ -59,6 +60,13 @@ export function DiscoverScreen() {
 
   const [coords, setCoords] = useState<Coords | null>(null);
   /**
+   * Discovery runs on a fallback area, and it is because the user denied the
+   * location permission (as opposed to a one-off no-fix). Distinct from the
+   * silent Shibuya fallback so a denied user gets a named, actionable nudge
+   * instead of being quietly stranded in a city they may not be in.
+   */
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  /**
    * Where the user has panned the map to, once they have. Held separately from the
    * location fix so the fix stays a genuine one-shot read (docs/RULES.md — no
    * background tracking): panning changes what is queried, never what the device
@@ -77,7 +85,10 @@ export function DiscoverScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        if (!cancelled) setCoords(FALLBACK_COORDS);
+        if (!cancelled) {
+          setPermissionDenied(true);
+          setCoords(FALLBACK_COORDS);
+        }
         return;
       }
 
@@ -95,6 +106,7 @@ export function DiscoverScreen() {
 
       if (cancelled) return;
 
+      setPermissionDenied(false);
       setCoords(
         position
           ? { lat: position.coords.latitude, lng: position.coords.longitude }
@@ -152,6 +164,31 @@ export function DiscoverScreen() {
     setPannedTo(center);
   }, []);
 
+  /**
+   * The user re-tapped the location nudge after denying once. Re-prompt (iOS/
+   * Android re-ask on a fresh request) and, if granted, read a fix and drop the
+   * fallback — clearing the pan too, since the pan would override the real fix.
+   */
+  const requestLocation = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") return;
+    try {
+      const position = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      if (position) {
+        setCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setPannedTo(null);
+        setPermissionDenied(false);
+      }
+    } catch {
+      /* keep the fallback and the nudge */
+    }
+  }, []);
+
   return (
     <View style={styles.root}>
       <MapSurface
@@ -167,47 +204,36 @@ export function DiscoverScreen() {
         style={[styles.topChrome, { paddingTop: insets.top + spacing.sm }]}
         pointerEvents="box-none"
       >
-        {/* Night editorial band — the site's dark hero strip */}
+        {/* Editorial band — two circular chrome anchors over the map.
+            LEFT: connections (SVG network icon). RIGHT: profile avatar. No
+            username here — identity lives in the profile. Neither is a pill. */}
         <View
           style={styles.identityBand}
           onLayout={(e) =>
             setBandBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)
           }
         >
-          <View style={styles.bandRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(user?.handle ?? "?").slice(0, 1).toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.kickerLine} numberOfLines={1}>
-                {t("discover.subtitle")}
-              </Text>
-              <Text style={styles.handle} numberOfLines={1}>
-                @{user?.handle ?? "you"}
-              </Text>
-            </View>
+          <PressableScale
+            accessibilityLabel={t("connection.title")}
+            onPress={() => navigation.navigate("Connections")}
+            style={styles.circleButton}
+            scaleTo={0.92}
+          >
+            <IconConnections size={22} color={colors.nightText} />
+          </PressableScale>
 
-            <View style={styles.chromeActions}>
-              <PressableScale
-                accessibilityLabel={t("connection.title")}
-                onPress={() => navigation.navigate("Connections")}
-                style={styles.iconButton}
-                scaleTo={0.9}
-              >
-                <Text style={styles.iconGlyph}>♥</Text>
-              </PressableScale>
-              <PressableScale
-                accessibilityLabel={t("settings.title")}
-                onPress={() => navigation.navigate("Settings")}
-                style={styles.iconButton}
-                scaleTo={0.9}
-              >
-                <Text style={styles.iconGlyph}>⚙</Text>
-              </PressableScale>
-            </View>
-          </View>
+          <PressableScale
+            accessibilityLabel={t("profile.title")}
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.circleButton}
+            scaleTo={0.92}
+          >
+            <Avatar
+              id={user?.id ?? ""}
+              label={(user?.handle ?? "?").slice(0, 1)}
+              size="md"
+            />
+          </PressableScale>
         </View>
       </View>
 
@@ -250,7 +276,7 @@ export function DiscoverScreen() {
         dark
         header={
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetKicker}>DISCOVER</Text>
+            <Text style={styles.sheetKicker}>{t("discover.titleKicker")}</Text>
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{t("discover.forYou")}</Text>
               <PressableScale
@@ -272,6 +298,26 @@ export function DiscoverScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {permissionDenied ? (
+            <PressableScale
+              accessibilityLabel={t("discover.allowLocation")}
+              onPress={requestLocation}
+              style={styles.locationRow}
+              scaleTo={0.98}
+            >
+              <View style={styles.locationDot} />
+              <View style={styles.feedbackBody}>
+                <Text style={styles.locationTitle}>
+                  {t("discover.locationDenied")}
+                </Text>
+                <Text style={styles.locationHint}>
+                  {t("discover.allowLocation")}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </PressableScale>
+          ) : null}
+
           {needsFeedback.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionKicker}>
@@ -350,41 +396,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   identityBand: {
-    backgroundColor: colors.night,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  bandRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.sm,
+    paddingHorizontal: spacing.xs,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neon,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { ...type.captionEmphasized, color: colors.neonText, fontSize: 17 },
-  identityText: { flex: 1 },
-  kickerLine: { ...type.kicker, color: colors.neon, fontSize: 9, lineHeight: 12 },
-  handle: { ...type.title2, color: colors.nightText },
-
-  chromeActions: { flexDirection: "row", gap: spacing.sm },
-  iconButton: {
+  circleButton: {
     width: 44,
     height: 44,
-    borderRadius: radius.pill,
+    borderRadius: 22,
     backgroundColor: colors.nightRaised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.nightSeparator,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
-  iconGlyph: { fontSize: 18, color: colors.nightText },
 
   filterRail: { position: "absolute", left: 0, right: 0 },
   filterRow: {
@@ -409,7 +437,7 @@ const styles = StyleSheet.create({
   hostButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
-    borderRadius: radius.pill,
+    borderRadius: radius.xs,
     backgroundColor: colors.neon,
   },
   hostLabel: { ...type.footnote, color: colors.neonText, fontWeight: "700" },
@@ -422,12 +450,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    padding: spacing.md - 2,
+    paddingVertical: spacing.md - 2,
+    paddingHorizontal: spacing.md - 2,
+    backgroundColor: colors.nightRaisedSoft,
     borderRadius: radius.lg,
-    backgroundColor: colors.nightRaised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.nightSeparator,
-    ...elevation.low,
   },
   feedbackDot: {
     width: 10,
@@ -435,8 +463,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.neon,
   },
-  feedbackBody: { flex: 1, gap: 2 },
+  feedbackBody: { flex: 1, gap: spacing.xxs },
   feedbackTitle: { ...type.bodyEmphasized, color: colors.nightText },
   feedbackMeta: { ...type.caption, color: colors.neon, fontWeight: "600" },
   chevron: { ...type.title3, color: colors.nightMuted },
+
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md - 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.nightSeparator,
+  },
+  locationDot: {
+    width: 10,
+    height: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.neon,
+  },
+  locationTitle: { ...type.bodyEmphasized, color: colors.nightText },
+  locationHint: { ...type.caption, color: colors.nightMuted },
 });

@@ -30,6 +30,7 @@
     "language": "Language",
     "cta": "Find my people",
     "opener": "Tell me what you actually enjoy — no forms, just chat.",
+    "chatTitle": "Let's chat",
     "confirmTitle": "Here is what I heard",
     "confirmLede": "Edit anything that is not quite you.",
     "displayNamePlaceholder": "What should people call you?",
@@ -51,6 +52,9 @@
     "view": "View",
     "yourMeetups": "Your meetups",
     "leaveFeedback": "Leave feedback",
+    "locationDenied": "Showing meetups near Shibuya",
+    "allowLocation": "Tap to allow location for your area",
+    "titleKicker": "DISCOVER",
     "status": {
       "open": "Open",
       "full": "Full",
@@ -82,7 +86,9 @@
     "connectPrompt": "Who would you like to stay connected with?",
     "submitPrivately": "Submit privately",
     "privacyNote": "Your choices stay private. Nobody sees who you picked.",
-    "thanksTitle": "Thanks — that stays private"
+    "thanksTitle": "Thanks — that stays private",
+    "mutualKicker": "MUTUAL MATCH",
+    "thanksKicker": "THANK YOU"
   },
   "recap": {
     "title": "Your vibe recap",
@@ -94,6 +100,7 @@
     "startChatting": "Start chatting",
     "title": "Connections",
     "subtitle": "People you both chose to stay in touch with.",
+    "titleKicker": "CONNECTIONS",
     "empty": "No connections yet. They unlock after a meetup.",
     "messagePlaceholder": "Message @{{handle}}..."
   },
@@ -101,7 +108,16 @@
     "title": "Settings",
     "language": "Language",
     "reputation": "Reputation {{score}}/100",
+    "repLabel": "REP",
     "privacyNote": "Your real name is never shown to other members."
+  },
+  "profile": {
+    "title": "Profile",
+    "heroKicker": "YOUR PROFILE",
+    "statConnections": "CONNECTIONS",
+    "statMeetups": "MEETUPS",
+    "prefsGroup": "APPS PREFS",
+    "accountGroup": "ACCOUNT"
   },
   "createEvent": {
     "title": "Host a meetup",
@@ -115,6 +131,10 @@
     "category": "Category",
     "size": "Group size",
     "startsIn": "Starts in (hours)",
-    "submit": "Create meetup"
+    "submit": "Create meetup",
+    "hostKicker": "HOST A MEETUP",
+    "hostHint": "Fill in the details and post it to the board.",
+    "detailsKicker": "DETAILS",
+    "groupKicker": "GROUP"
   }
 }

@@ -15,7 +15,7 @@ export const linking: LinkingOptions<AppStackParamList> = {
       Meetup: "meetup/:eventId",
       Connections: "connections",
       Dm: "dm/:connectionId",
-      Settings: "settings",
+      Profile: "profile",
     },
   },
 };

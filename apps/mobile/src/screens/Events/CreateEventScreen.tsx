@@ -9,14 +9,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
-import { categorySticker } from "../../categoryMeta";
+import { CATEGORY_ORDER, categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
 import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "CreateEvent">;
 
-const CATEGORIES = ["food", "gaming", "arts", "outdoor"] as const;
 const SIZES = [4, 5, 6] as const;
 
 /** Shibuya, matching the discovery fallback — hosting a meetup elsewhere needs a picker. */
@@ -78,12 +77,12 @@ export function CreateEventScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
-        <Text style={styles.kicker}>HOST A MEETUP</Text>
-        <Text style={styles.kickerHint}>Fill in the details and post it to the board.</Text>
+        <Text style={styles.kicker}>{t("createEvent.hostKicker")}</Text>
+        <Text style={styles.kickerHint}>{t("createEvent.hostHint")}</Text>
 
         {/* Details card */}
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>DETAILS</Text>
+          <Text style={styles.cardKicker}>{t("createEvent.detailsKicker")}</Text>
           <TextInput
             accessibilityLabel={t("createEvent.name")}
             value={title}
@@ -120,7 +119,7 @@ export function CreateEventScreen() {
             </Text>
           </View>
           <View style={styles.chips}>
-            {CATEGORIES.map((key) => {
+            {CATEGORY_ORDER.map((key) => {
               const s = categorySticker(key);
               return (
                 <Chip
@@ -138,7 +137,7 @@ export function CreateEventScreen() {
 
         {/* Group size + timing card */}
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>GROUP</Text>
+          <Text style={styles.cardKicker}>{t("createEvent.groupKicker")}</Text>
           <Text style={styles.fieldLabel}>{t("createEvent.size")}</Text>
           <View style={styles.chips}>
             {SIZES.map((size) => (

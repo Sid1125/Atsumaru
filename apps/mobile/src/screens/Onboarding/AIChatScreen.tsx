@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { PressableScale } from "../../components/ui/PressableScale";
+import { IconSend, IconWave } from "../../components/ui/Icons";
 import { onboardingApi } from "../../services/api/onboarding";
 import { useOnboardingDraft, useUiStore } from "../../store";
 import {
@@ -92,7 +93,7 @@ export function AIChatScreen() {
     >
       <View style={styles.head}>
         <Text style={styles.kicker}>{t("onboarding.title")}</Text>
-        <Text style={styles.title}>Let's chat</Text>
+        <Text style={styles.title}>{t("onboarding.chatTitle")}</Text>
         {/* Animated progress bar — coral fill tracks conversation depth */}
         <View style={styles.progressTrack}>
           {[0, 1, 2].map((step) => (
@@ -121,7 +122,7 @@ export function AIChatScreen() {
             entering={reducedMotion ? undefined : FadeIn.duration(320)}
             style={styles.opener}
           >
-            <Text style={styles.openerGlyph}>👋</Text>
+            <IconWave size={36} color={colors.primary} />
             <Text style={styles.openerText}>{t("onboarding.opener")}</Text>
           </Animated.View>
         ) : null}
@@ -197,7 +198,7 @@ export function AIChatScreen() {
             (!draft.trim() || sending) && styles.sendDisabled,
           ]}
         >
-          <Text style={styles.sendGlyph}>↑</Text>
+          <IconSend size={22} color={colors.primaryText} />
         </PressableScale>
       </View>
     </KeyboardAvoidingView>
@@ -245,7 +246,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xl,
   },
-  openerGlyph: { fontSize: 34 },
   openerText: {
     ...type.callout,
     color: colors.textMuted,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   aiLabel: {
     ...type.overline,
     color: colors.primary,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   bubbleText: { ...type.body, color: colors.text },
   userBubbleText: { color: colors.textOnColor },
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   typingDots: {
     flexDirection: "row",
-    gap: 4,
+    gap: spacing.xs,
   },
   dot: {
     width: 6,
@@ -335,5 +335,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendDisabled: { backgroundColor: colors.border },
-  sendGlyph: { fontSize: 22, color: colors.primaryText, fontWeight: "700" },
 });
