@@ -6,6 +6,7 @@ import { Button } from "../common/Button";
 import { Chip } from "../common/Chip";
 import { ScreenState } from "../common/ScreenState";
 import { useFeedbackForm } from "../../features/feedback/hooks/useFeedbackForm";
+import { useVibeRecap } from "../../features/events/hooks/useEvents";
 import { feedbackApi } from "../../services/api/feedback";
 import { colors, elevation, radius, sectionHeader, spacing, type } from "../../theme";
 import type { Connection, Rating } from "../../types/api";
@@ -31,6 +32,12 @@ export function FeedbackPanel({
 }: FeedbackPanelProps) {
   const { t } = useTranslation();
   const query = useFeedbackForm(eventId);
+
+  // A recap only exists once the caller's own feedback has landed, so its presence is
+  // the persisted "already submitted" signal. This panel and <VibeRecapCard> share the
+  // same query key, so the fetch is deduped across them.
+  const recapQuery = useVibeRecap(eventId, true);
+  const alreadySubmitted = !!recapQuery.data;
 
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
   const [connectWith, setConnectWith] = useState<string[]>([]);
@@ -65,12 +72,16 @@ export function FeedbackPanel({
   if (query.isError)
     return <ScreenState status="error" onRetry={() => query.refetch()} />;
 
-  // Only mutual picks come back from the server; non-matches are never revealed —
-  // the no-unlock branch says nothing about who did or did not pick the user.
-  if (unlocked) {
+  // Post-submit state: either a fresh unlock from this session's submit, or the caller
+  // already left feedback on an earlier visit (recall: this state was previously only
+  // in transient local memory, so it vanished on remount and the editable form
+  // reappeared beside a recap that already existed).
+  const showCelebration = alreadySubmitted || !!unlocked;
+
+  if (showCelebration) {
     return (
       <View style={[styles.card, styles.celebration]}>
-        {unlocked.length > 0 ? (
+        {unlocked && unlocked.length > 0 ? (
           <>
             <Text style={styles.celebrationGlyph}>🎉</Text>
             <Text style={styles.celebrationKicker}>MUTUAL MATCH</Text>

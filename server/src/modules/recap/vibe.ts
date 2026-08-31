@@ -197,8 +197,9 @@ export function sanitizeRecap(
   banned: string[] = []
 ): string | null {
   // Collapse newlines first: a multi-line answer is a formatting failure, not a reason
-  // to discard content the member would otherwise have found useful.
-  const text = raw.replace(/\s+/g, " ").trim();
+  // to discard content the member would otherwise have found useful. `\s` misses the
+  // unicode NEL separator (U+0085), which a model can emit around an em-dash; guard it.
+  const text = raw.replace(/[\s\u0085]+/g, " ").trim();
 
   if (text.length === 0 || text.length > MAX_RECAP_CHARS) return null;
 
