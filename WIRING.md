@@ -63,7 +63,7 @@ then each numbered file in `server/db/migrations/` in order, then
 | `EXPO_PUBLIC_API_URL` | blank on a simulator → defaults to `10.0.2.2:4000/api` on Android, `localhost:4000/api` on iOS. Physical device: your LAN IP |
 | `EXPO_PUBLIC_WS_URL` | same default, socket endpoint (port 4000) |
 | `EXPO_PUBLIC_DEMO_MODE` | `1` runs the whole app against `src/services/api/demo/` — no server, no DB. `0`/absent hits the real API. Must be off in shipped builds |
-| `EXPO_PUBLIC_MAPBOX_TOKEN` | **unused** — the map is a hand-authored SVG city (`components/map/`), not Mapbox |
+| `EXPO_PUBLIC_MAPBOX_TOKEN` | picks the Discover renderer. Set **and** in a dev build → real Mapbox tiles; blank or in Expo Go → the hand-authored vector city (`components/map/`). Both are complete maps; `components/map/mapbox.ts` decides |
 
 **OAuth is not configured.** No LINE or Google credentials exist yet; authenticated
 routes are exercised with real Supabase sessions minted by `npm run seed -- --tokens`.
@@ -198,6 +198,32 @@ App → Bearer JWT on everything after
 - screens/hooks/query keys identical in both modes; flipping the flag to `0` removes the
   demo layer from the call path entirely
 
+## Map wiring (mobile)
+
+`components/map/MapSurface.tsx` is one branch, the same shape as the demo-mode switch:
+
+```
+DiscoverScreen → MapSurface
+  ├─ hasMapbox() → MapboxMap      (real tiles; MarkerView per meetup)
+  └─ else        → InteractiveMap (hand-authored vector city; SVG + gesture layer)
+```
+
+`hasMapbox()` (`components/map/mapbox.ts`) needs **both** a `pk.*` token and a build that
+links the native module. `@rnmapbox/maps` throws from module scope when
+`NativeModules.RNMBXModule` is null, so it is loaded through a deferred `require()` inside
+that file — a top-level `import` anywhere in `src/` would take the whole bundle down in
+Expo Go. That file is the only place allowed to touch the package.
+
+Both renderers draw the same `PinBody` and take the same props, so pins, selection and
+opening a meetup are identical either way; only the ground changes. Shared framing numbers
+(chrome height, sheet exposure) live in `components/map/framing.ts` — Mapbox feeds them to
+camera padding, the vector map clamps its pan against them.
+
+Panning the Mapbox map refetches nearby meetups once the camera settles
+(docs/FRONTEND.md §9): gesture-driven moves only, past a 400 m threshold, so framing
+cannot feed itself a fetch. The vector city models a fixed slice of Shibuya, so it raises
+no such event.
+
 ## Seed / smoke test
 
 ```bash
@@ -224,6 +250,8 @@ group chat → feedback → recap → mutual 1:1.
 | mobile network error on Android | emulator needs `10.0.2.2`, not `localhost` (default is already right); physical device needs your LAN IP in `EXPO_PUBLIC_API_URL` |
 | OAuth redirect lands on the wrong host | callback missing from Supabase → Auth → URL Configuration → Redirect URLs |
 | Expo Go blue spinner forever | launched from a virtual-adapter IP (`192.168.x.x`); use `exp://10.0.2.2:8081` |
+| Discover shows the vector city, not Mapbox tiles | no `EXPO_PUBLIC_MAPBOX_TOKEN`, or running in Expo Go (no native module). Working as designed — not a failure |
+| Mapbox map is a blank grey rectangle | token present but rejected by Mapbox (wrong scope / not a `pk.*` public token) |
 | `PGRST202` after a migration | PostgREST schema cache stale — run `notify pgrst, 'reload schema'` |
 
 Live project pauses after ~7 days idle; `.github/workflows/keepalive.yml` pings

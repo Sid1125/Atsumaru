@@ -15,7 +15,7 @@ import {
 import { Chip } from "../../components/common/Chip";
 import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
-import { InteractiveMap } from "../../components/map/InteractiveMap";
+import { MapSurface } from "../../components/map/MapSurface";
 import {
   BottomSheet,
   type BottomSheetHandle,
@@ -58,6 +58,13 @@ export function DiscoverScreen() {
   const setCategory = useUiStore((s) => s.setSelectedCategory);
 
   const [coords, setCoords] = useState<Coords | null>(null);
+  /**
+   * Where the user has panned the map to, once they have. Held separately from the
+   * location fix so the fix stays a genuine one-shot read (docs/RULES.md — no
+   * background tracking): panning changes what is queried, never what the device
+   * reported, which is also what lets discovery fall back to the fix.
+   */
+  const [pannedTo, setPannedTo] = useState<Coords | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bandBottom, setBandBottom] = useState(0);
   const sheet = useRef<BottomSheetHandle>(null);
@@ -102,7 +109,7 @@ export function DiscoverScreen() {
     };
   }, []);
 
-  const query = useNearbyEvents(coords, category);
+  const query = useNearbyEvents(pannedTo ?? coords, category);
   const events = query.data?.events ?? [];
 
   const mine = useMyEvents();
@@ -135,13 +142,24 @@ export function DiscoverScreen() {
     sheet.current?.snapTo("half");
   }, []);
 
+  /**
+   * The camera settled somewhere new, so query there. The map only reports moves
+   * the user's own fingers caused, and only past a threshold, so this cannot loop
+   * with the framing the map does when results arrive. TanStack Query keys on the
+   * coordinates, so the previous area's results stay cached.
+   */
+  const searchHere = useCallback((center: Coords) => {
+    setPannedTo(center);
+  }, []);
+
   return (
     <View style={styles.root}>
-      <InteractiveMap
+      <MapSurface
         events={events}
         selectedId={selectedId}
         onSelect={selectPin}
         onOpen={open}
+        onRegionSettled={searchHere}
       />
 
       {/* Floating chrome — the map scrolls underneath it */}

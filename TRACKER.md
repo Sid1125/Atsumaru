@@ -1,6 +1,6 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-08-30.
+Status of the build against `docs/`. Updated 2026-08-31.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
@@ -83,6 +83,45 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 - [~] Finished meetup pre-seeded so `@trailbrew` unlocks a mutual connection on first submit
 
 ## To do
+
+### 0. Mapbox wired behind a fallback, 2026-08-31 — code complete, unverified
+
+`docs/TRD.md` §12 names `@rnmapbox/maps`, and the package plus its `app.json` plugin were
+already installed — but nothing in `src/` imported it, so the plugin was injecting a Mapbox
+maven repo and a native module into the Android build for a map that did not exist. Wiring
+it also had to not break Expo Go, which cannot load the native module at all.
+
+- [x] `components/map/mapbox.ts` — the single load point. `@rnmapbox/maps` throws from
+      *module scope* when `NativeModules.RNMBXModule` is null, so a top-level `import`
+      anywhere in `src/` would kill the bundle in Expo Go; it is a deferred `require()`
+      behind a token check, and sets the access token + disables telemetry once
+- [x] `components/map/MapSurface.tsx` — one branch, the same shape as the demo-mode switch
+      in `services/api/client.ts`: Mapbox when available, the hand-authored vector city
+      otherwise
+- [x] `components/map/PinBody.tsx` — the pin extracted out of `MapPin`, so both renderers
+      draw the identical annotation. `PIN_BOX` / `PIN_POINT_Y` let a `MarkerView` anchor
+      the stem's point on the coordinate; the label lives inside the box because Android
+      clips a `MarkerView` child drawn outside its bounds. Only the vector map passes
+      `counterScale` — Mapbox sizes screen-space annotations itself
+- [x] `components/map/framing.ts` — chrome height and sheet exposure shared by both, since
+      Discover's visible band is neither the view's centre nor its full height. Mapbox
+      feeds them to camera padding, the vector map clamps its pan against them
+- [x] Refetch on settle for the Mapbox surface (docs/FRONTEND.md §9) — gesture-driven
+      camera moves only, past a 400 m threshold, so framing pins cannot feed itself a
+      fetch. `DiscoverScreen` holds the panned centre separately from the location fix, so
+      the one-shot read stays one-shot (docs/RULES.md)
+- [x] `app.json` pins `RNMapboxMapsVersion` to `11.23.1` (the version the package itself
+      defaults to) rather than leaving the native SDK floating
+- [x] `npm run typecheck` clean both packages, `npm test` 49/49, `npx expo export
+      --platform android` bundles 1771 modules
+- [ ] **Never seen on a screen.** No `pk.*` token has been issued and Expo Go has no native
+      module, so every run so far took the vector-city branch. The tiles, `MarkerView`
+      anchoring, camera padding and the settle-refetch all remain unverified
+- [ ] Emulator re-check blocked on an unrelated failure: Expo Go SDK 57 redboxes at startup
+      with `TurboModule method "installTurboModule" called with 0 arguments` out of
+      `NativeWorklets` (react-native-worklets / Reanimated 4 against this Expo Go build).
+      Reproduced on `main` with these changes stashed, so it predates them
+
 
 ### 1. Prove the backend against a real project — DONE 2026-08-30
 
@@ -212,9 +251,10 @@ Defects found on device:
 - [ ] Not testable in Expo Go: **Settings** (language override, sign out). Expo Go's
       dev-launcher floating button sits exactly on the app's header gear and intercepts
       every tap. Needs a dev build, or a temporary second entry point
-- [ ] `@rnmapbox/maps` is imported nowhere in `src/`, but its `app.json` plugin still
-      injects a Mapbox maven repo and a native module into the Android build. Dropping
-      both removes the native-build requirement that `expo run:android` introduced
+- [x] `@rnmapbox/maps` was imported nowhere in `src/` while its `app.json` plugin injected
+      a Mapbox maven repo and a native module into the Android build. Resolved by using it:
+      `components/map/mapbox.ts` loads it behind a deferred `require()` and `MapSurface`
+      falls back to the vector city, so Expo Go still runs without a dev build
 - [ ] `expo install --check`: `expo@57.0.17` → `~57.0.18` still pending
 
 ### 1e. Independent re-verification with `server/.env`, 2026-08-30
@@ -289,7 +329,7 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 - [x] `match:unlocked` → celebration state, then route into the new 1:1 chat
 - [x] Extract a shared `ChatThread` from `GroupChat` for group + DM reuse (`GroupChat.tsx` deleted)
 - [x] Register the Expo push token after login (Expo Go cannot receive Android push — gated, never crashes)
-- [ ] Debounced refetch on map region change (docs/FRONTEND.md §9) — still one-shot
+- [~] Refetch on map region change (docs/FRONTEND.md §9) — written, **unexercised**. `MapboxMap` reports a settled camera (gesture-driven only, 400 m threshold) and `DiscoverScreen` queries the panned centre; the vector city raises no such event, so nothing has run this path yet
 - [ ] Deep-link the feedback notification — `linking.ts` is wired but `atsumaru://` does not route in Expo Go; needs a dev build
 
 ### 3. Mobile — P1 features
@@ -299,7 +339,7 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 - [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
 - [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `BottomSheet`, `LoadingSkeleton` (docs/DESIGN.md §7)
 - [ ] Infinite scroll on message history now that the paging envelope is returned
-- [ ] Mapbox: real pins need `EXPO_PUBLIC_MAPBOX_TOKEN` plus a native dev build
+- [~] Mapbox **wired, never run** — `components/map/MapSurface.tsx` picks `MapboxMap` when `hasMapbox()`, else the vector city. Still needs a `pk.*` token *and* a dev build: no token has been issued, and Expo Go has no native module. Bundle builds and typechecks clean; the tiles, `MarkerView` anchoring and camera padding have not been seen on a screen
 
 ### 4. Marketing site (`site/`)
 
