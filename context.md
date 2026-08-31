@@ -230,6 +230,7 @@ On Windows curl the API as `http://127.0.0.1:4000`, not `localhost`.
 |---|---|
 | `CLAUDE.md` | Database section (project ref, migration discipline, `extensions` schema, the PostgREST cache reload, keepalive); `scripts/sql.mjs` commands; the `verifyOtp` prohibition; a note that third-party endpoints and model ids drift silently; `EMBEDDING_UNAVAILABLE` in the degradation list; "Not implemented" rewritten now that the backend is verified. |
 | `TRACKER.md` | §1 closed with the assertion list; §1b (10 defects found by running it) and §1c (keepalive) added; sweep atomicity, non-transactional `POST /events`, and the leave-dodges-penalty gap added to §5; known-gaps table corrected — push has never delivered, and the demo layer's `/users/:id` hole is recorded. |
+| Git history | `main` rewritten with `git-filter-repo` to strip the `Co-Authored-By: Claude` trailer from 6 merged commits; the three stale feature branches (`feat-backend-app`, `feat-mapbox`, `feat-2-ai-vibe-recap`) and local `backup-*` refs deleted. No code or authorship changed — the commit set and file tree are identical. |
 
 ## 7. Verification log
 
