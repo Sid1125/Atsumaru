@@ -10,7 +10,9 @@
 > Two tasks are recorded here: the backend bring-up (B1–B10, §2–7) and the auth task
 > (§1 + §8 for the original bridge run, §10 for the move onto Supabase Auth plus LINE and
 > identity linking). Both are **complete** as of 2026-08-30; §9 is the live to-do list.
-> §11 records a third, smaller task: the vibe recap, also complete.
+> §11 records a third, smaller task: the vibe recap, also complete. §12 is a fourth:
+> wiring Mapbox behind a fallback — code complete, but the Mapbox surface itself has
+> never run (no token, no dev build).
 
 ---
 
@@ -574,4 +576,92 @@ both `.env` files are gitignored. No PR open beyond the merged one.
 
 **Not touched:** the map. It was never in scope for this task and its state is unverified
 here — `components/map/` is still the hand-authored SVG city, and the Mapbox path still
-needs a token plus a dev build.
+needs a token plus a dev build. *(Superseded by §12: Mapbox is now wired behind a
+fallback, though still unrun.)*
+
+## 12. Session log — Mapbox wired behind a fallback (2026-08-31)
+
+### The ask
+
+"Pull main, check whether Mapbox is set; if not, branch off main as `feat-mapbox` and wire
+it." Pulled `main` (fast-forward through `0e3eebd`, the vibe-recap merge), checked, branched.
+
+### What "set" turned out to mean
+
+Mapbox was **installed but not wired**, which is the worst of the three possible states:
+
+- `@rnmapbox/maps@10.3.5` in `apps/mobile/package.json`, and `"@rnmapbox/maps"` listed in
+  `app.json` `plugins`
+- **zero imports anywhere in `src/`** — the only mention was a comment in `geo.ts`
+  explaining why the map was hand-authored instead
+- `EXPO_PUBLIC_MAPBOX_TOKEN` present in both `.env` and `.env.example`, blank in both, and
+  documented as "unused" in `WIRING.md`
+
+So the plugin was injecting a Mapbox maven repo and a native module into every Android
+build — which is what forced `expo run:android` over Expo Go — for a map that did not
+exist. `TRACKER.md` §1d had already flagged it as dead weight to delete. `docs/TRD.md` §12
+names `@rnmapbox/maps` as the map, and docs win, so it was wired rather than dropped.
+
+### The constraint that shaped the design
+
+`@rnmapbox/maps` throws from **module scope**: `RNMBXModule.ts` reads
+`NativeModules.RNMBXModule` and throws immediately if it is null, which is exactly the case
+in Expo Go. A top-level `import` therefore takes the whole bundle down before any of our
+code runs — the same class of trap as `expo-notifications` in `usePushRegistration.ts`,
+though for a different mechanical reason (that one escapes `try/catch` via the global error
+handler; this one is a plain synchronous throw, so a `try/catch` around `require()` *does*
+contain it — what is unsafe is the static import).
+
+Hence: one load point, `components/map/mapbox.ts`, deferred `require()`, and a hard rule
+that no other module may import the package. `MapboxMap.tsx` needs its types, so it uses
+`import type` — verified erased by emitting the file and grepping the output.
+
+### What was built
+
+- `mapbox.ts` — `loadMapbox()` / `hasMapbox()`, memoised. Requires **both** a token and a
+  build that links the module; sets the access token and disables telemetry once
+- `MapSurface.tsx` — one branch, deliberately the same shape as the `DEMO_MODE` switch in
+  `services/api/client.ts`. Mapbox when available, `InteractiveMap` otherwise
+- `PinBody.tsx` — the annotation extracted out of `MapPin`, now shared. `PIN_BOX` /
+  `PIN_POINT_Y` are what let a `MarkerView` anchor the stem's point on the coordinate
+- `framing.ts` — `CHROME_HEIGHT` / `EXPOSED_FRACTION` / `SHEET_MAX_EXPOSURE` lifted out of
+  `InteractiveMap`, now feeding Mapbox camera padding as well as the vector map's pan clamp
+- `MapboxMap.tsx` — `MapView` + `Camera` + one `MarkerView` per meetup, `StyleURL.Light`,
+  labels localised to `i18n.language`, attribution/logo lifted clear of the sheet
+- Refetch on settle (docs/FRONTEND.md §9) — gesture-driven moves only, 400 m threshold.
+  `DiscoverScreen` holds the panned centre in its own state so the location read stays
+  one-shot (docs/RULES.md)
+- `app.json` pins `RNMapboxMapsVersion: "11.23.1"` — the value the package defaults to,
+  read out of its own `package.json`, rather than leaving the native SDK floating
+
+### Decisions
+
+- **Fallback, not replacement.** The vector city stays and is the Expo Go path. It is a
+  complete map, so a missing token changes the renderer rather than breaking the screen —
+  the same reasoning as `templateRecap()` being the floor for the vibe recap
+- **Label inside the pin's box.** Android clips a `MarkerView` child drawn outside the
+  measured bounds, so the box reserves a fixed 52pt slot for it. That fixed height is also
+  what makes the anchor ratio computable
+- **Only the vector map counter-scales pins.** Mapbox positions annotations in screen space
+  and leaves their size alone; counter-scaling there would fight it
+- **No `id` prop on `MarkerView`** — not in its props type; `key` is what React needs
+
+### Verified
+
+- `npm run typecheck` clean on both packages; `npm test` 49/49
+- `npx expo export --platform android` bundles 1771 modules — the Mapbox branch compiles
+  and the deferred require does not pull the native module into the tokenless path
+- `import type` erasure confirmed by emitting `MapboxMap.tsx` and grepping for `rnmapbox`
+
+### Not verified — and why
+
+**The Mapbox surface has never been on a screen.** No `pk.*` token has been issued, and
+Expo Go has no native module, so every run took the vector-city branch. Tiles,
+`MarkerView` anchoring, camera padding and the settle-refetch are all unexercised.
+
+The emulator re-check was also blocked by something unrelated: Expo Go SDK 57 redboxes at
+startup with `TurboModule method "installTurboModule" called with 0 arguments` out of
+`NativeWorklets` (react-native-worklets / Reanimated 4 against this Expo Go build).
+**Reproduced on `main` with these changes stashed**, so it predates this work — but it means
+the vector-city branch was not re-confirmed on a device either. Worth chasing before the
+next on-device pass; a dev build would clear both this and the Mapbox gate at once.

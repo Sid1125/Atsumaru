@@ -878,7 +878,7 @@ Not wired yet:
 
 - Mobile login screen still shows a "not wired" alert; the OAuth endpoints above are ready for it
 - Mobile DM/connections screens, push-token registration, create-event UI, and settings
-- Real Mapbox rendering (needs a token and a native dev build)
+- Real Mapbox rendering is wired but unexercised: it needs a token and a native dev build, and neither has been run yet
 
 Two endpoints go beyond `docs/API_STRUCTURE.md`, both needed by the documented flows:
 `POST /api/auth/session` (deep-link handoff) and `POST /api/users/me/push-token`
@@ -890,8 +890,12 @@ onboarding chat answers `503 AI_UNAVAILABLE` without `GROQ_API_KEY`, and login a
 exception: with no `GROQ_API_KEY` it returns a template line rather than an error, because
 nobody is waiting on it and an empty card reads as a bug.
 
-The map renders a placeholder until `EXPO_PUBLIC_MAPBOX_TOKEN` is set **and** the app
-runs in a dev build — `@rnmapbox/maps` needs native code and does not work in Expo Go.
+The Discover map has two renderers behind one component (`components/map/MapSurface.tsx`).
+Set `EXPO_PUBLIC_MAPBOX_TOKEN` **and** run a dev build and it draws real Mapbox tiles;
+missing either, it draws the hand-authored vector city in `components/map/` — a complete
+map with real streets and gestures, not a placeholder. `@rnmapbox/maps` is native, so
+Expo Go always gets the vector one. The pins, selection and open-a-meetup behaviour are
+identical on both.
 npm run server
 ```
 
