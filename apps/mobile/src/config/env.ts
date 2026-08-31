@@ -35,8 +35,16 @@ export const WS_URL = fromEnv(
  */
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE === "1";
 
-export const MAPBOX_PUBLIC_TOKEN =
-  process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "";
+/**
+ * Public Mapbox token. Blank means the real map cannot run and the app renders the
+ * hand-authored vector city instead — a token is only half of what Mapbox needs,
+ * so the decision itself lives in `components/map/mapbox.ts`, which can also see
+ * whether the native module is linked.
+ */
+export const MAPBOX_PUBLIC_TOKEN = fromEnv(
+  process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
+  ""
+);
 
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 

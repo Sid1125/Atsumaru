@@ -28,7 +28,12 @@
     "plugins": [
       "expo-secure-store",
       "expo-localization",
-      "@rnmapbox/maps",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsVersion": "11.23.1"
+        }
+      ],
       [
         "expo-location",
         {

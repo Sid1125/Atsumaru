@@ -222,15 +222,34 @@ The UI follows Apple's fluid-interface and typography guidance. Import tokens fr
 
 ## The map
 
-`components/map/` is a hand-authored vector city, not Mapbox — `@rnmapbox/maps` needs a
-paid token and a native dev build, and this runs in Expo Go.
+Two renderers, one branch: `MapSurface.tsx` picks Mapbox when `hasMapbox()` and the
+hand-authored vector city otherwise. Both take the same props and draw the same
+`PinBody`, so pins, selection and opening a meetup are identical — only the ground
+changes. Framing numbers shared by both live in `framing.ts`.
 
-- `geo.ts` holds the projection and the generated street network; `MapCanvas.tsx` is the
-  memoised static SVG. **Never re-render the canvas during a gesture** — the gesture
-  layer transforms the container so panning stays on the compositor.
-- Pins counter-scale against zoom so they stay readable and tappable at any zoom.
-- Vertical pan bounds are measured against the map area the sheet does *not* cover; using
-  the full view height silently clamps away any attempt to frame content.
+- **`mapbox.ts` is the only file allowed to touch `@rnmapbox/maps`.** It throws from
+  module scope when the native module is missing, so a top-level `import` anywhere in
+  `src/` kills the bundle in Expo Go; it is loaded through a deferred `require()` there
+  instead. Same shape as `usePushRegistration.ts`, and mandatory for the same reason.
+- Mapbox needs **both** a `pk.*` token and a dev build. Expo Go can never have the native
+  module, so it always gets the vector city — which is a complete map, not a placeholder,
+  and is why a missing token is a change of renderer rather than a broken screen.
+- Mapbox positions annotations in screen space itself, so **only the vector map
+  counter-scales its pins** against zoom (`counterScale` on `PinBody`). `PIN_BOX` /
+  `PIN_POINT_Y` are what let a `MarkerView` anchor the stem's point on the coordinate;
+  the label is inside the box because Android clips a `MarkerView` child drawn outside it.
+- Discover floats chrome over the top of the map and rests a sheet on the bottom, so the
+  visible band is neither the view's centre nor its full height. Mapbox feeds `framing.ts`
+  to camera padding; the vector map clamps its pan against it — using the full view height
+  silently clamps away any attempt to frame content.
+- Panning the Mapbox map refetches nearby meetups on settle (`docs/FRONTEND.md` §9):
+  gesture-driven moves only, past a 400 m threshold, so framing cannot feed itself a
+  fetch. The panned centre is held separately from the location fix — panning changes what
+  is queried, never the one-shot read (`docs/RULES.md`).
+- Vector city internals: `geo.ts` holds the projection and generated street network,
+  `MapCanvas.tsx` is the memoised static SVG. **Never re-render the canvas during a
+  gesture** — the gesture layer transforms the container so panning stays on the
+  compositor.
 
 ## Mobile conventions
 
@@ -292,10 +311,14 @@ OAuth canonical and the code follows TRD. Do not implement phone OTP.
 
 ## Not implemented
 
-Mobile: debounced refetch on map region change (still one-shot), infinite scroll on
-message history, and a venue/location picker for create-event (it posts a fixed Shibuya
-point). `@rnmapbox/maps` needs a native dev build plus a token; without both, `EventMap`
-renders a placeholder on purpose.
+Mobile: infinite scroll on message history, and a venue/location picker for create-event
+(it posts a fixed Shibuya point).
+
+**The Mapbox path is written but has never run.** `MapboxMap.tsx` compiles and the bundle
+builds, but Mapbox needs a `pk.*` token plus a dev build and neither exists here — no
+token has been issued, and Expo Go cannot load the native module. Everything verified so
+far is the vector-city branch. Refetch-on-region-settle is likewise written and unexercised,
+because only the Mapbox surface raises the event.
 
 The OAuth round-trip is wired but has only been exercised through the demo path — the
 provider redirect and `atsumaru://auth` handoff still need a real run against configured

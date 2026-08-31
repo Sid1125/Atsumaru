@@ -13,6 +13,11 @@ import { MapCanvas } from "./MapCanvas";
 import { MapPin } from "./MapPin";
 import { CENTER, project, WORLD } from "./geo";
 import {
+  CHROME_HEIGHT,
+  EXPOSED_FRACTION,
+  SHEET_MAX_EXPOSURE,
+} from "./framing";
+import {
   projectDecay,
   rubberband,
   springs,
@@ -35,24 +40,6 @@ const MAX_SCALE = 3.6;
  * world would open on empty streets with the pins a speck in the middle.
  */
 const INITIAL_SPAN = 620;
-
-/**
- * The fraction of the view still showing map when the sheet rests at its lowest
- * detent ("peek" = 0.8 of the screen). Vertical pan limits are measured against
- * this so the world can be positioned for the visible band without ever letting
- * background show through below the sheet.
- */
-const SHEET_MAX_EXPOSURE = 0.8;
-
-/** The band actually visible with the sheet at its default "half" detent. */
-const EXPOSED_FRACTION = 0.52;
-
-/**
- * Vertical space the floating chrome occupies at the top of the map: the safe
- * area, the identity row and the filter rail. Content framed above this would sit
- * behind the filters.
- */
-const CHROME_HEIGHT = 210;
 
 /**
  * The browsing surface.
