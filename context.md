@@ -824,3 +824,66 @@ Server :4000 (health ok, supabase:true groq:true oauth:line google), emulator :5
 - Notables: two earlier "failures" were test bugs, not app bugs (pgvector string-vs-
   array; wrong harness field). Frontend wiring of every tested route verified.
 
+## 15. Session log — explicit personality selection during onboarding (2026-09-01, IN FLIGHT)
+
+### The ask
+
+User wants to ask the user their personality during onboarding (bubbly, happy-go-lucky,
+self-contained, etc.), under a handful of questions, to get a general personality +
+interests picture for **better matching**.
+
+Investigation showed personality is *already* extracted passively — the AI onboarding
+host (`services/ai.ts` SYSTEM_PROMPT) guesses 2–4 `personality` tags from whatever the
+user volunteers, and `complete()` embeds `[...interests, ...personality]` →
+`preference_vector` → matching's 0.6 cosine term (`modules/matching/score.ts`). So the
+data path exists; the gap is that nobody *asks*.
+
+### Decisions (locked with the user)
+
+1. **Keep the AI chat** as the intro/icebreaker (not removing Groq's onboarding job).
+2. **Prompt the host to ask** the personality question (SYSTEM_PROMPT change), with
+   concrete options, rather than guessing.
+3. **Fixed localized vocabulary (en/ja/zh), multi-select** — not free AI-generated tags.
+4. **Quick-reply chips inside the chat** — a tappable chip tray above the composer;
+   tap-to-toggle, submit sends one localized user turn into the transcript, so the real
+   AI and the demo both extract those traits.
+5. **No matching/weighting/schema change** — tags still go into the same preference_vector.
+
+### The plan
+
+- `apps/mobile/src/onboardingPersonality.ts` — fixed localised vocab (~10 traits:
+  bubbly, laid-back, self-contained, outgoing, curious, energetic, thoughtful,
+  adventurous, creative, easygoing), labels = canonical keys.
+- i18n `onboarding.personalityPrompt` + `onboarding.traits.*` (en/ja/zh).
+- `AIChatScreen` — chip tray above composer, multi-select `Chip`s, one localized user
+  turn `"I'm {selected}"`, selection clears on send.
+- `services/ai.ts` SYSTEM_PROMPT — host asks "what's your vibe?" with the fixed options,
+  normalizes to 2–4 short tags, keeps all hard boundaries (no name/contact/romance).
+- Demo mirror: extend `PERSONALITY_VOCAB` in `demo/index.ts` with the new trait words so
+  tapped chips extract correctly in demo mode (matches the real path). `world.ts` seeds
+  unchanged.
+- Server API shape unchanged (`{role, content}` free text). ProfileConfirm/Profile flows
+  already render `personality` — untouched.
+
+### Notes
+
+- Server + mobile are separate packages (no shared code, CLAUDE.md), so the canonical
+  trait keys are deliberately duplicated (prompt text + mobile chips), same as the
+  built-in demo `PERSONALITY_VOCAB`.
+- Micro-decision: tapped chips queue a selection; a submit on the tray sends **one**
+  combined message ("I'm a, b, c") rather than one send per tap — clean single turn.
+- Category emoji / colour-blind rules don't apply here (plain labelled chips).
+
+### Follow-ups (this session)
+
+1. **Tray is gated.** The chips are not always visible — the host's reply carries
+   `showPersonality: true` while it poses the personality question, and the client shows
+   the tray only on that signal (schema + prompt in `ai.ts`; demo mirrors the handshake).
+   Send clears the tray state.
+2. **Host asks language first.** The first turn now asks ja/en/zh and returns it as
+   `language` in the JSON; the client applies it via `setLanguage`, flipping the whole app
+   (and re-rendering the transcript). Demo turn 1 asks the same and echoes the current
+   choice. This sets both the chat language and the app-language setting.
+3. Verified: `npm run typecheck` (server + mobile) green; `npm test` 49/49.
+
+

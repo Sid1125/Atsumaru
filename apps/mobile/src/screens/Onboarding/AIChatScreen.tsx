@@ -15,8 +15,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { PressableScale } from "../../components/ui/PressableScale";
+import { Chip } from "../../components/common/Chip";
 import { IconSend, IconWave } from "../../components/ui/Icons";
 import { onboardingApi } from "../../services/api/onboarding";
+import {
+  PERSONALITY_KEYS,
+  type PersonalityKey,
+} from "../../onboardingPersonality";
 import { useOnboardingDraft, useUiStore } from "../../store";
 import {
   colors,
@@ -43,6 +48,7 @@ export function AIChatScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const language = useUiStore((s) => s.language);
+  const setLanguage = useUiStore((s) => s.setLanguage);
   const setExtracted = useOnboardingDraft((s) => s.setExtracted);
   const reducedMotion = useReducedMotion();
 
@@ -50,21 +56,33 @@ export function AIChatScreen() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTraits, setSelectedTraits] = useState<PersonalityKey[]>([]);
+  const [showTraits, setShowTraits] = useState(false);
   const listRef = useRef<ScrollView>(null);
 
-  async function send() {
-    const content = draft.trim();
-    if (!content || sending) return;
+  async function postTurn(content: string) {
+    if (!content.trim() || sending) return;
 
-    const next = [...turns, { role: "user" as const, content }];
+    const next = [...turns, { role: "user" as const, content: content.trim() }];
     setTurns(next);
-    setDraft("");
     setSending(true);
     setError(null);
 
     try {
       const result = await onboardingApi.chat(next, language);
       setTurns([...next, { role: "assistant", content: result.reply }]);
+
+      // The host chooses the language on the first turn — apply it to the whole app,
+      // then re-render the transcript in it.
+      if (result.language && result.language !== language) {
+        setLanguage(result.language);
+      }
+
+      // The tray shows only while the host is actually asking the personality question.
+      if (typeof result.showPersonality === "boolean") {
+        setSelectedTraits([]);
+        setShowTraits(result.showPersonality);
+      }
 
       // AI output is untrusted data — validate before using it (docs/RULES.md §13).
       if (result.done && Array.isArray(result.extracted?.interests)) {
@@ -81,6 +99,29 @@ export function AIChatScreen() {
     } finally {
       setSending(false);
     }
+  }
+
+  function send() {
+    if (!draft.trim() || sending) return;
+    const content = draft.trim();
+    setDraft("");
+    postTurn(content);
+  }
+
+  function toggleTrait(key: PersonalityKey) {
+    setSelectedTraits((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }
+
+  function submitTraits() {
+    if (selectedTraits.length === 0 || sending) return;
+    const labels = selectedTraits.map((key) => t(`onboarding.traits.${key}`));
+    const content = t("onboarding.personalitySend", {
+      traits: labels.join(", "),
+    });
+    setSelectedTraits([]);
+    postTurn(content);
   }
 
   const progress = Math.min(3, turns.filter((x) => x.role === "user").length);
@@ -168,6 +209,40 @@ export function AIChatScreen() {
         <Text style={styles.error} accessibilityLiveRegion="polite">
           {error}
         </Text>
+      ) : null}
+
+      {showTraits ? (
+        <View style={styles.traitTray}>
+          <View style={styles.traitHeader}>
+            <Text style={styles.traitPrompt}>{t("onboarding.personalityPrompt")}</Text>
+            {selectedTraits.length > 0 ? (
+              <PressableScale
+                accessibilityLabel={t("onboarding.personalityAdd")}
+                onPress={submitTraits}
+                disabled={sending}
+                scaleTo={0.94}
+                style={[
+                  styles.traitSubmit,
+                  sending && styles.traitSubmitDisabled,
+                ]}
+              >
+                <Text style={styles.traitSubmitText}>
+                  {t("onboarding.personalityAdd")}
+                </Text>
+              </PressableScale>
+            ) : null}
+          </View>
+          <View style={styles.traitRow}>
+            {PERSONALITY_KEYS.map((key) => (
+              <Chip
+                key={key}
+                label={t(`onboarding.traits.${key}`)}
+                selected={selectedTraits.includes(key)}
+                onPress={() => toggleTrait(key)}
+              />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       <View
@@ -335,4 +410,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendDisabled: { backgroundColor: colors.border },
+  traitTray: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+    backgroundColor: colors.background,
+  },
+  traitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  traitPrompt: { ...type.caption, color: colors.textMuted },
+  traitRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  traitSubmit: {
+    minHeight: 30,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  traitSubmitDisabled: { backgroundColor: colors.border },
+  traitSubmitText: { ...type.subhead, color: colors.textOnColor, fontWeight: "600" },
 });

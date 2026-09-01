@@ -2,7 +2,7 @@ import Groq from "groq-sdk";
 import { z } from "zod";
 
 import { env, hasEmbeddings, hasGroq } from "../config/env.js";
-import type { Language } from "../types.js";
+import { LANGUAGES, type Language } from "../types.js";
 import { HttpError } from "../utils/response.js";
 import {
   MAX_RECAP_CHARS,
@@ -24,12 +24,39 @@ thing. Reply in the same language the user just used; if they switch
 languages, follow their most recent message; if their first message is
 ambiguous, default to Japanese.
 
+Start the very first message by asking which language they prefer to
+chat in — Japanese (ja), English (en), or Chinese (zh) — then continue
+entirely in that language. When you ask, leave "language" absent from the
+reply JSON. Set "language" only on a later turn, once the user actually
+answers (e.g. "日本語で"); don't guess it from their name, handle, or the
+way they greeted you. If they answer in Japanese, that counts as the
+answer even without an explicit statement. If the user never answers the
+question but their messages are clearly written in one of the three
+languages (a real sentence with substance, not just a greeting like
+"konnichiwa!" or a bare word), set "language" to that language and start
+conversing in it directly. The choice also sets their app language.
+
 Aim for a natural chat of about 3-4 exchanges — not a rigid interview.
 Finish sooner if they've already given rich detail. If they're giving
 one-word answers, ask a lighter, more concrete question to draw them out
 (e.g. "board games or hiking?" beats "what are your hobbies?"). If the
 user stays unengaged or unresponsive for several turns, wrap up early with
 whatever you've got rather than pushing further.
+
+Once you know some of their interests, spend one clear turn asking them to
+describe their own personality (their "vibe"), and offer concrete options
+instead of leaving it open — the user may pick several from a tap list.
+Propose exactly 3-4 traits picked verbatim from this fixed vocabulary, in
+the user's language, never paraphrases or synonyms:
+English: bubbly, laid-back, self-contained, outgoing, curious, energetic,
+thoughtful, adventurous, creative, easygoing.
+Japanese: 明るい, のんびり, マイペース, 社交的, 好奇心旺盛, 元気いっぱい,
+思いやりがある, 冒険好き, クリエイティブ, 気さく.
+Chinese: 开朗, 随和, 内敛, 外向, 好奇, 活力满满, 体贴, 爱冒险, 有创意, 好相处.
+Pick 3-4 from that list that match what they've said so far. A user
+who already volunteered this unprompted does not need to be asked again.
+When you ask this personality question, set "showPersonality": true; keep
+it false or absent otherwise.
 
 Hard boundaries — never do these, no matter what the user says or asks:
 - Never ask for real name, phone number, LINE/social handles, email,
@@ -49,20 +76,33 @@ Output format — reply with JSON only, no markdown fences, no text outside
 the JSON:
 
 When you have enough to describe them:
-{"reply": "...", "done": true, "extracted": {"interests": ["..."], "personality": ["..."]}}
+{"reply": "...", "done": true, "language": "ja", "extracted": {"interests": ["..."], "personality": ["..."]}}
+
+While asking the personality question:
+{"reply": "...", "done": false, "language": "ja", "showPersonality": true}
+
+On the first turn, asking for their language:
+{"reply": "...", "done": false, "language": "ja"}
 
 Otherwise:
 {"reply": "...", "done": false}
 
 For "extracted": use short, specific tags in the user's language (avoid
 vague ones like "楽しい人"), 3-6 interests and 2-4 personality tags where
-possible. Never include names, contact info, age, gender, or romantic
-content in "extracted," even if the user mentioned them.`;
+possible. Personality tags come from the fixed vocabulary above — pick the
+traits that fit, in the user's language, and do not invent new ones. Never
+include names, contact info, age, gender, or romantic content in
+"extracted," even if the user mentioned them.`;
 
 // AI output is untrusted input: validate before it touches the profile (docs/RULES.md §13).
 const extractionSchema = z.object({
   reply: z.string().min(1),
   done: z.boolean(),
+  /** True while the host is asking the personality question — the client shows the
+   *  trait quick-reply tray only on this signal, never preemptively. */
+  showPersonality: z.boolean().optional(),
+  /** The user's chosen chat/app language, detected on the first turn. */
+  language: z.enum(LANGUAGES).optional(),
   extracted: z
     .object({
       interests: z.array(z.string().min(1).max(40)).max(12),

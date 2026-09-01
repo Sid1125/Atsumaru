@@ -123,6 +123,34 @@ it also had to not break Expo Go, which cannot load the native module at all.
       Reproduced on `main` with these changes stashed, so it predates them
 
 
+### 0b. Explicit personality selection during onboarding — DONE 2026-09-01
+
+Personality is already extracted *passively* — the AI host guesses 2–4 tags from whatever
+the user volunteers, then embeds `interests + personality` → `preference_vector` → matching's
+0.6 cosine term. The ask: make it *active* — host asks about personality with concrete
+options, user multi-selects from a **fixed localized vocabulary** via **in-chat quick-reply
+chips**. No schema/score/matching change; tags still flow into the same `preference_vector`.
+
+- [x] `apps/mobile/src/onboardingPersonality.ts` — fixed localized vocab (en/ja/zh), ~10
+      traits (bubbly, laid-back, self-contained, outgoing, curious, energetic, thoughtful,
+      adventurous, creative, easygoing), labels double as canonical keys
+- [x] i18n `onboarding.personalityPrompt` + `onboarding.traits.*` in en/ja/zh
+- [x] `AIChatScreen` chip tray above the composer — multi-select `Chip`s, one localized
+      user turn `"I'm {selected}"`, selection clears on send
+- [x] `services/ai.ts` SYSTEM_PROMPT — host proactively asks the personality question and
+      normalizes typed/tapped traits into 2–4 short `personality` tags (all existing hard
+      boundaries kept)
+- [x] Demo mirror: extend `PERSONALITY_VOCAB` in `demo/index.ts` with the new trait words so
+      tapped chips extract correctly in demo mode
+- [x] Verified: `npm run typecheck` both packages, `npm test` server
+- [x] **Tray is gated on the host actually asking** — `showPersonality` bool rides in the
+      chat JSON (schema + prompt in `ai.ts`, mirrored by the demo), so the tray appears only
+      while the host poses the personality question, never preemptively
+- [x] **Host asks language first** — first turn asks the chat/app language (ja/en/zh),
+      returns it as `language` in the JSON; client applies it via `setLanguage`, flipping
+      the whole app + transcript. Mirrored in the demo (turn 1 asks, echoes the choice)
+
+
 ### 1. Prove the backend against a real project — DONE 2026-08-30
 
 Supabase project `ucxgvtcqoeazuhsgwbhf` (`ap-northeast-1`). PostGIS 3.3.7 and pgvector

@@ -34,7 +34,22 @@
     "confirmTitle": "我听到的是这些",
     "confirmLede": "有不合适的地方可以修改。",
     "displayNamePlaceholder": "希望大家怎么称呼你？",
-    "privacyHint": "你的真实姓名不会展示给任何人。"
+    "privacyHint": "你的真实姓名不会展示给任何人。",
+    "personalityPrompt": "点击几个符合你的描述",
+    "personalitySend": "我是{{traits}}",
+    "personalityAdd": "添加",
+    "traits": {
+      "bubbly": "开朗",
+      "laidBack": "随和",
+      "selfContained": "内敛",
+      "outgoing": "外向",
+      "curious": "好奇",
+      "energetic": "活力满满",
+      "thoughtful": "体贴",
+      "adventurous": "爱冒险",
+      "creative": "有创意",
+      "easygoing": "好相处"
+    }
   },
   "discover": {
     "subtitle": "发现附近的同好",

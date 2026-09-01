@@ -34,7 +34,22 @@
     "confirmTitle": "Here is what I heard",
     "confirmLede": "Edit anything that is not quite you.",
     "displayNamePlaceholder": "What should people call you?",
-    "privacyHint": "Your real name is never shown to anyone."
+    "privacyHint": "Your real name is never shown to anyone.",
+    "personalityPrompt": "Tap a few that fit your vibe",
+    "personalitySend": "I'm {{traits}}",
+    "personalityAdd": "Add",
+    "traits": {
+      "bubbly": "Bubbly",
+      "laidBack": "Laid-back",
+      "selfContained": "Self-contained",
+      "outgoing": "Outgoing",
+      "curious": "Curious",
+      "energetic": "Energetic",
+      "thoughtful": "Thoughtful",
+      "adventurous": "Adventurous",
+      "creative": "Creative",
+      "easygoing": "Easygoing"
+    }
   },
   "discover": {
     "subtitle": "Find your people nearby",

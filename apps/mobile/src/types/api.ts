@@ -103,6 +103,10 @@ export interface ChatTurn {
 export interface OnboardingChatResult {
   reply: string;
   done: boolean;
+  /** True while the host asks the personality question — gates the trait quick-reply tray. */
+  showPersonality?: boolean;
+  /** The user's chosen chat/app language, once the host detects it. */
+  language?: Language;
   extracted?: {
     interests: string[];
     personality: string[];

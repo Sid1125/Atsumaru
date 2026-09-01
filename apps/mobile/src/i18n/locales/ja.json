@@ -34,7 +34,22 @@
     "confirmTitle": "こう受け取りました",
     "confirmLede": "違うところは自由に直してください。",
     "displayNamePlaceholder": "何と呼ばれたいですか？",
-    "privacyHint": "本名が他の人に表示されることはありません。"
+    "privacyHint": "本名が他の人に表示されることはありません。",
+    "personalityPrompt": "当てはまる雰囲気をタップ",
+    "personalitySend": "わたしは{{traits}}です",
+    "personalityAdd": "追加",
+    "traits": {
+      "bubbly": "明るい",
+      "laidBack": "のんびり",
+      "selfContained": "マイペース",
+      "outgoing": "社交的",
+      "curious": "好奇心旺盛",
+      "energetic": "元気いっぱい",
+      "thoughtful": "思いやりがある",
+      "adventurous": "冒険好き",
+      "creative": "クリエイティブ",
+      "easygoing": "気さく"
+    }
   },
   "discover": {
     "subtitle": "近くの仲間をさがす",

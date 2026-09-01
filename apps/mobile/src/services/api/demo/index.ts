@@ -216,13 +216,20 @@ const INTEREST_VOCAB: Record<string, string[]> = {
   running: ["run", "running", "jog", "marathon", "ランニング"],
 };
 
+// Mirrors the fixed onboarding chip vocabulary (`src/onboardingPersonality.ts`): each
+// key carries its en/ja/zh labels so a tapped chip extracts in any language. Seeds
+// keep their own tags; this map only drives the new user's own extraction.
 const PERSONALITY_VOCAB: Record<string, string[]> = {
-  chill: ["chill", "relax", "quiet", "calm", "slow", "のんびり"],
-  explorer: ["explore", "new", "travel", "adventure", "discover"],
-  outgoing: ["outgoing", "social", "people", "friends", "party"],
-  curious: ["curious", "learn", "try", "interested"],
-  creative: ["create", "make", "build", "creative", "design"],
-  energetic: ["energy", "energetic", "active", "sport"],
+  bubbly: ["bubbly", "happy-go-lucky", "明るい", "开朗"],
+  laidBack: ["laid-back", "laidback", "relaxed", "calm", "slow", "のんびり", "随和"],
+  selfContained: ["self-contained", "selfcontained", "independent", "マイペース", "内敛"],
+  outgoing: ["outgoing", "social", "people", "friends", "party", "社交的", "外向"],
+  curious: ["curious", "learn", "try", "interested", "好奇心旺盛", "好奇"],
+  energetic: ["energy", "energetic", "active", "sport", "元気いっぱい", "活力满满"],
+  thoughtful: ["thoughtful", "considerate", "kind", "思いやりがある", "体贴"],
+  adventurous: ["adventurous", "adventure", "explore", "travel", "冒険好き", "爱冒险"],
+  creative: ["create", "make", "build", "creative", "design", "クリエイティブ", "有创意"],
+  easygoing: ["easygoing", "easy-going", "気さく", "好相处"],
 };
 
 function extractFrom(text: string, vocab: Record<string, string[]>): string[] {
@@ -250,6 +257,12 @@ const FOLLOW_UPS: Record<Language, string[]> = {
   ],
 };
 
+const LANGUAGE_ASK: Record<Language, string> = {
+  en: "Before we start — which language should we chat in? Japanese (ja), English (en), or Chinese (zh)?",
+  ja: "始める前に — どの言語で話しますか？日本語（ja）、英語（en）、中国語（zh）。",
+  zh: "开始之前 — 你想用什么语言聊天？日语（ja）、英语（en）还是中文（zh）？",
+};
+
 const DONE_REPLY: Record<Language, string> = {
   en: "That's a great picture of you. Here's what I picked up — edit anything that's off.",
   ja: "あなたのことがよく分かりました。こちらが受け取った内容です。違うところは直してください。",
@@ -258,13 +271,35 @@ const DONE_REPLY: Record<Language, string> = {
 
 function onboardingChat(messages: ChatTurn[], language: Language) {
   const userTurns = messages.filter((turn) => turn.role === "user");
+  const count = userTurns.length;
   const transcript = userTurns.map((turn) => turn.content).join(" ");
   const follow = FOLLOW_UPS[language] ?? FOLLOW_UPS.en;
 
-  if (userTurns.length < 3) {
+  // First turn: ask which language to use, mirror the real host's first message.
+  if (count === 1) {
     return {
-      reply: follow[userTurns.length - 1] ?? follow[follow.length - 1]!,
+      reply: LANGUAGE_ASK[language] ?? LANGUAGE_ASK.en,
       done: false,
+      language,
+    };
+  }
+
+  // Second turn: the host asks the personality question, so show the trait tray.
+  if (count === 2) {
+    return {
+      reply: follow[0],
+      done: false,
+      language,
+      showPersonality: true,
+    };
+  }
+
+  // Wraps up once enough turns (interests + any tapped personality chips) landed.
+  if (count < 5) {
+    return {
+      reply: follow[Math.min(count - 2, follow.length - 1)]!,
+      done: false,
+      language,
     };
   }
 
@@ -274,6 +309,7 @@ function onboardingChat(messages: ChatTurn[], language: Language) {
   return {
     reply: DONE_REPLY[language] ?? DONE_REPLY.en,
     done: true,
+    language,
     extracted: {
       // Never hand back an empty profile — the confirm screen needs something to show.
       interests: interests.length > 0 ? interests : ["coffee", "board games"],
