@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig } from "axios";
 
 import { API_URL, DEMO_MODE } from "../../config/env";
 import { getAccessToken } from "../storage/session";
+import { getCachedDeviceId } from "../deviceIdentity/deviceIdentity";
 import { ApiError } from "./errors";
 import { demoRequest } from "./demo";
 

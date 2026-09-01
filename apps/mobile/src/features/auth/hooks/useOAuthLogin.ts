@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { API_URL, DEMO_MODE } from "../../../config/env";
 import { authApi } from "../../../services/api/auth";
+import { registerDeviceIdentity } from "../../../services/deviceIdentity/deviceIdentity";
 import { useAuthStore } from "../../../store";
 
 type Provider = "line" | "google";
@@ -49,6 +50,10 @@ export function useOAuthLogin() {
         const session = await authApi.session(code);
         await signIn(session.access_token, session.user);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+
+        // A real (non-demo) sign-in proves this install's Keystore key to the server.
+        // Best-effort, never blocks the sign-in UI.
+        void registerDeviceIdentity();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Sign-in failed.");
       } finally {

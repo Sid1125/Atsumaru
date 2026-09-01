@@ -12,7 +12,11 @@
 > identity linking). Both are **complete** as of 2026-08-30; §9 is the live to-do list.
 > §11 records a third, smaller task: the vibe recap, also complete. §12 is a fourth:
 > wiring Mapbox behind a fallback — code complete, but the Mapbox surface itself has
-> never run (no token, no dev build).
+> never run (no token, no dev build). §13 is the Warm Japanese Editorial visual
+> overhaul (2026-09-01, complete); §14 the recap/onboarding AI hardening + E2E pass
+> (2026-08-31); §15 the personality/interest/category onboarding work (2026-09-01,
+> complete); §16 the TEE decision + hardware-backed device identity (2026-09-01,
+> code complete, needs a dev build to run).
 
 ---
 
@@ -824,7 +828,7 @@ Server :4000 (health ok, supabase:true groq:true oauth:line google), emulator :5
 - Notables: two earlier "failures" were test bugs, not app bugs (pgvector string-vs-
   array; wrong harness field). Frontend wiring of every tested route verified.
 
-## 15. Session log — explicit personality selection during onboarding (2026-09-01, IN FLIGHT)
+## 15. Session log — onboarding personality + interests + meetup categories (2026-09-01, DONE)
 
 ### The ask
 
@@ -896,5 +900,98 @@ data path exists; the gap is that nobody *asks*.
    9 diverse interests (prev ~3-4). NOTE: model still self-limits chat length and its
    offered trait list can drift to a non-vocab word (e.g. "social") — extraction discards
    it, harmless.
+5. **Meetup categories 4 → 9.** Added music, wellness, travel, learning, sports.
+   `categoryMeta.ts` CATEGORY_ORDER/GLYPH + 5 WCAG-AA sticker `{bg,on}` pairs
+   (`colors.sticker`), `discover.categories.*` labels en/ja/zh, demo world + server seed
+   +5 events each. Categories are free-form text in the DB, so no migration. Sticker
+   band on the product ≠ site palette. Verified: typecheck + 49/49.
+6. **Hardware-backed device identity (2026-09-01, [~] code complete).** Android Keystore
+   ECDSA P-256 non-exportable key (StrongBox requested, hardware-backed flag reported),
+   proven once at sign-in: register SPKI → GET challenge (32-byte nonce, ~2-min TTL,
+   single-use) → sign raw bytes in the Keystore → verify with `node:crypto` SHA256 in
+   `modules/users/deviceIdentity.ts`. Migration `005_device_keys.sql` + schema mirror.
+   Native module under `android/app/src/main/java/com/atsumaru/app/keystore/` registered
+   in `MainApplication.kt`; gated TS wrapper `services/deviceIdentity/keystore.ts`
+   (Expo Go-safe) + orchestrator `deviceIdentity.ts` (SecureStore per-install id,
+   best-effort, never blocks sign-in); fire-and-forget after OAuth exchange + session
+   restore; demo returns simulated `{verified:true}`. Verified: typecheck + 53/53.
+   **Not verified:** keystore module at runtime (needs `expo run:android` dev build) and
+   live DB row. Deliberate scope: verify-at-login only, no per-request signing, no
+   biometric gate, no Play Integrity cert-chain check.
+
+## 16. Session log — TEE decision → hardware-backed device identity (2026-09-01, code complete)
+
+### The ask
+
+User pasted a TEE analysis weighing **Android hardware-backed device identity** against
+**AWS Nitro Enclaves** (server-side, `kms` + enclave image + attestation) and asked which
+to build. Recap of the ranking that shaped the call: client-side Keystore is **high
+value / low difficulty** (real, verifiable "same physical device" proof with a few
+hundred lines); Nitro Enclaves is high value but **high setup cost** (enclave images,
+attestation flow, at-rest footprint tied to AWS) — a poor fit for an appathon's current
+threat model, and it only earns its keep once the server is the place you fear tampering.
+Android Keystore goes first; Nitro Enclaves stays on the shelf.
+
+### Decisions locked (with the user)
+
+1. **Client key + minimal server counterpart** (not a client-only facade). The server
+   must actually use the key: store the uploaded SPKI, issue a challenge, verify a
+   signature — otherwise the key is theater. This is the full meaningful loop.
+2. **Custom native Kotlin module**, hand-registered in `MainApplication.kt` under
+   `android/app/src/main/java/com/atsumaru/app/keystore/` — not an Expo config-plugin
+   module. Direct `AndroidKeyStore` access, StrongBox requested where the hardware
+   exists, `isInsideSecureHardware()` reported to the API. Requires the `expo run:android`
+   dev build (Expo Go cannot load custom native modules).
+3. **Write the code now, build later.** No dev-build/emulator compile this session;
+   correctness guarded by typecheck + unit tests; runtime verification deferred.
+
+### Scope deliberately cut (ponytail flags, each with a named ceiling)
+
+- **Verify at sign-in only** — proof of possession runs once per session, not per request.
+  Per-request signing/attestation is the follow-up when a request's device binding
+  actually matters (and would cost a Keystore op on every API call).
+- **`setUserAuthenticationRequired(false)`** — no lock-screen/biometric gate on the key
+  in the MVP; adding it is a `KeyGenParameterSpec` flag plus a re-verify-on-unlock flow,
+  deferred.
+- **No key-attestation cert-chain validation / Play Integrity** — the server stores the
+  SPKI at first registration and verifies challenge signatures against it. That catches
+  a lifted *SPKI* (the signature won't verify), but cannot catch a key pair generated on
+  emulated hardware; a fixed attestation chain is the follow-up.
+- **Key per device-install** — SecureStore UUID + Keystore alias `atsumaru.device_identity.v1`;
+  not per-login or per-account.
+
+### What was built
+
+| Side | Piece |
+|---|---|
+| Native | `android/.../keystore/AtsumaruKeystoreModule.kt` (generate / getPublicKeySPKI / sign / isHardwareBacked / delete, ECDSA P-256, base64 in/out) + `AtsumaruKeystorePackage.kt`, registered in `MainApplication.kt` |
+| Client wrapper | `services/deviceIdentity/keystore.ts` — gated deferred read of `NativeModules` (Expo Go safe; `null` = unavailable), same convention as `mapbox.ts`, `DEVICE_KEY_ALIAS` shared with the module |
+| Client orchestrator | `services/deviceIdentity/deviceIdentity.ts` — per-install id in SecureStore (`getDeviceId`, cached for the interceptor), `registerDeviceIdentity()` = register SPKI → GET challenge → sign raw nonce bytes (hex→bytes→base64, matching the server's verify input) → POST verify. Best-effort: **never throws, never blocks sign-in**. `DEMO_MODE` short-circuits to `{ verified: true, hardwareBacked: false }`; `X-Device-Id` set by the `client.ts` interceptor once resolved |
+| Wiring | Fire-and-forget `void registerDeviceIdentity()` after the OAuth exchange (`useOAuthLogin.ts`) and on session restore (`useSession.ts`) |
+| Server | `migrations/005_device_keys.sql` + `schema.sql` mirror (`device_keys`, PK `(user_id, device_id)`, SPKI cert, `strongbox`, single pending `challenge_nonce` + expiry, RLS on); `registerDeviceKey`/`getDeviceKey`/`setDeviceChallenge`/`clearDeviceChallenge` in `queries.ts`; `POST /users/me/device`, `GET /users/me/device/challenge` (32-byte nonce, ~2 min TTL, single-use), `POST /users/me/device/verify` (SHA256 over the stored SPKI via pure `modules/users/deviceIdentity.ts`) |
+| Test | `modules/users/deviceIdentity.test.ts` — SPKI round-trip, wrong-challenge rejection, random-signature rejection, malformed-input-no-throw (53/53 total) |
+
+### Verified (the "test everything" pass, 2026-09-01)
+
+- `npm run typecheck` — **clean, server + mobile** (after the two narrowing fixes).
+- `npm test` — **53/53** (incl. the 4 new device tests; prior floor was 49/49).
+- `site` — `next build` clean (also type-checks the site), `next lint` 0 errors,
+  20 pre-existing warnings (`<img>` intentional per CLAUDE.md; no NEW warnings).
+- Groq live re-run after the interest/vocab/prompt changes — extraction + retry floor
+  green (see §15).
+- Demo mode + Mapbox remain unexercised end-to-end (demo needs an emulator; Mapbox
+  needs a token + dev build — both documented, not regressions).
+
+### Not verified — and why
+
+- **The Kotlin module has never run.** It compiles in the sense that the bundle builds,
+  but the native code is only exercised by a `expo run:android` dev build. First run
+  should check: `generate` signs without a lock-screen, `getPublicKeySPKI` round-trips
+  through `createPublicKey`, `isHardwareBacked` returns true on a real secure-element
+  device, and Expo Go stays on the vector city as if no native module existed.
+- **Migration not yet applied to the live project.** `005_device_keys.sql` is file +
+  `schema.sql` mirror only; apply via `node scripts/sql.mjs -f server/db/migrations/005_device_keys.sql`
+  (then `notify pgrst, 'reload schema'` if a function were involved — none here) and
+  `npm run seed -- --reset` to confirm a device row registers end to end.
 
 

@@ -229,3 +229,85 @@ export async function preferenceVector(userId: string): Promise<number[] | null>
 
   return parseVector(data?.preference_vector);
 }
+
+export interface DeviceKey {
+  user_id: string;
+  device_id: string;
+  public_key_spki: string;
+  strongbox: boolean;
+  challenge_nonce: string | null;
+  challenge_expires_at: string | null;
+  last_seen_at: string;
+}
+
+/** Stores (or refreshes) a device's uploaded SPKI public-key certificate. */
+export async function registerDeviceKey(
+  userId: string,
+  deviceId: string,
+  spki: string,
+  strongbox: boolean
+): Promise<DeviceKey> {
+  const { data, error } = await db()
+    .from("device_keys")
+    .upsert(
+      {
+        user_id: userId,
+        device_id: deviceId,
+        public_key_spki: spki,
+        strongbox,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,device_id" }
+    )
+    .select()
+    .single<DeviceKey>();
+
+  if (error) throw dbError(error);
+  return data;
+}
+
+/** Fetches a single device key row, or null when the device has never registered. */
+export async function getDeviceKey(
+  userId: string,
+  deviceId: string
+): Promise<DeviceKey | null> {
+  const { data, error } = await db()
+    .from("device_keys")
+    .select()
+    .eq("user_id", userId)
+    .eq("device_id", deviceId)
+    .maybeSingle<DeviceKey>();
+
+  if (error) throw dbError(error);
+  return data;
+}
+
+/** Stores one pending challenge nonce for a device; replaces any previous one. */
+export async function setDeviceChallenge(
+  userId: string,
+  deviceId: string,
+  nonce: string,
+  expiresAt: string
+): Promise<void> {
+  const { error } = await db()
+    .from("device_keys")
+    .update({ challenge_nonce: nonce, challenge_expires_at: expiresAt })
+    .eq("user_id", userId)
+    .eq("device_id", deviceId);
+
+  if (error) throw dbError(error);
+}
+
+/** Clears a device's pending challenge after it has been used or expired. */
+export async function clearDeviceChallenge(
+  userId: string,
+  deviceId: string
+): Promise<void> {
+  const { error } = await db()
+    .from("device_keys")
+    .update({ challenge_nonce: null, challenge_expires_at: null })
+    .eq("user_id", userId)
+    .eq("device_id", deviceId);
+
+  if (error) throw dbError(error);
+}

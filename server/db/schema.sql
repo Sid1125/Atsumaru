@@ -109,6 +109,24 @@ create table if not exists push_tokens (
   unique (user_id, token)
 );
 
+-- Hardware-backed device identities (Android Keystore/StrongBox). Each device uploads the
+-- SPKI certificate of a non-exportable key it generated inside the TEE, then proves
+-- possession by signing a challenge nonce (docs/TRD.md device-identity section).
+-- `challenge_*` holds at most one pending proof per device; the nonce expires so a stale
+-- signature cannot be replayed. The API is the only reader of this SPKI — proof of
+-- possession is verified in code, never by a client.
+create table if not exists device_keys (
+  user_id uuid not null references users (id) on delete cascade,
+  device_id text not null,
+  public_key_spki text not null,
+  strongbox boolean not null default false,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  challenge_nonce text,
+  challenge_expires_at timestamptz,
+  primary key (user_id, device_id)
+);
+
 -- One cached vibe recap per member per finished meetup (docs/AI.md §6a).
 -- Keyed by user, not just event: the text is derived from the caller's own ratings, so
 -- two members see different recaps and neither can infer the other's picks
@@ -329,4 +347,5 @@ alter table feedback enable row level security;
 alter table connections enable row level security;
 alter table oauth_identities enable row level security;
 alter table push_tokens enable row level security;
+alter table device_keys enable row level security;
 alter table meetup_recaps enable row level security;

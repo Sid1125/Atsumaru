@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { authApi } from "../../../services/api/auth";
 import { getAccessToken } from "../../../services/storage/session";
+import { registerDeviceIdentity } from "../../../services/deviceIdentity/deviceIdentity";
 import { useAuthStore } from "../../../store";
 
 /**
@@ -34,6 +35,12 @@ export function useSession() {
       setUser(query.data.user ?? null);
       setAuthenticated(query.data.authenticated);
       setBootstrapped(true);
+
+      // Signed-in on a real device: prove possession of the Keystore key. Fire-and-forget,
+      // never blocks boot, never reads the result (registerDeviceIdentity swallows errors).
+      if (query.data.authenticated) {
+        void registerDeviceIdentity();
+      }
     }
 
     // A failed /auth/me means the stored token is dead — fall back to signed out

@@ -1,9 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
+import { createPublicKey, randomBytes } from "node:crypto";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
-import { db, publicUser } from "../../db/queries.js";
+import {
+  clearDeviceChallenge,
+  db,
+  getDeviceKey,
+  publicUser,
+  registerDeviceKey,
+  setDeviceChallenge,
+} from "../../db/queries.js";
+import { verifyDeviceSignature } from "./deviceIdentity.js";
 import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
@@ -95,4 +104,114 @@ usersRouter.get(
   "/:id",
   requireAuth,
   asyncRoute(async (req, res) => ok(res, { user: await publicUser(param(req, "id")) }))
+);
+
+// ── Hardware-backed device identity ──────────────────────────────────────────
+// The device generates an ECDSA P-256 key inside the Android Keystore (private key
+// never leaves hardware), uploads the SPKI certificate, then proves possession by
+// signing a challenge nonce. RLS stays on; every access below uses the service-role key.
+
+const deviceSchema = z.object({
+  device_id: z.string().min(1).max(80),
+  public_key: z
+    .string()
+    .min(1)
+    .refine((s) => {
+      try {
+        createPublicKey({
+          key: Buffer.from(s, "base64"),
+          format: "der",
+          type: "spki",
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Expected a base64 SPKI certificate."),
+  strongbox: z.boolean().optional(),
+});
+
+const verifyDeviceSchema = z.object({
+  device_id: z.string().min(1).max(80),
+  signed_nonce: z.string().min(1),
+});
+
+/** A challenge lasts ~2 minutes and is single-use — long enough to sign, not to replay. */
+const CHALLENGE_TTL_MS = 2 * 60 * 1000;
+
+usersRouter.post(
+  "/me/device",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const parsed = deviceSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", "Invalid device payload.");
+    }
+
+    const device = await registerDeviceKey(
+      req.userId!,
+      parsed.data.device_id,
+      parsed.data.public_key,
+      parsed.data.strongbox ?? false
+    );
+
+    return ok(res, { device_id: device.device_id, registered: true });
+  })
+);
+
+usersRouter.get(
+  "/me/device/challenge",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const deviceId = String(req.query.device_id ?? "");
+
+    if (!deviceId) {
+      throw new HttpError(400, "INVALID_QUERY", "device_id is required.");
+    }
+
+    const device = await getDeviceKey(req.userId!, deviceId);
+    if (!device) {
+      throw new HttpError(404, "DEVICE_NOT_FOUND", "Device has not been registered.");
+    }
+
+    const nonce = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS).toISOString();
+
+    await setDeviceChallenge(req.userId!, deviceId, nonce, expiresAt);
+
+    return ok(res, { nonce });
+  })
+);
+
+usersRouter.post(
+  "/me/device/verify",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const parsed = verifyDeviceSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", "Invalid verification payload.");
+    }
+
+    const { device_id, signed_nonce } = parsed.data;
+    const device = await getDeviceKey(req.userId!, device_id);
+
+    if (
+      !device ||
+      !device.challenge_nonce ||
+      !device.challenge_expires_at ||
+      new Date(device.challenge_expires_at).getTime() < Date.now()
+    ) {
+      throw new HttpError(401, "DEVICE_UNVERIFIED", "No valid challenge for this device.");
+    }
+
+    if (!verifyDeviceSignature(device.public_key_spki, device.challenge_nonce, signed_nonce)) {
+      throw new HttpError(401, "DEVICE_UNVERIFIED", "Signature does not match this device's public key.");
+    }
+
+    await clearDeviceChallenge(req.userId!, device_id);
+
+    return ok(res, { verified: true });
+  })
 );

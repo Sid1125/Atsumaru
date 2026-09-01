@@ -6,7 +6,7 @@ Legend: `[x]` done and verified · `[~]` code complete, not verified against a l
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 49/49 passing, and **the backend proven against a live Supabase project**
+`npm test` 53/53 passing, and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -165,6 +165,35 @@ chips**. No schema/score/matching change; tags still flow into the same `prefere
       in en/ja/zh. Demo world + server seed each gained 5 events (one per new category).
       Filter chips scroll horizontally so layout fits. Typecheck + 49/49 green.
 
+### 0c. Hardware-backed device identity — [~] code complete 2026-09-01, needs dev build + live run
+
+Chosen over Nitro Enclaves (server-side TEE): client-side **Android Keystore key**
+(ECDSA P-256, non-exportable, StrongBox where available) proven to the server once at
+sign-in by signing a challenge nonce — a real "same physical device" signal, not a
+device id alone. Decision reasoning + the client+minimal-server scope locked with the
+user in `context.md` §16. verify-at-login only (not per-request); no lock-screen/biometric
+gate or Play Integrity attestation yet.
+
+- [x] Native module `android/app/src/main/java/com/atsumaru/app/keystore/`
+      (`AtsumaruKeystoreModule` + `AtsumaruKeystorePackage`) — generate/getPublicKeySPKI/
+      sign/isHardwareBacked/delete over the Android Keystore; registered manually in
+      `MainApplication.kt` (cannot be autolinked, lives in-app)
+- [x] `src/services/deviceIdentity/keystore.ts` — gated wrapper (deferred read of
+      `NativeModules`, Expo Go safe, mirrors the `mapbox.ts` convention) +
+      `deviceIdentity.ts` — per-install device id in SecureStore, register → challenge →
+      verify on the server; best-effort, never blocks or fails sign-in
+- [x] Server: `migrations/005_device_keys.sql` + `schema.sql` mirror — `device_keys`
+      (PK `(user_id, device_id)`, SPKI cert, `strongbox`, one pending `challenge_nonce`
+      with expiry), RLS on. Query fns in `queries.ts`; routes
+      `POST /users/me/device`, `GET /users/me/device/challenge` (32-byte nonce, ~2-min
+      TTL, single-use), `POST /users/me/device/verify` (SHA256 with stored SPKI)
+- [x] Client wiring: fire-and-forget after OAuth exchange and on session restore;
+      interceptor sets `X-Device-Id` once resolved; demo mode returns a simulated
+      `{ verified: true }` with no network call
+- [x] Verified: `npm run typecheck` (server + mobile) clean; `npm test` 53/53 (new
+      `deviceIdentity.test.ts` covers the SPKI/signature round-trip + tamper/expiry)
+- [ ] Native module actually runs (needs `expo run:android` dev build; Expo Go cannot
+      load it) and the live DB holds a device row
 
 ### 1. Prove the backend against a real project — DONE 2026-08-30
 
