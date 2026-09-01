@@ -7,13 +7,28 @@
 
 import { colors } from "./theme";
 
-export const CATEGORY_ORDER = ["food", "gaming", "arts", "outdoor"] as const;
+export const CATEGORY_ORDER = [
+  "food",
+  "gaming",
+  "arts",
+  "outdoor",
+  "music",
+  "wellness",
+  "travel",
+  "learning",
+  "sports",
+] as const;
 
 export const CATEGORY_GLYPH: Record<string, string> = {
   food: "🍜",
   gaming: "🎮",
   arts: "🎨",
   outdoor: "🥾",
+  music: "🎸",
+  wellness: "🧘",
+  travel: "🗺️",
+  learning: "📚",
+  sports: "⚽",
 };
 
 export function categoryGlyph(category: string): string {

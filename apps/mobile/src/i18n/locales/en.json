@@ -60,7 +60,12 @@
       "food": "Food",
       "gaming": "Games",
       "arts": "Art",
-      "outdoor": "Outdoor"
+      "outdoor": "Outdoor",
+      "music": "Music",
+      "wellness": "Wellness",
+      "travel": "Travel",
+      "learning": "Learning",
+      "sports": "Sports"
     },
     "groupFit": "{{score}}% group fit",
     "size": "{{current}}/{{max}} people",

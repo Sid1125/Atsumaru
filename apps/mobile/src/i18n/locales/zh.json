@@ -60,7 +60,12 @@
       "food": "美食",
       "gaming": "游戏",
       "arts": "艺术",
-      "outdoor": "户外"
+      "outdoor": "户外",
+      "music": "音乐",
+      "wellness": "健康",
+      "travel": "旅行",
+      "learning": "学习",
+      "sports": "运动"
     },
     "groupFit": "小组契合度 {{score}}%",
     "size": "{{current}}/{{max}} 人",

@@ -885,5 +885,16 @@ data path exists; the gap is that nobody *asks*.
    (and re-rendering the transcript). Demo turn 1 asks the same and echoes the current
    choice. This sets both the chat language and the app-language setting.
 3. Verified: `npm run typecheck` (server + mobile) green; `npm test` 49/49.
+4. **Gross roots.** Raised the interests ceiling 12 → 30 (`ai.ts`, `onboarding/routes.ts`,
+   `users/routes.ts`) so the system accepts a much richer list, and widened the prompt to
+   probe distinct activity categories (outdoor/food/creative/games/travel/social/wellness)
+   across a 4-6 exchange chat, extracting 8-15 diverse interests. Demo mirror:
+   `INTEREST_VOCAB` grew 10 → ~28 activity types (cooking, cycling, film, gym, yoga,
+   swimming, camping, climbing, karaoke, izakaya, live shows, fish, pets, skiing, onsen,
+   volunteer, gardening, travel, reading…), `FOLLOW_UPS` now probe 7 categories, and
+   personality Q moved to turn 4 with extraction done at turn 9+. Live Groq run returned
+   9 diverse interests (prev ~3-4). NOTE: model still self-limits chat length and its
+   offered trait list can drift to a non-vocab word (e.g. "social") — extraction discards
+   it, harmless.
 
 

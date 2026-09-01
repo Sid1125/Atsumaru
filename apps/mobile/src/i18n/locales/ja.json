@@ -60,7 +60,12 @@
       "food": "グルメ",
       "gaming": "ゲーム",
       "arts": "アート",
-      "outdoor": "アウトドア"
+      "outdoor": "アウトドア",
+      "music": "音楽",
+      "wellness": "ウェルネス",
+      "travel": "旅行",
+      "learning": "学び",
+      "sports": "スポーツ"
     },
     "groupFit": "グループ相性 {{score}}%",
     "size": "{{current}}/{{max}}人",

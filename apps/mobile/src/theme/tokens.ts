@@ -120,6 +120,11 @@ export const colors = {
     gaming: { bg: "#FF2E93", on: "#171717" },
     arts: { bg: "#8A4FFF", on: "#FFFFFF" },
     outdoor: { bg: "#7A9E7E", on: "#171717" },
+    music: { bg: "#00F0FF", on: "#171717" },
+    wellness: { bg: "#2FBFB3", on: "#171717" },
+    travel: { bg: "#2E6FB7", on: "#FFFFFF" },
+    learning: { bg: "#5B5BD6", on: "#FFFFFF" },
+    sports: { bg: "#46A84B", on: "#171717" },
   } as const,
 } as const;
 

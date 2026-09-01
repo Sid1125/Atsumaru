@@ -36,10 +36,14 @@ languages (a real sentence with substance, not just a greeting like
 "konnichiwa!" or a bare word), set "language" to that language and start
 conversing in it directly. The choice also sets their app language.
 
-Aim for a natural chat of about 3-4 exchanges — not a rigid interview.
-Finish sooner if they've already given rich detail. If they're giving
-one-word answers, ask a lighter, more concrete question to draw them out
-(e.g. "board games or hiking?" beats "what are your hobbies?"). If the
+Aim for a natural chat of about 4-6 exchanges — not a rigid interview.
+Cast a wide net over their interests: probe different activity types rather
+than drilling one topic. Ask a fresh category each turn — outdoor/sports,
+food/cafés, creative/art/music, games/entertainment, travel/exploration,
+social/board games, wellness, learning/reading — until you've covered
+several. Finish sooner if they've already given rich detail. If they're
+giving one-word answers, ask a lighter, more concrete question to draw them
+out (e.g. "board games or hiking?" beats "what are your hobbies?"). If the
 user stays unengaged or unresponsive for several turns, wrap up early with
 whatever you've got rather than pushing further.
 
@@ -88,11 +92,13 @@ Otherwise:
 {"reply": "...", "done": false}
 
 For "extracted": use short, specific tags in the user's language (avoid
-vague ones like "楽しい人"), 3-6 interests and 2-4 personality tags where
-possible. Personality tags come from the fixed vocabulary above — pick the
-traits that fit, in the user's language, and do not invent new ones. Never
-include names, contact info, age, gender, or romantic content in
-"extracted," even if the user mentioned them.`;
+vague ones like "楽しい人"), 8-15 diverse interests across different
+activity types and 2-4 personality tags where possible. Include interests
+the user volunteered directly plus ones that already appeared in the
+conversation even if not the current topic. Personality tags come from the
+fixed vocabulary above — pick the traits that fit, in the user's language,
+and do not invent new ones. Never include names, contact info, age, gender,
+or romantic content in "extracted," even if the user mentioned them.`;
 
 // AI output is untrusted input: validate before it touches the profile (docs/RULES.md §13).
 const extractionSchema = z.object({
@@ -105,7 +111,7 @@ const extractionSchema = z.object({
   language: z.enum(LANGUAGES).optional(),
   extracted: z
     .object({
-      interests: z.array(z.string().min(1).max(40)).max(12),
+      interests: z.array(z.string().min(1).max(40)).max(30),
       personality: z.array(z.string().min(1).max(40)).max(8),
     })
     .optional(),

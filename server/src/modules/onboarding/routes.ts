@@ -30,7 +30,7 @@ const completeSchema = z.object({
   handle: z.string().regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore"),
   display_name: z.string().min(1).max(40),
   language: z.enum(LANGUAGES),
-  interests: z.array(z.string().min(1).max(40)).min(1).max(12),
+  interests: z.array(z.string().min(1).max(40)).min(1).max(30),
   personality: z.array(z.string().min(1).max(40)).max(8),
 });
 

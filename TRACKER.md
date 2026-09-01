@@ -149,6 +149,21 @@ chips**. No schema/score/matching change; tags still flow into the same `prefere
 - [x] **Host asks language first** — first turn asks the chat/app language (ja/en/zh),
       returns it as `language` in the JSON; client applies it via `setLanguage`, flipping
       the whole app + transcript. Mirrored in the demo (turn 1 asks, echoes the choice)
+- [x] **Language follows the user** — never guessed from name/handle/greeting; set only
+      after an explicit answer OR when the user keeps writing substantive content in one
+      of the three languages (then the host adopts it and converses directly). Verified
+      against live Groq: no-guess + stated-answer + adopted-language paths all work.
+- [x] **Interest ceiling 12 → 30** (`ai.ts`, `onboarding/routes.ts`, `users/routes.ts`) so
+      the system accepts dramatically more interests
+- [x] **Wider interest net** — prompt probes distinct activity categories across a 4-6
+      exchange chat and extracts 8-15 diverse interests. Demo `INTEREST_VOCAB` grew
+      10 → ~28 activity types; `FOLLOW_UPS` probe 7 categories. Live Groq returned
+      9 diverse interests (prev ~3-4). Verified `npm run typecheck` + `npm test` 49/49.
+- [x] **Meetup categories 4 → 9** — added music, wellness, travel, learning, sports to
+      `CATEGORY_ORDER`/`CATEGORY_GLYPH` (categoryMeta.ts) with new WCAG-AA sticker
+      `{bg,on}` pairs in `colors.sticker` (tokens.ts). New `discover.categories.*` labels
+      in en/ja/zh. Demo world + server seed each gained 5 events (one per new category).
+      Filter chips scroll horizontally so layout fits. Typecheck + 49/49 green.
 
 
 ### 1. Prove the backend against a real project — DONE 2026-08-30

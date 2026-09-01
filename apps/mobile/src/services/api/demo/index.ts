@@ -214,6 +214,25 @@ const INTEREST_VOCAB: Record<string, string[]> = {
   art: ["art", "draw", "paint", "museum", "design", "アート", "艺术"],
   music: ["music", "band", "concert", "音楽", "音乐"],
   running: ["run", "running", "jog", "marathon", "ランニング"],
+  traveling: ["travel", "trip", "abroad", "旅行", "旅游"],
+  reading: ["read", "book", "novel", "読書", "阅读"],
+  cooking: ["cook", "bake", "kitchen", "料理", "做饭"],
+  film: ["movie", "film", "cinema", "映画", "电影"],
+  cycling: ["cycle", "cycling", "bike", "自転車", "骑车"],
+  gym: ["gym", "fitness", "workout", "strength", "ジム", "健身房"],
+  yoga: ["yoga", "meditation", "stretch", "ヨガ", "瑜伽"],
+  swimming: ["swim", "swimming", "pool", "水泳", "游泳"],
+  camping: ["camp", "camping", "tent", "キャンプ", "露营"],
+  climbing: ["climb", "bouldering", "クライミング", "攀岩"],
+  karaoke: ["karaoke", "カラオケ", "卡拉ok"],
+  izakaya: ["izakaya", "bar", "drinks", "居酒屋", "日式酒馆"],
+  live: ["live", "concert", "festival", "ライブ", "现场"],
+  fishing: ["fish", "fishing", "釣り", "钓鱼"],
+  pets: ["pet", "dog", "cat", "ペット", "宠物"],
+  skiing: ["ski", "snowboard", "スキー", "滑雪"],
+  onsen: ["onsen", "spa", "hot spring", "温泉", "温泉"],
+  volunteering: ["volunteer", "community", "ボランティア", "志愿"],
+  gardening: ["garden", "plants", "ガーデニング", "园艺"],
 };
 
 // Mirrors the fixed onboarding chip vocabulary (`src/onboardingPersonality.ts`): each
@@ -241,19 +260,31 @@ function extractFrom(text: string, vocab: Record<string, string[]>): string[] {
 
 const FOLLOW_UPS: Record<Language, string[]> = {
   en: [
-    "Nice! What does a good weekend look like for you?",
-    "Love that. Do you usually go with people, or is it more of a solo thing?",
-    "Got it — one more: what's something you'd want to try with a small group?",
+    "Nice! What does a good weekend look like for you?",          // 0: outdoor/activity
+    "Do you cook or eat out more? Any favourite food spots?",     // 1: food
+    "Which vibe fits you best from this list?",                   // 2: personality ask
+    "Into anything creative — music, art, photography?",          // 3: creative
+    "Ever travel somewhere just for food or a hobby meetup?",     // 4: travel
+    "Do you prefer groups or one-on-one hangouts?",               // 5: social
+    "What's something you'd love to try with a small group?",    // 6: wrap-up
   ],
   ja: [
     "いいですね！ 週末はどんなふうに過ごしますか？",
-    "素敵です。誰かと一緒に行くことが多いですか、それとも一人ですか？",
-    "なるほど。最後に、少人数で挑戦してみたいことはありますか？",
+    "ご飯は自炊が多いですか、外食が多いですか？おすすめの食べ物はありますか？",
+    "あなたの雰囲気を教えてください。以下から当てはまるものを選んでみてください。",
+    "音楽やアート、写真などクリエイティブなことは好きですか？",
+    "食べ物や趣味のMeetupのために旅行したりしたことはありますか？",
+    "グループと一緒か、少人数の方がいいですか？",
+    "最後に、少人数で挑戦してみたいことはありますか？",
   ],
   zh: [
     "不错！你周末一般都做些什么？",
-    "很好。你通常和朋友一起，还是喜欢一个人？",
-    "明白了。最后一个问题：有什么想和小组一起尝试的事情吗？",
+    "你通常自己做饭还是在外面吃？有什么喜欢的餐厅或美食吗？",
+    "能说说你的性格或风格吗？从下面选几个最像你的。",
+    "有没有什么和艺术、音乐或摄影相关的爱好？",
+    "你会因为某种美食或者兴趣活动专门去旅行吗？",
+    "你更喜欢大群人一起玩，还是两三个人的局？",
+    "最后一个问题：有什么想和小组一起尝试的事情吗？",
   ],
 };
 
@@ -284,18 +315,23 @@ function onboardingChat(messages: ChatTurn[], language: Language) {
     };
   }
 
-  // Second turn: the host asks the personality question, so show the trait tray.
-  if (count === 2) {
+  // Turn 2-3: probe different activity types (food, outdoor).
+  if (count <= 3) {
+    return { reply: follow[count - 2], done: false, language };
+  }
+
+  // Turn 4: the host asks the personality question, so show the trait tray.
+  if (count === 4) {
     return {
-      reply: follow[0],
+      reply: follow[2],
       done: false,
       language,
       showPersonality: true,
     };
   }
 
-  // Wraps up once enough turns (interests + any tapped personality chips) landed.
-  if (count < 5) {
+  // Turns 5-8: probe creative / travel / social / wrap-up.
+  if (count < 9) {
     return {
       reply: follow[Math.min(count - 2, follow.length - 1)]!,
       done: false,

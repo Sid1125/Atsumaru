@@ -12,7 +12,7 @@ import { LANGUAGES } from "../../types.js";
 const patchSchema = z.object({
   display_name: z.string().min(1).max(40).optional(),
   avatar_url: z.string().url().nullable().optional(),
-  interests: z.array(z.string().min(1).max(40)).max(12).optional(),
+  interests: z.array(z.string().min(1).max(40)).max(30).optional(),
   language: z.enum(LANGUAGES).optional(),
   location: z
     .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
