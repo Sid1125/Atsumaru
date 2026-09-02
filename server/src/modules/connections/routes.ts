@@ -13,10 +13,13 @@ import {
 } from "../../db/queries.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { pageParams, param } from "../../utils/request.js";
+import { createRateLimiter } from "../../utils/rateLimit.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
 export const connectionsRouter = Router();
+
+const dmSendLimiter = createRateLimiter({ limit: 120, windowMs: 60 * 60 * 1000 });
 
 // Only mutual unlocks are visible, and only to the two participants.
 connectionsRouter.get(
@@ -55,6 +58,11 @@ connectionsRouter.post(
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
     await requireConnection(param(req, "id"), req.userId!);
+
+    if (!dmSendLimiter.take(req.userId!)) {
+      res.setHeader("Retry-After", dmSendLimiter.retryAfter(req.userId!));
+      throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
+    }
 
     const parsed = bodySchema.safeParse(req.body);
 

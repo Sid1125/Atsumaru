@@ -9,6 +9,7 @@ import {
   requireConnection,
   requireMembership,
 } from "../db/queries.js";
+import { createRateLimiter } from "../utils/rateLimit.js";
 
 interface SocketData {
   userId: string;
@@ -20,6 +21,11 @@ type Events = Record<string, (payload: any) => void>;
 type AppServer = Server<Events, Events, Events, SocketData>;
 
 let server: AppServer | null = null;
+
+// Per-user send budgets, matching the REST fallbacks (§19.1 chat/DM): a single socket
+// connection can otherwise flood a room or a DM faster than any membership check.
+const groupSendLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 60 * 1000 });
+const dmSendLimiter = createRateLimiter({ limit: 120, windowMs: 60 * 60 * 1000 });
 
 /** Rooms: group:{event_id}, dm:{connection_id}, user:{user_id} (docs/API_STRUCTURE.md §4). */
 export function attachSocket(httpServer: HttpServer) {
@@ -77,6 +83,11 @@ export function attachSocket(httpServer: HttpServer) {
           return;
         }
 
+        if (!groupSendLimiter.take(userId)) {
+          socket.emit("error", { code: "RATE_LIMITED", event_id });
+          return;
+        }
+
         try {
           await requireMembership(event_id, userId);
           const saved = await insertMessage("event_id", event_id, userId, message);
@@ -103,6 +114,11 @@ export function attachSocket(httpServer: HttpServer) {
       async ({ connection_id, message }: { connection_id: string; message: string }) => {
         if (typeof message !== "string" || message.length < 1 || message.length > 2000) {
           socket.emit("error", { code: "INVALID_MESSAGE", connection_id });
+          return;
+        }
+
+        if (!dmSendLimiter.take(userId)) {
+          socket.emit("error", { code: "RATE_LIMITED", connection_id });
           return;
         }
 

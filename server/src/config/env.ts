@@ -7,6 +7,16 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   CORS_ORIGIN: z.string().default("*"),
 
+  /**
+   * When set, the API trusts the leftmost `X-Forwarded-For` entry as the client IP
+   * (behind a reverse proxy / load balancer). Off by default, so an attacker cannot
+   * forge the header to reset or redirect the IP-keyed auth rate limits.
+   */
+  TRUST_PROXY: z
+    .string()
+    .default("false")
+    .transform((value) => value === "true" || value === "1"),
+
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
@@ -61,5 +71,6 @@ export const hasGoogle = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 export const hasRedis = !!env.REDIS_URL;
 
 if (env.NODE_ENV === "production" && env.AUTH_STATE_SECRET.startsWith("atsumaru-dev")) {
-  console.warn("AUTH_STATE_SECRET is still the development default — set a real one.");
+  console.error("AUTH_STATE_SECRET is still the development default — refusing to boot in production.");
+  process.exit(1);
 }

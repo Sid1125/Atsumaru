@@ -143,6 +143,23 @@ export async function requireMembership(eventId: string, userId: string) {
   if (!data) throw new HttpError(403, "NOT_A_MEMBER", "You are not in this group.");
 }
 
+/**
+ * Pure gate for reading a connection's DMs (docs/RULES.md: "Only mutual picks create a
+ * connection"). A user may only read a conversation they are one of the two members of,
+ * and only once it is mutual. Extracted so the negative cases are unit-testable without a
+ * database: a third party, a non-mutual row, and a missing row all resolve to false.
+ */
+export function canAccessConnection(
+  userId: string,
+  connection: Pick<ConnectionRow, "id" | "user_a" | "user_b" | "mutual"> | null
+): boolean {
+  if (!connection) return false;
+  return (
+    connection.mutual &&
+    (connection.user_a === userId || connection.user_b === userId)
+  );
+}
+
 /** DMs are only reachable through an unlocked mutual connection. */
 export async function requireConnection(connectionId: string, userId: string) {
   const { data, error } = await db()
@@ -153,7 +170,7 @@ export async function requireConnection(connectionId: string, userId: string) {
 
   if (error) throw dbError(error);
 
-  if (!data || !data.mutual || (data.user_a !== userId && data.user_b !== userId)) {
+  if (!canAccessConnection(userId, data)) {
     throw new HttpError(403, "NO_CONNECTION", "No unlocked connection.");
   }
 

@@ -14,8 +14,21 @@ interface Counter {
   resetAt: number;
 }
 
+/** Drops expired counters so a limiter's map cannot grow without bound. */
+function prune(counters: Map<string, Counter>, now = Date.now()) {
+  for (const [key, counter] of counters) {
+    if (counter.resetAt <= now) counters.delete(key);
+  }
+}
+
 export function createRateLimiter({ limit, windowMs }: RateLimit) {
   const counters = new Map<string, Counter>();
+
+  // A per-process limiter is spread across many keys (auth by IP, others by user). A key
+  // that stops appearing would otherwise stay in the map forever, so each limiter is
+  // pruned periodically and unref'd so it never keeps the process alive (§19 / §7).
+  const timer = setInterval(() => prune(counters), windowMs);
+  timer.unref?.();
 
   return {
     /** True when the call is allowed; false when the caller is over budget. */
@@ -44,9 +57,7 @@ export function createRateLimiter({ limit, windowMs }: RateLimit) {
 
     /** Drops expired counters so the map cannot grow without bound. */
     prune(now = Date.now()) {
-      for (const [key, counter] of counters) {
-        if (counter.resetAt <= now) counters.delete(key);
-      }
+      prune(counters, now);
     },
   };
 }

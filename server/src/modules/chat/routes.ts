@@ -4,12 +4,17 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { insertMessage, listMessages, requireMembership } from "../../db/queries.js";
+import { createRateLimiter } from "../../utils/rateLimit.js";
 import { HttpError, ok } from "../../utils/response.js";
 import { pageParams, param } from "../../utils/request.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
 export const chatRouter = Router();
+
+// Per-user send budget; keyed by user (not IP) so a shared network cannot be throttled
+// together, and high enough that a real conversation never trips it (§19.1 chat).
+const sendLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 60 * 1000 });
 
 // REST fallback for group chat; realtime path is socket/index.ts.
 chatRouter.get(
@@ -29,6 +34,11 @@ chatRouter.post(
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
     await requireMembership(param(req, "id"), req.userId!);
+
+    if (!sendLimiter.take(req.userId!)) {
+      res.setHeader("Retry-After", sendLimiter.retryAfter(req.userId!));
+      throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
+    }
 
     const parsed = bodySchema.safeParse(req.body);
 

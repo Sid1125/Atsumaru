@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
+import { createRateLimiter } from "../../utils/rateLimit.js";
 import { db, PUBLIC_USER_COLUMNS, type PublicUser } from "../../db/queries.js";
 import { env } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
@@ -29,6 +30,47 @@ import {
 } from "./session.js";
 
 export const authRouter = Router();
+
+// Auth endpoints have no user context yet, so they rate-limit by IP. The handoff-code
+// exchange is the tightest budget: it is an unauthenticated brute-force surface for the
+// 60-second, single-use codes that mint full sessions (docs/ATSUMARU_SECURITY_COMPLETE §19.1
+// marks session exchange "Very strict"). OAuth initiation and callback are looser so a
+// legitimately flaky provider round-trip is not collateral damage.
+export const AUTH_RATE_LIMITS = {
+  session: { limit: 20, windowMs: 60 * 1000 },
+  callback: { limit: 30, windowMs: 60 * 1000 },
+  provider: { limit: 30, windowMs: 60 * 1000 },
+} as const;
+
+const sessionLimiter = createRateLimiter(AUTH_RATE_LIMITS.session);
+const callbackLimiter = createRateLimiter(AUTH_RATE_LIMITS.callback);
+const providerLimiter = createRateLimiter(AUTH_RATE_LIMITS.provider);
+
+function clientIp(req: import("express").Request): string {
+  // Only trust X-Forwarded-For when a reverse proxy is actually in front; otherwise the
+  // header is attacker-controlled and keying the limiter on it would let anyone rotate
+  // or redirect budgets (docs/ATSUMARU_SECURITY_COMPLETE §19.3).
+  if (env.TRUST_PROXY) {
+    const forwarded = req.headers["x-forwarded-for"];
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    if (first) return first.slice(0, 64);
+  }
+  return (req.socket.remoteAddress ?? "").slice(0, 64);
+}
+
+/** Throws 429 when the client is over budget; the caller can short-circuit before work. */
+function enforceLimit(
+  limiter: ReturnType<typeof createRateLimiter>,
+  req: import("express").Request,
+  res: import("express").Response
+) {
+  const key = clientIp(req);
+
+  if (!limiter.take(key)) {
+    res.setHeader("Retry-After", limiter.retryAfter(key));
+    throw new HttpError(429, "RATE_LIMITED", "Too many attempts. Try again later.");
+  }
+}
 
 authRouter.get(
   "/me",
@@ -67,6 +109,8 @@ authRouter.post(
 authRouter.get(
   "/callback",
   asyncRoute(async (req, res) => {
+    enforceLimit(callbackLimiter, req, res);
+
     // A provider-side denial arrives as ?error, not as a code. Supabase forwards Google's
     // refusal the same way.
     if (typeof req.query.error === "string") {
@@ -137,6 +181,8 @@ const sessionSchema = z.object({ code: z.string().min(1).max(200) });
 authRouter.post(
   "/session",
   asyncRoute(async (req, res) => {
+    enforceLimit(sessionLimiter, req, res);
+
     const parsed = sessionSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -163,6 +209,8 @@ authRouter.post(
 authRouter.get(
   "/:provider",
   asyncRoute(async (req, res, next) => {
+    enforceLimit(providerLimiter, req, res);
+
     const provider = param(req, "provider");
 
     if (!isProvider(provider)) return next();

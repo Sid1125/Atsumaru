@@ -251,6 +251,39 @@ changes. Framing numbers shared by both live in `framing.ts`.
   gesture** — the gesture layer transforms the container so panning stays on the
   compositor.
 
+## Hardware-backed device identity
+
+A per-install ECDSA P-256 key generated inside the Android Keystore (private key
+non-exportable, StrongBox where the hardware exists), proven to the server **once at
+sign-in** by signing a challenge nonce — verify-at-login, not per-request (`context.md`
+§16 for the TEE decision vs Nitro Enclaves). The client is the TEE; the server stores the
+uploaded SPKI and verifies the signature, so the key is not theater.
+
+- **Native module**: `android/app/src/main/java/com/atsumaru/app/keystore/`
+  (`AtsumaruKeystoreModule` + `AtsumaruKeystorePackage`), hand-registered in
+  `MainApplication.kt` — it lives in-app so it cannot be autolinked. **Needs an
+  `expo run:android` dev build to run; Expo Go never has it.**
+- **One TS gate**: `services/deviceIdentity/keystore.ts` is the only file that reads
+  `NativeModules.AtsumaruKeystore`, and the only place that decides availability —
+  exactly the `mapbox.ts` deferred-require / Expo Go-safe convention. Every caller treats
+  a missing module as "unavailable" and degrades silently; never import the native module
+  anywhere else.
+- **Orchestrator**: `services/deviceIdentity/deviceIdentity.ts` — SecureStore
+  per-install id, `registerDeviceIdentity()` = register SPKI → GET challenge (32-byte
+  hex nonce, ~2-min TTL, single-use) → sign raw bytes → verify. `hexToBase64` converts
+  the hex nonce to base64 **raw bytes**, matching the server's
+  `Buffer.from(nonceHex, "hex")`. Best-effort: **never throws, never blocks sign-in**;
+  `DEMO_MODE` short-circuits to `{ verified: true }`.
+- **Server**: `verifyDeviceSignature(spki, nonceHex, sig)` in
+  `modules/users/deviceIdentity.ts` uses `node:crypto` SHA256 with the stored SPKI —
+  pure, unit-tested. Routes `POST /users/me/device`, `GET /users/me/device/challenge`,
+  `POST /users/me/device/verify` in `modules/users/routes.ts`. Table `device_keys`
+  (migration `005_device_keys.sql` + schema mirror), RLS on, one pending challenge per
+  device so a stale signature cannot be replayed.
+- **Deliberate scope**: no per-request signing, no lock-screen/biometric gate
+  (`setUserAuthenticationRequired(false)`), no Play Integrity attestation — each is a
+  named follow-up, not a regression.
+
 ## Mobile conventions
 
 - Client state: TanStack Query for server data, Zustand for local UI state
@@ -319,6 +352,13 @@ builds, but Mapbox needs a `pk.*` token plus a dev build and neither exists here
 token has been issued, and Expo Go cannot load the native module. Everything verified so
 far is the vector-city branch. Refetch-on-region-settle is likewise written and unexercised,
 because only the Mapbox surface raises the event.
+
+**The Keystore native module is written but has never run either.** `AtsumaruKeystoreModule`
+compiles in the sense that the TS bundle builds, but the Kotlin code only runs in a
+`expo run:android` dev build — Expo Go cannot load it. Everything verified so far is the
+gated wrapper + the `verifyDeviceSignature` unit tests; the migration `005_device_keys.sql`
+is applied to the live project (2026-09-02) but the TEE round-trip — the actual register +
+sign + verify against the live DB — is still unexercised.
 
 The OAuth round-trip is wired but has only been exercised through the demo path — the
 provider redirect and `atsumaru://auth` handoff still need a real run against configured

@@ -1,12 +1,12 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-09-01.
+Status of the build against `docs/`. Updated 2026-09-02.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 53/53 passing, and **the backend proven against a live Supabase project**
+`npm test` 59/59 passing, and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -192,8 +192,10 @@ gate or Play Integrity attestation yet.
       `{ verified: true }` with no network call
 - [x] Verified: `npm run typecheck` (server + mobile) clean; `npm test` 53/53 (new
       `deviceIdentity.test.ts` covers the SPKI/signature round-trip + tamper/expiry)
+- [x] Migration `005_device_keys.sql` applied against live project 2026-09-02
+      (`scripts/sql.mjs`); `select count(*) from device_keys` → 0 (no rows yet, expected)
 - [ ] Native module actually runs (needs `expo run:android` dev build; Expo Go cannot
-      load it) and the live DB holds a device row
+      load it) and a real register+verify round-trip lands a `device_keys` row
 
 ### 1. Prove the backend against a real project — DONE 2026-08-30
 
@@ -604,9 +606,48 @@ tiles), not floating rects; settings = whitespace + hairline rules.
       vertices" regression from the first pass), selected = thicker coral border; LINE login
       button lime-green `#06C755`
 - [x] `npm run typecheck` green (server + mobile) after every batch
-- [ ] **Visual QA is a human-eye job on the emulator** — the model cannot read screenshots.
+- [ ] **      Visual QA is a human-eye job on the emulator** — the model cannot read screenshots.
       Discovery band, tile contrast, Profile hero and the empty/selection states were the
       handoff points
+
+### 5c. Security hardening vs ATSUMARU_SECURITY_COMPLETE.md (2026-09-02)
+
+Full audit recorded in `docs/SECURITY_AUDIT.md`. Baseline was already strong (requireAuth /
+requireMembership / requireConnection everywhere sensitive, RLS deny-all default, service-role
+server-only, signed-state + PKCE + single-use OAuth, AI gated to three jobs, no AI in chat).
+Closed the two exposed §19.1 "Very strict" rate-limit holes and added the first negative tests
+(the standard's §75 DoD had **zero**). A second line-by-line pass closed six more.
+
+- [x] **Auth rate limits** (`modules/auth/routes.ts`) — IP-keyed `AUTH_RATE_LIMITS`:
+      handoff-code `/session` 20/min (tightest, §19.1 "Very strict"), `/callback` + `/:provider`
+      30/min; `enforceLimit` → 429 + `Retry-After`
+- [x] **Feedback rate limit** (`modules/feedback/routes.ts`) — `feedbackLimiter` 10/hr keyed by
+      user (not IP, per §19.2 shared-network warning), on `POST /:id/feedback`
+- [x] **Negative authorization tests** — `canAccessConnection` extracted as a pure predicate
+      (shared REST + socket DM gate: mutual AND participant); `db/authorization.test.ts` covers
+      non-participant / non-mutual / missing
+- [x] **Auth rate-limit tests** — `modules/auth/authRateLimit.test.ts` pins the §19.1 budget
+      ordering and that the session limiter actually blocks
+- [x] **Rate-limit keying fixed** (`modules/auth/routes.ts` `clientIp`) — `X-Forwarded-For` is
+      attacker-controlled; now trusted only when `TRUST_PROXY=true`, else the socket address
+- [x] **Limiter map pruned** (`utils/rateLimit.ts`) — `prune()` was unreachable in prod; each
+      limiter now `setInterval`s an unref'd prune on its own window (no unbounded memory grow)
+- [x] **OAuth secret fails closed** (`config/env.ts`) — production refuses to boot with a dev
+      `AUTH_STATE_SECRET` instead of warning (§5.4/§41)
+- [x] **`/health` trimmed** (`index.ts`) — integration/OAuth config booleans removed; liveness
+      only (§20)
+- [x] **Malformed JSON → 400** (`middleware/errorHandler.ts`) — body-parser `entity.parse.failed`
+      mapped to 400 `INVALID_JSON` instead of a 500 (§43/§62)
+- [x] **Send/creation limits** — per-user budgets on REST + socket: group chat 300/hr, DM
+      120/hr, event-create 30/day (§19.1)
+- [x] **New tests** — `middleware/errorHandler.test.ts` (JSON→400 / 403 passthrough / generic
+      500 no-leak), auth `TRUST_PROXY` default + limiter spacing; `npm test` 59 → 64; typecheck
+      clean (server + mobile)
+- [ ] **Open** (see SECURITY_AUDIT.md): non-member reads any event's member list (product
+      tradeoff for discovery, needs a §19 browse limiter if scraped); route-level `User A cannot
+      X` tests blocked on a `db()` injection seam (`mock.module` unavailable on installed
+      `node:test`); the §22 sweep-atomicity fix (stamp after side effect) before `REDIS_URL`;
+      `/nearby` read-volume/scraping limiter (optional)
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
@@ -628,6 +669,9 @@ premium tier.
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
 | Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
+| Route-level auth tests | `requireAuth` / `requireMembership` / `requireConnection` throw the right 401/403/404/409 every place they run, but only the pure `canAccessConnection` predicate + auth limiters are under automation. Route-level `User A cannot X` tests need a `db()` injection seam — `mock.module` is unavailable on the installed `node:test`, so a handle in `db/queries.ts` is the next step |
+| Event member list | `GET /events/:id(/members)` returns the full member list + public profiles to any authenticated user (member or not). Required for discovery/match-preview pre-join; the tradeoff is an authenticated attacker can map attendance by iterating event ids. Add a §19 browse limiter if scraping appears |
+| Chat/DM send limits | **Closed 2026-09-02** — per-user budgets on REST + socket (chat 300/hr, DM 120/hr) and event-create 30/day. `/nearby` read-volume limiter still optional (§19.1 altitude methods) |
 | Expo Go vs the header | Expo Go's dev-launcher floating button covers the app's top-right profile avatar circle, so the Profile page cannot be reached in Expo Go at all — the app's own screen is fine, the launcher just wins the tap |
 | Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain |
 | `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. `004` is **not** part of this drift — it was written into `schema.sql` at the same time. See §5 |

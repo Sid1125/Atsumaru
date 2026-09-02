@@ -16,7 +16,8 @@
 > overhaul (2026-09-01, complete); §14 the recap/onboarding AI hardening + E2E pass
 > (2026-08-31); §15 the personality/interest/category onboarding work (2026-09-01,
 > complete); §16 the TEE decision + hardware-backed device identity (2026-09-01,
-> code complete, needs a dev build to run).
+> code complete, needs a dev build to run); §17 the security-hardening pass against
+> ATSUMARU_SECURITY_COMPLETE.md (2026-09-02; findings + fixes in `docs/SECURITY_AUDIT.md`).
 
 ---
 
@@ -989,9 +990,97 @@ Android Keystore goes first; Nitro Enclaves stays on the shelf.
   should check: `generate` signs without a lock-screen, `getPublicKeySPKI` round-trips
   through `createPublicKey`, `isHardwareBacked` returns true on a real secure-element
   device, and Expo Go stays on the vector city as if no native module existed.
-- **Migration not yet applied to the live project.** `005_device_keys.sql` is file +
-  `schema.sql` mirror only; apply via `node scripts/sql.mjs -f server/db/migrations/005_device_keys.sql`
-  (then `notify pgrst, 'reload schema'` if a function were involved — none here) and
-  `npm run seed -- --reset` to confirm a device row registers end to end.
+- **Migration applied to the live project 2026-09-02.** `005_device_keys.sql` ran via
+  `scripts/sql.mjs`; `select count(*) from device_keys` → 0 (no rows yet — expected before
+  any device registers). Remaining: one real register+verify round-trip (needs a dev build,
+  or a manual register against a seed-minted session) to land a row.
+
+---
+
+## 17. Session log - security hardening vs ATSUMARU_SECURITY_COMPLETE.md (2026-09-02)
+
+### The ask
+
+Audit the whole app against the 84-section security engineering standard the user supplied
+(`ATSUMARU_SECURITY_COMPLETE.md`, Downloads), flag genuine gaps vs. product tradeoffs, and
+close what is cheap.
+
+### What the audit found (evidence, not vibes)
+
+- **Posture was already strong** where it matters: `requireAuth` on every protected route;
+  `requireMembership`/`requireConnection` on chat/DM/feedback/recap (REST + socket);
+  `host_id: req.userId!` on create-event (no mass assignment); `real_name` never leaves
+  (`PUBLIC_USER_COLUMNS`/`CONNECTION_COLUMNS`); RLS **on with zero policies** = deny-all;
+  service-role key server-side only, gitignored, absent from `git ls-files`; OAuth =
+  HMAC-signed state (TTL) + PKCE claimed-once + 60s single-use handoff codes; `authDb()`
+  throwaway client avoids the session-demotion trap; AI gated to Groq×2 + HF×1 and **no AI
+  in chat**; `sanitizeRecap` rejects model-invented handles. No `SELECT *`, no raw SQL with
+  user input.
+- **Real gaps:**
+  1. **§19.1 "Very strict" auth rate limits missing.** `/auth/login`-path (`/auth/:provider`),
+     `/auth/callback`, and `/auth/session` had none — the handoff-code exchange is an
+     unauthenticated brute-force surface for the 60s single-use session codes.
+  2. **§19.1 feedback submission unrated.** It re-runs connection-unlock processing and
+     drives reputation on every call.
+  3. **§61.4/§62/§75 — zero negative/authorization tests.** All 11 test files were pure unit
+     (score, vector, oauth, session, deviceIdentity, rateLimit, request, sweep). The DoD
+     explicitly requires negative tests.
+  4. Product tradeoffs (not bugs): non-member can read any event's member list (discovery
+     needs it), handle/profile reveal account existence. Both recorded in SECURITY_AUDIT.md.
+  5. Dead, not dangerous: `SUPABASE_URL`/`SUPABASE_ANON_KEY` exported in mobile `env.ts`,
+     never imported (anon is public anyway).
+
+### What was changed
+
+- `modules/auth/routes.ts` — IP-keyed `AUTH_RATE_LIMITS`: session 20/min (tightest),
+  callback 30/min, provider 30/min; `enforceLimit` → 429 + `Retry-After`. Per-IP is a
+  known ceiling (§19.2 warns mobiles share networks); the fix is a shared Redis limiter —
+  ponytail flag: single-instance scope is fine for one API process.
+- `modules/feedback/routes.ts` — `feedbackLimiter` 10/hr keyed by **user** (authenticated),
+  sitting after `requireMembership`.
+- `db/queries.ts` — extracted `canAccessConnection` (mutual AND participant) as a pure
+  predicate now shared by `requireConnection` and socket `dm:join`/`dm:message`; unchanged
+  behavior, testable.
+- New tests: `db/authorization.test.ts` (4 negative cases), `modules/auth/authRateLimit.test.ts`
+  (2: budget ordering + actual blocking). `npm test` 53 → 59.
+- `docs/SECURITY_AUDIT.md` written; TRACKER §5c + Known-gaps rows added.
+
+### Blocked / deferred
+
+- Route-level `User A cannot X` tests need a `db()` injection seam. `node:test` `mock.module`
+  is **unavailable** on the installed Node 25.5 (`no mock`). Next step is an
+  injectable db handle in `db/queries.ts`, not fighting the loader.
+- Authentication-matrix items (missing/malformed/expired token → 401) are code-correct but
+  not automated; same for RLS User A/B (needs live Supabase + seed).
+- The §22 sweep atomicity fix (stamp after side effect) is still open and must land before
+  `REDIS_URL`.
+- Route-level tests blocked; see TRACKER §5c "Open".
+
+### Deep pass (line-by-line) — new findings and fixes (2026-09-02, second round)
+
+Re-read the full server line-by-line (auth/oauth/session, all route modules, socket, AI,
+matching, `db/queries.ts`, `schema.sql` + all migrations, mobile service layer). The
+architecture claims all held (RPCs parameterized → no SQL injection; `security_invoker` +
+pinned `search_path` in migration 001; RLS deny-all; `real_name` never leaves; AI untrusted
+input gated through zod `safeParse` + `sanitizeRecap`). Six additional findings were cheap
+and standards-mapped, so they were closed:
+
+- **Rate-limit keying was spoofable.** `clientIp` trusted `X-Forwarded-For` blindly, so any
+  attacker could rotate the header to reset budgets or pin a victim's. `config/env.ts` now
+  has `TRUST_PROXY` (default off); `clientIp` only honours the header behind a proxy.
+- **Limiter map never pruned in production** — `prune()` existed but no timer called it, so a
+  rotating-IP attacker grows memory without bound. `utils/rateLimit.ts` now `setInterval`s an
+  unref'd prune per limiter on its own window.
+- **`AUTH_STATE_SECRET` had a hardcoded dev default and prod only warned.** Now fails to boot
+  in production with the dev default (§5.4/§41). **Deployment note: set a real secret.**
+- **`/health` leaked integration + OAuth config booleans** to anyone. Now liveness-only (§20).
+- **Malformed JSON answered 500** — the body-parser `entity.parse.failed` SyntaxError fell
+  through to `INTERNAL_ERROR`. `errorHandler` now maps it to 400 `INVALID_JSON` (§43/§62).
+- **No send/creation limits on group chat, DM, or event creation.** Added per-user budgets on
+  both REST and the socket path: chat 300/hr, DM 120/hr, event-create 30/day (§19.1).
+
+New tests: `middleware/errorHandler.test.ts` (3) + auth `TRUST_PROXY`/limiter-spacing (2).
+`npm test` 59 → 64; `npm run typecheck` clean.
+
 
 

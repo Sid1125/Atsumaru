@@ -16,6 +16,7 @@ import { matchReasons } from "../matching/reasons.js";
 import type { Language } from "../../types.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
+import { createRateLimiter } from "../../utils/rateLimit.js";
 import { parseVector } from "../../utils/vector.js";
 import { chatRouter } from "../chat/routes.js";
 import { feedbackRouter } from "../feedback/routes.js";
@@ -38,6 +39,10 @@ const createSchema = z.object({
 
 /** Discovery is city-scale; a wider radius would scan the whole table. */
 const MAX_RADIUS_M = 50_000;
+
+// Event creation is a write that spawns a group; a per-user daily budget stops the map
+// being filled with noise (§19.1 event-creation is "Medium").
+const createLimiter = createRateLimiter({ limit: 30, windowMs: 60 * 60 * 24 * 1000 });
 
 export const eventsRouter = Router();
 
@@ -89,6 +94,11 @@ eventsRouter.post(
   "/",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    if (!createLimiter.take(req.userId!)) {
+      res.setHeader("Retry-After", createLimiter.retryAfter(req.userId!));
+      throw new HttpError(429, "RATE_LIMITED", "Too many meetups created. Try again later.");
+    }
+
     const parsed = createSchema.safeParse(req.body);
 
     if (!parsed.success) {

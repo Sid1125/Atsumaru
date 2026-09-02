@@ -19,14 +19,10 @@ const app = express();
 app.use(cors({ origin: env.CORS_ORIGIN }));
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/health", (_req, res) =>
-  ok(res, {
-    status: "ok",
-    supabase: hasSupabase,
-    groq: hasGroq,
-    oauth: { line: hasLine, google: hasGoogle },
-  })
-);
+// Liveness only. Integration/oauth config state is deliberately withheld: it is not
+// needed by any health probe and disclosing which providers are enabled is information
+// an unauthenticated caller should not have (docs/ATSUMARU_SECURITY_COMPLETE §20).
+app.get("/health", (_req, res) => ok(res, { status: "ok" }));
 
 app.use("/api/auth", authRouter);
 app.use("/api/onboarding", onboardingRouter);
