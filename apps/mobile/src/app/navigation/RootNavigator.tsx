@@ -6,6 +6,7 @@ import { ScreenState } from "../../components/common/ScreenState";
 import { useSession } from "../../features/auth/hooks/useSession";
 import { usePushRegistration } from "../../features/notifications/usePushRegistration";
 import { LoginScreen } from "../../screens/Auth/LoginScreen";
+import { EmailAuthScreen } from "../../screens/Auth/EmailAuthScreen";
 import { AIChatScreen } from "../../screens/Onboarding/AIChatScreen";
 import { ProfileConfirmScreen } from "../../screens/Onboarding/ProfileConfirmScreen";
 import { DiscoverScreen } from "../../screens/Discover/DiscoverScreen";
@@ -82,6 +83,7 @@ export function RootNavigator() {
       {stage === "auth" ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
+          <AuthStack.Screen name="EmailAuth" component={EmailAuthScreen} options={{ headerShown: true, title: "", ...headerOptions }} />
         </AuthStack.Navigator>
       ) : stage === "onboarding" ? (
         <OnboardingStack.Navigator screenOptions={{ ...headerOptions, title: "" }}>

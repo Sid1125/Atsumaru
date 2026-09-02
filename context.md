@@ -1082,5 +1082,56 @@ and standards-mapped, so they were closed:
 New tests: `middleware/errorHandler.test.ts` (3) + auth `TRUST_PROXY`/limiter-spacing (2).
 `npm test` 59 → 64; `npm run typecheck` clean.
 
+### Third pass — rate limiting everywhere, usage quotas, throttling, CAPTCHA (2026-09-02)
+
+User asked for five: rate limiting, usage quotas, request throttling, CAPTCHA, cost controls.
+Scoped via questions: read-side rate limits (all reads), quotas core + persisted, Turnstile on
+auth, cost-controls **skipped** (user decision — rate limits + quotas already cap Groq/HF).
+
+- **Read throttling everywhere** (`utils/readLimit.ts`): one shared per-user read budget
+  (240/min, `READ_RATE_LIMIT`) applied to every discovery/profiling GET — events
+  nearby/mine/:id/members/match-preview, connections + history, chat + DM history,
+  `/users/:id`, onboarding handle probes, recap. Auth `/me`, `users/me`, device-challenge are
+  self-reads/handshakes, left unthrottled (legit high poll).
+- **Persisted usage quotas** (migration `006_usage_quotas.sql` + `utils/quota.ts`): table
+  `usage_quotas(user_id, resource, day, usage)` + atomic `bump_quota` RPC (increment-if-under,
+  refuse-without-increment over cap, resets daily). Wired: events-created 30/day
+  (`enforceQuota` → 429), feedback-submitted 200/day (429), groq-turns 500/day (429 on
+  onboarding chat; recap uses `tryQuota` and **fails open to its template** so a passive card is
+  never 429'd). `tryQuota` also fails open on RPC error (in-process limiter is still a layer).
+  **Needs applying to the live project + `notify pgrst,'reload schema'`.**
+- **Turnstile auth gate** (`modules/auth/turnstile.ts`, `config/env.ts`): `TURNSTILE_SITE_KEY` /
+  `TURNSTILE_SECRET_KEY`, `hasTurnstile`. When configured, `POST /auth/session` requires a
+  valid widget token (`server-side siteverify`, `CAPTCHA_FAILED` 403); off by default (no keys
+  → no challenge, matches has* degrade). gated exactly like Mapbox/Keystore on mobile
+  (`services/auth/turnstile.ts` — returns undefined until site key + `react-native-webview` +
+  dev build); wired into `useOAuthLogin`.
+- Tests: `modules/auth/turnstile.test.ts` (degrade pass when unconfigured). `npm test` 64 → 65;
+  `npm run typecheck` clean (server + mobile).
+
+### Email/password auth (docs/TRD.md §17 — DONE server + client)
+
+- **Server** (`modules/auth/email.ts`, `routes.ts`): `passwordSchema` (min 8 + upper/lower/digit)
+  + `emailSchema`. `signUp` → confirmation email, **no tokens** (confirm-then-login), 409
+  `EMAIL_TAKEN`; `logIn` → single-use handoff `{ code }` redeemed via the shared
+  `POST /auth/session`; `requestPasswordReset` anti-enumeration (always `{sent:true}`);
+  `completePasswordReset` verifies recovery token + sets password on **one throwaway `authDb()`
+  client** (fixed the two-client verifyOtp/updateUser bug).
+- **Turnstile fail-closed on email surfaces**: `signUp`/`requestPasswordReset` → 503
+  `CAPTCHA_REQUIRED` when no `TURNSTILE_SECRET_KEY` (direct-hit surfaces don't default open;
+  `/auth/session` still *skips* when unconfigured).
+- **Limiters**: signup 10/hr, login 20/min, reset 10/hr, reset-complete 10/min; routes before
+  the `/:provider` catch-all.
+- **Client**: `authApi` `signup/login/requestPasswordReset/completePasswordReset`; `useEmailAuth`
+  hook (login redeems code → store `signIn`); `EmailAuthScreen` (login/signup/reset modes,
+  theme tokens); `AuthStack` + "Continue with email" on `LoginScreen`; i18n en/ja/zh.
+- Tests: `email.test.ts` (password/email schema, pure only — live Supabase keys block unit
+  testing real flows). `npm test` 65 → 68; `npm run typecheck` clean (server + mobile).
+- **Open**: `atsumaru://auth?action=recovery` deep-link → reset-complete UI is unexercised (same
+  dev-build linking as OAuth; the hook + API exist). Confirm/SMTP/redirect must be set in the
+  Supabase dashboard (see `server/.env.example` appendix). Migration 006 still needs applying to
+  the live project.
+
+
 
 

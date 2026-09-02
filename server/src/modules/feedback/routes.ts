@@ -25,6 +25,7 @@ import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import { parseVector, serializeVector } from "../../utils/vector.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
+import { enforceQuota } from "../../utils/quota.js";
 
 const submitSchema = z.object({
   ratings: z
@@ -121,6 +122,10 @@ feedbackRouter.post(
       res.setHeader("Retry-After", feedbackLimiter.retryAfter(userId));
       throw new HttpError(429, "RATE_LIMITED", "Too many submissions. Try again later.");
     }
+
+    // Persisted daily cap on top of the per-hour limiter: feedback is how reputation
+    // moves and a "Very strict" surface, so it gets a cross-restart cumulative quota too.
+    await enforceQuota(userId, "feedback_submitted", 200, res);
 
     // Feedback is post-meetup by definition (docs/PRD.md FR-09). Without this a member
     // could rate the group the moment it forms, farm the participation credit, and

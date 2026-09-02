@@ -7,6 +7,7 @@ import { insertMessage, listMessages, requireMembership } from "../../db/queries
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { HttpError, ok } from "../../utils/response.js";
 import { pageParams, param } from "../../utils/request.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
@@ -21,6 +22,7 @@ chatRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
     await requireMembership(param(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);

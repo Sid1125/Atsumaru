@@ -4,6 +4,7 @@ import { createPublicKey, randomBytes } from "node:crypto";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
 import {
   clearDeviceChallenge,
   db,
@@ -103,7 +104,10 @@ usersRouter.post(
 usersRouter.get(
   "/:id",
   requireAuth,
-  asyncRoute(async (req, res) => ok(res, { user: await publicUser(param(req, "id")) }))
+  asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
+    return ok(res, { user: await publicUser(param(req, "id")) });
+  })
 );
 
 // ── Hardware-backed device identity ──────────────────────────────────────────

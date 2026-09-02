@@ -14,6 +14,7 @@ import {
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { pageParams, param } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
@@ -26,6 +27,8 @@ connectionsRouter.get(
   "/",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
+
     const userId = req.userId!;
 
     const { data, error } = await db()
@@ -45,6 +48,7 @@ connectionsRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
     await requireConnection(param(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);

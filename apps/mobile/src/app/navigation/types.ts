@@ -1,5 +1,6 @@
 export type AuthStackParamList = {
   Login: undefined;
+  EmailAuth: undefined;
 };
 
 export type OnboardingStackParamList = {

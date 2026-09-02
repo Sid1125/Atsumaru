@@ -44,6 +44,15 @@ const schema = z.object({
   /** Signs the OAuth `state` blob. Random per deployment; a default keeps dev simple. */
   AUTH_STATE_SECRET: z.string().min(16).default("atsumaru-dev-state-secret"),
 
+  /**
+   * Cloudflare Turnstile (docs/ATSUMARU_SECURITY_COMPLETE §22). Optional: when both keys
+   * are absent the auth handoff runs without a challenge, matching the has* degrade
+   * convention. When set, /auth/session and the OAuth provider initiation require a
+   * valid turnstile token — the app's single code handoff is the brute-force surface.
+   */
+  TURNSTILE_SITE_KEY: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+
   /** Set to run the sweep through BullMQ instead of the in-process interval. */
   REDIS_URL: z.string().optional(),
 });
@@ -68,6 +77,7 @@ export const hasGroq = !!env.GROQ_API_KEY;
 export const hasEmbeddings = !!env.HUGGINGFACE_API_KEY;
 export const hasLine = !!(env.LINE_CHANNEL_ID && env.LINE_CHANNEL_SECRET);
 export const hasGoogle = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+export const hasTurnstile = !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY);
 export const hasRedis = !!env.REDIS_URL;
 
 if (env.NODE_ENV === "production" && env.AUTH_STATE_SECRET.startsWith("atsumaru-dev")) {

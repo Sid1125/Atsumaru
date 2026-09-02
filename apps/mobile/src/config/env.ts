@@ -50,3 +50,13 @@ export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 
 export const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+/**
+ * Cloudflare Turnstile site key for the auth gate (docs/ATSUMARU_SECURITY_COMPLETE §22).
+ * Blank means the server does not challenge the auth handoff; when set, this app must
+ * present a widget-minted token on `POST /auth/session` or the handoff is rejected.
+ */
+export const TURNSTILE_SITE_KEY = fromEnv(
+  process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY,
+  ""
+);

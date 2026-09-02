@@ -7,7 +7,7 @@ what was fixed during this audit, and what remains open. Line references are as 
 Run the suite:
 
 ```bash
-npm test            # 64 unit tests (negative authz, auth/send/event rate limits, JSON-400)
+npm test            # 65 unit tests (negative authz, auth/send/event rate limits, JSON-400, turnstile)
 npm run typecheck   # server + mobile
 ```
 
@@ -25,11 +25,20 @@ of Done and §62 Required Test Matrix mandate negative/authorization tests, and 
 closed the two most exposed §19.1 "Very strict" rate-limit holes, then a second line-by-line
 pass added five more findings (rate-limit keying, unbounded limiter map, hardcoded OAuth secret,
 `/health` disclosure, malformed-JSON status) and broadcast send/creation limits across chat, DM
-and event creation.
+and event creation. A third pass then extended the hardening the spec's §19/§22 demand: read
+surfaces throttled, persisted per-user usage quotas, and an optional Turnstile auth gate.
 
 > **Deployment note:** production now **fails to boot** unless `AUTH_STATE_SECRET` is a real
 > (non-dev-default) value, and `/health` no longer reports which integrations are enabled. Set a
 > real `AUTH_STATE_SECRET` before deploying.
+>
+> **Quotas:** the new `usage_quotas` table + `bump_quota` RPC (migration 006) must be applied to
+> the live project, then `notify pgrst, 'reload schema'` — until then the quota call fails open
+> and the in-process rate limiters remain the only layer.
+>
+> **Turnstile:** gated and off by default. Set server `TURNSTILE_SECRET_KEY` + mobile
+> `EXPO_PUBLIC_TURNSTILE_SITE_KEY` to enforce; the mobile widget still needs `react-native-webview`
+> + a dev build (see Open findings).
 
 ## Findings fixed during this audit
 
@@ -44,6 +53,10 @@ and event creation.
 | 7 | Low | §20 | `/health` disclosed integration + OAuth provider config booleans to any unauthenticated caller. | `index.ts` | `/health` now returns liveness (`{status:"ok"}`) only; ops state lives in startup logs. |
 | 8 | Low | §43, §62 | Malformed JSON (body-parser error) fell through to a 500 `INTERNAL_ERROR` — a client mistake read as a server fault. | `middleware/errorHandler.ts` | Body-parser `entity.parse.failed` mapped to 400 `INVALID_JSON`; unknown errors still degrade to a generic 500. |
 | 9 | Medium | §19.1 | Group chat, DM, and event creation had **no send/creation rate limit** — a member could flood a room/DM or fill the map with event noise. | `modules/chat/routes.ts`, `modules/connections/routes.ts`, `modules/events/routes.ts`, `socket/index.ts` | Per-user budgets: chat 300/hr (REST + socket), DM 120/hr (REST + socket), event-create 30/day. |
+| 10 | Low | §19 | Read surfaces were unthrottled — any authenticated user could page the whole event/roster/profile table in seconds, bypassing per-write limits. | `utils/readLimit.ts` + all GET handlers | One shared per-user read budget (240/min, `READ_RATE_LIMIT`) applied to every discovery/profiling read: `/events` (nearby, mine, id, members, match-preview), `/connections`, chat + DM history, `/users/:id`, onboarding handle probes, recap. |
+| 11 | Medium | §19.1 | Rate limits were in-memory only — recycling the process reset every budget, and there was no cumulative per-user allowance for the write/cost surfaces. | migration `006_usage_quotas.sql`, `utils/quota.ts` | Persisted `usage_quotas` table + atomic `bump_quota` RPC (daily, survives restart): events-created 30/day, feedback-submitted 200/day, groq-turns 500/day. Recap fails **open** to its template on quota (never 429s a passive card). |
+| 12 | Medium | §22 | The auth handoff had no human-vs-bot gate; only IP + single-use-code limits. | `modules/auth/turnstile.ts`, `auth/routes.ts` | Optional Cloudflare Turnstile. When `TURNSTILE_SECRET_KEY` is set, `POST /auth/session` requires a valid widget token (`CAPTCHA_FAILED` 403 otherwise); server-side `siteverify` only. Off by default (no keys → no challenge). |
+| 13 | Info | §22 | The Turnstile *client* is wired but the widget acquiescing module cannot run in Expo Go. | `apps/mobile/src/services/auth/turnstile.ts` | Gated exactly like Mapbox/Keystore: `acquireTurnstileToken()` returns undefined until a site key AND `react-native-webview` + dev build are present. Documented, written but never run. |
 
 ## Standard-map (verified compliant)
 
@@ -92,19 +105,20 @@ and event creation.
 
 | # | Severity | Standard | Finding | Notes |
 |---|----------|----------|---------|-------|
-| 4 | Low/Product | §9, §20, §46 | `GET /events/:id`, `/events/:id/members`, and `/:id/match-preview` return the full member list + public profiles (and pre-join score) to **any authenticated user**, member or not. | Required for discovery + match-preview pre-join. Tradeoff: lets an authenticated attacker enumerate event IDs → map attendance. Cap read volume with a §19 browsing limiter if abuse appears. |
+| 4 | Low/Product | §9, §20, §46 | `GET /events/:id`, `/events/:id/members`, and `/:id/match-preview` return the full member list + public profiles (and pre-join score) to **any authenticated user**, member or not. | Required for discovery + match-preview pre-join. Tradeoff: lets an authenticated attacker enumerate event IDs → map attendance. Read volume is now capped by the shared per-user read limiter (finding 10); per-endpoint browse budgets can be added if scraping appears. |
 | 5 | Low | §20 | Handle/profiles reveal account existence; the pre-onboarding handle check is behind auth (good). | Acceptable; matches public-profile product model. |
 | 6 | Low | §12 | Failed socket room joins echo `{ code, event_id | connection_id }`, confirming resource existence. | Guard is correct; only existence leaks via error payload. |
-| 7 | Resolved | §19.3 | Chat/DM send rate limiting (spam) not implemented. | Resolved in this pass — per-user budgets on REST + socket (chat 300/hr, DM 120/hr). `/nearby` read-volume/scraping limiter still optional. |
+| 7 | Resolved | §19.3 | Chat/DM send rate limiting (spam) not implemented. | Resolved in this pass — per-user budgets on REST + socket (chat 300/hr, DM 120/hr). Read-volume/scraping now also capped by the shared per-user read limiter (finding 10). |
 | 8 | Low | §43.2 | No correlation ID on log lines. | Add when observability is built (§71). |
 | 9 | Info | §22 | Sweep stamps idempotency columns **after** the side effect (not atomically); a second driver (BullMQ) can double-notify. | Documented in CLAUDE.md. Fix before setting `REDIS_URL`. Feedback unlock read→insert / `firstSubmission` count→upsert have benign TOCTOU races protected by `onConflict`. |
 | 10 | Info | — | `SUPABASE_URL`/`SUPABASE_ANON_KEY` exported in `apps/mobile/src/config/env.ts` are dead (no importers). | Not a secret leak (anon is public); delete or wire up. |
+| 11 | Info | §22 | Turnstile client widget not runnable: needs `react-native-webview` + a `expo run:android` dev build (Expo Go can't load it), and no keys exist. | Server-side verification is complete and unit-tested for the degrade path; the mobile token-acquiring widget is written but unexercised (same status as Mapbox/Keystore). Add the dependency + keys + dev build to enforce. |
 
 ## §62 test-matrix coverage today
 
 Automated (this audit): missing-token → 401, negative authz (DM non-participant / non-mutual / missing),
 auth rate-limits enforced with the tightest budget on session exchange, X-Forwarded-For not trusted by
-default, malformed-JSON → 400, per-user limiter spacing.
+default, malformed-JSON → 400, per-user limiter spacing, Turnstile-degrade pass when unconfigured.
 
 Still manual / not covered (all the ordinary-user-vs-B failures below are **already coded** but
 not under automation):

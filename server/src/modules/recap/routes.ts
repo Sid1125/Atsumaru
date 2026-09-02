@@ -27,6 +27,8 @@ import { vibeRecap } from "../../services/ai.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
+import { tryQuota } from "../../utils/quota.js";
 import type { Rating } from "../matching/score.js";
 import {
   recapPrompt,
@@ -106,6 +108,7 @@ recapRouter.get(
   "/:id/recap",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
     const eventId = param(req, "id");
     const userId = req.userId!;
 
@@ -186,7 +189,9 @@ recapRouter.get(
     // `cooled` traits in that state is why an all-meh rater once received a compliment for
     // exactly the members they disliked (TRACKER.md §5).
     const generated =
-      summary.liked.length > 0 && recapLimiter.take(userId)
+      summary.liked.length > 0 &&
+      recapLimiter.take(userId) &&
+      (await tryQuota(userId, "groq_turns", 500))
         ? await vibeRecap(recapPrompt(language, event.category, summary))
         : null;
 

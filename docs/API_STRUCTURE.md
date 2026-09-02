@@ -93,18 +93,27 @@
 
 ## 3. REST Endpoints
 
-### 3.1 Auth (OAuth only — LINE + Google, no phone OTP)
+### 3.1 Auth (OAuth — LINE + Google; plus email/password. No phone OTP)
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
 | GET | `/auth/line` | — | Redirect to LINE OAuth (Supabase Custom OIDC) |
 | GET | `/auth/google` | — | Redirect to Google OAuth (Supabase native) |
 | GET | `/auth/callback` | `?code&provider` | `{ access_token, user, is_new }` |
+| POST | `/auth/session` | `{ code, turnstile_token? }` | `{ access_token, refresh_token, user, is_new }` (single handoff-code exchange; see README) |
 | POST | `/auth/logout` | — | `{ success }` |
 | GET | `/auth/me` | — | `{ user }` (current session) |
+| POST | `/auth/signup` | `{ email, password, turnstile_token? }` | `{ sent }` (email confirmation required; no tokens) |
+| POST | `/auth/login` | `{ email, password }` | `{ code }` (single-use handoff code → redeem via `/auth/session`) |
+| POST | `/auth/password/reset` | `{ email, turnstile_token? }` | `{ sent }` (anti-enumeration) |
+| POST | `/auth/password/reset-complete` | `{ token_hash, password }` | `{ done }` (from the recovery-link deep link) |
 
-> **No phone OTP** — SMS needs a paid provider (Twilio/Vonage), so we use free OAuth only.
+> **No phone OTP** — SMS needs a paid provider (Twilio/Vonage), so we use OAuth + email/password only.
 > On the client, use Supabase's `signInWithOAuth({ provider: 'line' \| 'google' })` with an Expo
 > redirect URL. `is_new: true` → route the user into the AI onboarding chat.
+> Email/password signup and password-reset are gated on Cloudflare Turnstile (fail-closed when
+> no `TURNSTILE_SECRET_KEY` is set — `503 CAPTCHA_REQUIRED`). Confirmation and recovery emails
+> redirect to `APP_AUTH_REDIRECT` (`atsumaru://auth`); recovery appends `?action=recovery`, and
+> the app trades the link's `token_hash` at `/auth/password/reset-complete`.
 
 ### 3.2 Onboarding (AI chat)
 | Method | Path | Body | Returns |

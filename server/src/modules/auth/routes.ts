@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
+import { verifyTurnstile } from "./turnstile.js";
 import { db, PUBLIC_USER_COLUMNS, type PublicUser } from "../../db/queries.js";
 import { env } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
@@ -28,6 +29,14 @@ import {
   stashSession,
   type AuthSession,
 } from "./session.js";
+import {
+  completePasswordReset,
+  emailSchema,
+  logIn,
+  passwordSchema,
+  requestPasswordReset,
+  signUp,
+} from "./email.js";
 
 export const authRouter = Router();
 
@@ -45,6 +54,14 @@ export const AUTH_RATE_LIMITS = {
 const sessionLimiter = createRateLimiter(AUTH_RATE_LIMITS.session);
 const callbackLimiter = createRateLimiter(AUTH_RATE_LIMITS.callback);
 const providerLimiter = createRateLimiter(AUTH_RATE_LIMITS.provider);
+
+// Email/password surfaces (modules/auth/email.ts). signup/reset are captcha-gated and
+// fail closed; login is a direct credential check, so it gets a modest per-IP budget to
+// blunt password spraying (§19.1).
+const signupLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const loginLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 1000 });
+const resetLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const resetCompleteLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 1000 });
 
 function clientIp(req: import("express").Request): string {
   // Only trust X-Forwarded-For when a reverse proxy is actually in front; otherwise the
@@ -175,7 +192,11 @@ authRouter.get(
   })
 );
 
-const sessionSchema = z.object({ code: z.string().min(1).max(200) });
+const sessionSchema = z.object({
+  code: z.string().min(1).max(200),
+  /** Turnstile token; required only when TURNSTILE_SECRET_KEY is configured. */
+  turnstile_token: z.string().min(1).max(2048).optional(),
+});
 
 /** Second half of the deep-link flow; single use, 60-second window. */
 authRouter.post(
@@ -189,6 +210,12 @@ authRouter.post(
       throw new HttpError(400, "INVALID_BODY", "code is required.");
     }
 
+    // When Turnstile is configured, the handoff that mints a full session is gated on a
+    // valid token — this is the unauthenticated brute-force surface (§22).
+    if (!(await verifyTurnstile(parsed.data.turnstile_token ?? "", clientIp(req)))) {
+      throw new HttpError(403, "CAPTCHA_FAILED", "Human verification failed.");
+    }
+
     const session = claimSession(parsed.data.code);
 
     if (!session) {
@@ -196,6 +223,99 @@ authRouter.post(
     }
 
     return ok(res, session);
+  })
+);
+
+const signupSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  turnstile_token: z.string().min(1).max(2048).optional(),
+});
+
+/**
+ * Email/password signup (docs/TRD.md §17). Emails are always sent to confirm the address
+ * before the account is usable, and the endpoint is gated on CAPTCHA — an ungated
+ * account-creation surface is exactly what Turnstile exists for. Returns no tokens: the
+ * user confirms from the email link, then signs in.
+ */
+authRouter.post(
+  "/signup",
+  asyncRoute(async (req, res) => {
+    enforceLimit(signupLimiter, req, res);
+
+    const parsed = signupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const { email, password, turnstile_token } = parsed.data;
+    return ok(res, await signUp(email, password, turnstile_token, clientIp(req)));
+  })
+);
+
+const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(200) });
+
+/**
+ * Email/password sign-in. Returns a single-use handoff code, not tokens — the client
+ * redeems it via POST /auth/session, the only endpoint that ever returns tokens. Wrong
+ * credentials are 401. Login itself is not captcha-gated (it is a credential check, not
+ * an account-creation/email-storm surface); the /auth/session redeem still carries the
+ * CAPTCHA gate when Turnstile is configured.
+ */
+authRouter.post(
+  "/login",
+  asyncRoute(async (req, res) => {
+    enforceLimit(loginLimiter, req, res);
+
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const { email, password } = parsed.data;
+    return ok(res, await logIn(email, password));
+  })
+);
+
+const resetSchema = z.object({
+  email: emailSchema,
+  turnstile_token: z.string().min(1).max(2048).optional(),
+});
+
+/** Send a password-reset email. Always reports success (anti-enumeration); captcha-gated. */
+authRouter.post(
+  "/password/reset",
+  asyncRoute(async (req, res) => {
+    enforceLimit(resetLimiter, req, res);
+
+    const parsed = resetSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const { email, turnstile_token } = parsed.data;
+    return ok(res, await requestPasswordReset(email, turnstile_token, clientIp(req)));
+  })
+);
+
+const resetCompleteSchema = z.object({
+  token_hash: z.string().min(1).max(500),
+  password: passwordSchema,
+});
+
+/** Exchange the recovery link token for a session and set a new password. */
+authRouter.post(
+  "/password/reset-complete",
+  asyncRoute(async (req, res) => {
+    enforceLimit(resetCompleteLimiter, req, res);
+
+    const parsed = resetCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const { token_hash, password } = parsed.data;
+    return ok(res, await completePasswordReset(token_hash, password));
   })
 );
 

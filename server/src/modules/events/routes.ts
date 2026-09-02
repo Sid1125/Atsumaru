@@ -18,6 +18,8 @@ import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { parseVector } from "../../utils/vector.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
+import { enforceQuota } from "../../utils/quota.js";
 import { chatRouter } from "../chat/routes.js";
 import { feedbackRouter } from "../feedback/routes.js";
 import { recapRouter } from "../recap/routes.js";
@@ -50,6 +52,8 @@ eventsRouter.get(
   "/nearby",
   requireAuth,
   asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
+
     const coords = coordsSchema.safeParse({
       lat: Number(req.query.lat),
       lng: Number(req.query.lng),
@@ -80,6 +84,8 @@ eventsRouter.get(
   "/mine",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
+
     const { data, error } = await db().rpc("events_for_user", {
       p_user_id: req.userId!,
     });
@@ -98,6 +104,8 @@ eventsRouter.post(
       res.setHeader("Retry-After", createLimiter.retryAfter(req.userId!));
       throw new HttpError(429, "RATE_LIMITED", "Too many meetups created. Try again later.");
     }
+
+    await enforceQuota(req.userId!, "events_created", 30, res);
 
     const parsed = createSchema.safeParse(req.body);
 
@@ -139,6 +147,8 @@ eventsRouter.get(
   "/:id",
   requireAuth,
   asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
+
     const event = await findEvent(param(req, "id"));
 
     return ok(res, {
@@ -218,9 +228,10 @@ eventsRouter.post(
 eventsRouter.get(
   "/:id/members",
   requireAuth,
-  asyncRoute(async (req, res) =>
-    ok(res, { members: await findMembers(param(req, "id")) })
-  )
+  asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
+    return ok(res, { members: await findMembers(param(req, "id")) });
+  })
 );
 
 /** Group vector = centroid of the members' preference vectors (docs/AI.md §5). */
@@ -245,6 +256,8 @@ eventsRouter.get(
   "/:id/match-preview",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
+    enforceReadLimit(req, res);
+
     const event = await findEvent(param(req, "id"));
     const members = await findMembers(event.id);
 

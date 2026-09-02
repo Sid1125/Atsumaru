@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
+import { enforceReadLimit } from "../../utils/readLimit.js";
+import { enforceQuota } from "../../utils/quota.js";
 import { db, publicUser } from "../../db/queries.js";
 import { embed, onboardingChat } from "../../services/ai.js";
 import { hasGroq } from "../../config/env.js";
@@ -60,6 +62,10 @@ onboardingRouter.post(
       throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
     }
 
+    // Persisted daily Groq budget on top of the hourly limiter — this is the paid
+    // integration, so it also gets a cross-restart cap (docs/ATSUMARU_SECURITY_COMPLETE §19).
+    await enforceQuota(req.userId!, "groq_turns", 500, res);
+
     const result = await onboardingChat(parsed.data.messages, parsed.data.language);
     return ok(res, result);
   })
@@ -102,6 +108,7 @@ onboardingRouter.get(
   "/suggest-handles",
   requireAuth,
   asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
     const interests = String(req.query.interests ?? "")
       .split(",")
       .map((value) => value.trim())
@@ -124,6 +131,7 @@ onboardingRouter.get(
   "/check-handle",
   requireAuth,
   asyncRoute(async (req, res) => {
+    enforceReadLimit(req, res);
     const handle = String(req.query.handle ?? "").toLowerCase();
 
     if (!HANDLE_RE.test(handle)) {

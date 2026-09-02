@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { API_URL, DEMO_MODE } from "../../../config/env";
 import { authApi } from "../../../services/api/auth";
+import { acquireTurnstileToken } from "../../../services/auth/turnstile";
 import { registerDeviceIdentity } from "../../../services/deviceIdentity/deviceIdentity";
 import { useAuthStore } from "../../../store";
 
@@ -47,7 +48,8 @@ export function useOAuthLogin() {
       setError(null);
 
       try {
-        const session = await authApi.session(code);
+        const turnstileToken = await acquireTurnstileToken();
+        const session = await authApi.session(code, turnstileToken);
         await signIn(session.access_token, session.user);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 

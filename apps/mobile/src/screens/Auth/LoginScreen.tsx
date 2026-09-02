@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useAnimatedStyle,
@@ -18,6 +20,7 @@ import { Sticker } from "../../components/ui/Sticker";
 import { CATEGORY_ORDER, categoryGlyph, categorySticker } from "../../categoryMeta";
 import { DEMO_MODE } from "../../config/env";
 import { useOAuthLogin } from "../../features/auth/hooks/useOAuthLogin";
+import type { AuthStackParamList } from "../../app/navigation/types";
 import {
   colors,
   radius,
@@ -52,6 +55,7 @@ const SAGE_WASH = ["rgba(122,158,126,0)", "rgba(122,158,126,0.07)"] as const;
 export function LoginScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const { start, pending, error } = useOAuthLogin();
   const reducedMotion = useReducedMotion();
 
@@ -131,6 +135,14 @@ export function LoginScreen() {
             disabled={pending !== null}
             size="large"
             leadingIcon={<GoogleLogo size={20} />}
+          />
+          <Button
+            label={t("auth.continueWithEmail")}
+            variant="secondary"
+            onPress={() => navigation.navigate("EmailAuth")}
+            disabled={pending !== null}
+            size="large"
+            icon="✉️"
           />
 
           {error ? (

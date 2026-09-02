@@ -643,11 +643,56 @@ Closed the two exposed §19.1 "Very strict" rate-limit holes and added the first
 - [x] **New tests** — `middleware/errorHandler.test.ts` (JSON→400 / 403 passthrough / generic
       500 no-leak), auth `TRUST_PROXY` default + limiter spacing; `npm test` 59 → 64; typecheck
       clean (server + mobile)
+
+Third pass (rate limiting everywhere, quotas, throttling, CAPTCHA; cost-controls skipped per
+user decision):
+
+- [x] **Read throttling everywhere** (`utils/readLimit.ts` + all GET handlers) — one shared
+      per-user budget (240/min, `READ_RATE_LIMIT`) on every discovery/profiling read: events
+      nearby/mine/id/members/match-preview, connections + history, chat + DM history,
+      `/users/:id`, onboarding handle probes, recap
+- [x] **Persisted usage quotas** (migration `006_usage_quotas.sql`, `utils/quota.ts`) — daily,
+      cross-restart caps via atomic `bump_quota` RPC: events-created 30/day, feedback-submitted
+      200/day, groq-turns 500/day; recap fails open to its template on quota (a passive card is
+      never 429'd). **Needs application to the live project + `reload schema`**
+- [x] **Turnstile auth gate** (`modules/auth/turnstile.ts`, gated server-side) — when
+      `TURNSTILE_SECRET_KEY` is set, `POST /auth/session` requires a valid widget token
+      (`CAPTCHA_FAILED` 403); off by default (no keys → no challenge); degate path unit-tested
+- [x] **Client Turnstile hook** (`apps/mobile/src/services/auth/turnstile.ts`) — gated like
+      Mapbox/Keystore; `acquireTurnstileToken()` returns undefined until a site key AND
+      `react-native-webview` + dev build; wired into `useOAuthLogin` session exchange
+- [x] **Cost controls** — **skipped** (user decision): rate limits + quotas already cap the only
+      paid integrations (Groq/HF); revisit if spend grows
+- [x] **Tests** — `turnstile.test.ts` (degrade pass when unconfigured); `npm test` 64 → 65;
+      typecheck clean (server + mobile)
 - [ ] **Open** (see SECURITY_AUDIT.md): non-member reads any event's member list (product
-      tradeoff for discovery, needs a §19 browse limiter if scraped); route-level `User A cannot
-      X` tests blocked on a `db()` injection seam (`mock.module` unavailable on installed
+      tradeoff — read volume now capped by the shared §19 browse limiter); route-level `User A
+      cannot X` tests blocked on a `db()` injection seam (`mock.module` unavailable on installed
       `node:test`); the §22 sweep-atomicity fix (stamp after side effect) before `REDIS_URL`;
-      `/nearby` read-volume/scraping limiter (optional)
+      Turnstile client widget needs `react-native-webview` + keys + dev build to actually run
+
+#### Email/password auth (docs/TRD.md §17 — server + client done)
+
+- [x] **Server** (`modules/auth/email.ts` + `routes.ts`) — `passwordSchema` (min 8 + upper/lower/
+      digit) + `emailSchema`; `signUp` (confirmation email, no pre-confirmation tokens, 409
+      `EMAIL_TAKEN`), `logIn` → single-use handoff `{ code }` redeemed via the shared
+      `POST /auth/session`, `requestPasswordReset` (anti-enumeration), `completePasswordReset`
+      (one throwaway `authDb()` client for `verifyOtp` + `updateUser` — fixes the two-client bug)
+- [x] **Turnstile fail-closed on email surfaces** — `signUp` / `requestPasswordReset` return
+      503 `CAPTCHA_REQUIRED` when no `TURNSTILE_SECRET_KEY` is set (direct-hit surfaces must not
+      default open) — distinct from `/auth/session`, which *skips* when unconfigured
+- [x] **Limiters** — signup 10/hr, login 20/min, reset 10/hr, reset-complete 10/min; routes
+      registered before the `/:provider` catch-all
+- [x] **Client** — `authApi` `signup/login/requestPasswordReset/completePasswordReset` +
+      `useEmailAuth` hook (login redeems code → `signIn`; signup reports "confirm email");
+      `EmailAuthScreen` (login/signup/reset modes, theme tokens, Button/TextInput); wired into
+      `AuthStack`; "Continue with email" entry on `LoginScreen`; i18n en/ja/zh
+- [x] **Tests** — `email.test.ts` (password policy + email schema, pure only — supabase paths
+      not unit-testable with real keys); `npm test` 65 → 68; typecheck clean (server + mobile)
+- [ ] **Open** — recovery deep-link (`atsumaru://auth?action=recovery`) routing to a
+      reset-complete surface is unexercised (same dev-build/linking constraint as OAuth;
+      `completePasswordReset` API + hook exist); confirm/SMTP/redirect must be configured in the
+      Supabase dashboard (see `server/.env.example`)
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 

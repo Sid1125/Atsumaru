@@ -143,6 +143,19 @@ create table if not exists meetup_recaps (
   primary key (event_id, user_id)
 );
 
+-- Per-user daily usage quotas (docs/ATSUMARU_SECURITY_COMPLETE §19.1). Unlike an
+-- in-process rate limit, these persist across restarts and reset once per calendar day.
+-- bump_quota is the only writer, and it atomically refuses once the daily cap is met.
+create table if not exists usage_quotas (
+  user_id uuid not null references users (id) on delete cascade,
+  resource text not null check (
+    resource in ('events_created', 'feedback_submitted', 'groq_turns')
+  ),
+  day date not null default current_date,
+  usage integer not null default 0 check (usage >= 0),
+  primary key (user_id, resource, day)
+);
+
 -- current_size for the API's Event model.
 create or replace view event_sizes as
   select e.id as event_id, count(gm.id) as current_size
@@ -349,3 +362,31 @@ alter table oauth_identities enable row level security;
 alter table push_tokens enable row level security;
 alter table device_keys enable row level security;
 alter table meetup_recaps enable row level security;
+alter table usage_quotas enable row level security;
+
+-- Atomic increment-if-under-cap for usage quotas (docs/ATSUMARU_SECURITY_COMPLETE §19.1).
+-- The API calls this via rpc(). Remember to `notify pgrst, 'reload schema'` after applying.
+create or replace function bump_quota(
+  p_user uuid,
+  p_resource text,
+  p_limit integer
+)
+returns boolean
+language plpgsql
+as $$
+declare
+  u integer;
+begin
+  insert into usage_quotas (user_id, resource, day, usage)
+  values (p_user, p_resource, current_date, 1)
+  on conflict (user_id, resource, day)
+  do update set usage = usage_quotas.usage + 1
+  where usage_quotas.usage < p_limit
+  returning usage into u;
+
+  if u is null then
+    return false;
+  end if;
+  return true;
+end;
+$$;
