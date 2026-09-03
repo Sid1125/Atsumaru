@@ -11,7 +11,7 @@ import { Button } from "../../components/common/Button";
 import { Card } from "../../components/ui/Card";
 import { Chip } from "../../components/common/Chip";
 import { TextField } from "../../components/common/TextField";
-import { CATEGORY_ORDER, categorySticker } from "../../categoryMeta";
+import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
 import { colors, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
@@ -111,9 +111,11 @@ export function CreateEventScreen() {
           <View style={styles.chips}>
             {CATEGORY_ORDER.map((key) => {
               const s = categorySticker(key);
+              const Mark = categoryIcon(key);
               return (
                 <Chip
                   key={key}
+                  icon={<Mark size={14} />}
                   label={t(`discover.categories.${key}`)}
                   selected={category === key}
                   onPress={() => setCategory(key)}
@@ -163,7 +165,7 @@ export function CreateEventScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.md },
+  content: { padding: spacing.page, gap: spacing.md },
   kicker: { ...type.overline, color: colors.primary },
   kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
 

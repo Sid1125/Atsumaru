@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
 import { TextField } from "../../components/common/TextField";
+import { InterestEditor, PersonalityEditor } from "../../components/profile/TagEditor";
 import { onboardingApi } from "../../services/api/onboarding";
 import { useAuthStore, useOnboardingDraft, useUiStore } from "../../store";
 import {
@@ -104,27 +105,23 @@ export function ProfileConfirmScreen() {
         <Text style={styles.kicker}>{t("onboarding.confirmTitle")}</Text>
         <Text style={styles.title}>{t("onboarding.confirmLede")}</Text>
 
+      {/* Interests and personality are proposals from the AI — editable here, so
+          the model's extraction is a starting point, never a decision. */}
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.interests")}</Text>
-        <View style={styles.chips}>
-          {draft.interests.map((interest) => (
-            <Chip key={interest} label={interest} selected />
-          ))}
-        </View>
+        <InterestEditor tags={draft.interests} onChange={draft.setInterests} />
       </View>
 
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.personality")}</Text>
-        <View style={styles.chips}>
-          {draft.personality.map((trait) => (
-            <Chip key={trait} label={trait} />
-          ))}
-        </View>
+        <PersonalityEditor tags={draft.personality} onChange={draft.setPersonality} />
       </View>
 
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.handle")}</Text>
 
+        {/* Interest-derived suggestions are the starting point; once the user edits the
+            handle they are replaced by alphanumeric variants of what was typed. */}
         {/* Interest-derived suggestions are the starting point; once the user edits the
             handle they are replaced by alphanumeric variants of what was typed. */}
         {!draft.handle ? (
@@ -210,7 +207,7 @@ export function ProfileConfirmScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.lg },
+  content: { padding: spacing.page, gap: spacing.lg },
   kicker: { ...type.overline, color: colors.primary },
   title: { ...type.title1, color: colors.text, marginTop: -spacing.sm },
   group: { gap: spacing.sm },

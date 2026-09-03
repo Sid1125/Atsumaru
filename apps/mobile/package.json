@@ -12,6 +12,7 @@
     "expo-blur": "~57.0.2",
     "expo-constants": "~57.0.16",
     "expo-haptics": "~57.0.2",
+    "expo-image-picker": "~57.0.15",
     "expo-linear-gradient": "~57.0.1",
     "expo-localization": "~57.0.1",
     "expo-location": "~57.0.14",

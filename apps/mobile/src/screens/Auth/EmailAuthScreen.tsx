@@ -153,7 +153,7 @@ export function EmailAuthScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.md, gap: spacing.md },
+  content: { paddingHorizontal: spacing.page, gap: spacing.md },
   title: {
     ...type.title1,
     color: colors.text,

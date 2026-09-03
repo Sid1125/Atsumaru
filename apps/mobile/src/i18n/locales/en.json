@@ -108,7 +108,7 @@
     "leave": "Leave group",
     "openChat": "Open chat",
     "messagePlaceholder": "Message your group...",
-    "chatEmpty": "No messages yet. Say hello 👋",
+    "chatEmpty": "No messages yet. Say hello",
     "groupFitLabel": "group fit"
   },
   "feedback": {
@@ -155,7 +155,17 @@
     "statConnections": "CONNECTIONS",
     "statMeetups": "MEETUPS",
     "prefsGroup": "APPS PREFS",
-    "accountGroup": "ACCOUNT"
+    "accountGroup": "ACCOUNT",
+    "edit": "Edit profile",
+    "editKicker": "EDIT PROFILE",
+    "save": "Save",
+    "changePhoto": "Change photo",
+    "uploading": "Uploading…",
+    "photoError": "Couldn't set that photo. Try again.",
+    "noInterests": "No interests yet — add a few.",
+    "addInterest": "Add an interest",
+    "addInterestPlaceholder": "e.g. ramen",
+    "personalityCap": "Up to {{max}} personality tags."
   },
   "createEvent": {
     "title": "Host a meetup",

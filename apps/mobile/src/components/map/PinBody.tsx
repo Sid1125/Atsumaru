@@ -10,7 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { colors, elevation, radius, spacing, springs, type } from "../../theme";
-import { categoryGlyph, categorySticker } from "../../categoryMeta";
+import { categoryIcon, categorySticker } from "../../categoryMeta";
 import type { MeetupEvent } from "../../types/api";
 
 /** Bubble diameter. */
@@ -111,7 +111,7 @@ export function PinBody({
   const { t } = useTranslation();
   const full = event.current_size >= event.max_size;
   const sticker = categorySticker(event.category);
-  const glyph = categoryGlyph(event.category);
+  const CategoryMark = categoryIcon(event.category);
 
   return (
     // box-none throughout: the box is mostly empty space around a 44pt bubble,
@@ -145,7 +145,7 @@ export function PinBody({
             selected && styles.bubbleSelected,
           ]}
         >
-          <Text style={styles.glyph}>{glyph}</Text>
+          <CategoryMark size={22} color={sticker.on} />
         </AnimatedPressable>
 
         {/* Stem grounds the bubble to its coordinate */}
@@ -196,7 +196,6 @@ const styles = StyleSheet.create({
   bubbleSelected: {
     borderWidth: 3,
   },
-  glyph: { fontSize: 20, lineHeight: 24 },
   stem: {
     width: 3,
     height: STEM,

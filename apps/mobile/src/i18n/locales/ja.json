@@ -108,7 +108,7 @@
     "leave": "参加をやめる",
     "openChat": "チャットを開く",
     "messagePlaceholder": "グループにメッセージ...",
-    "chatEmpty": "まだメッセージはありません。あいさつしてみましょう 👋",
+    "chatEmpty": "まだメッセージはありません。あいさつしてみましょう",
     "groupFitLabel": "グループ相性"
   },
   "feedback": {
@@ -155,7 +155,17 @@
     "statConnections": "つながり",
     "statMeetups": "ミートアップ",
     "prefsGroup": "アプリ設定",
-    "accountGroup": "アカウント"
+    "accountGroup": "アカウント",
+    "edit": "プロフィールを編集",
+    "editKicker": "EDIT PROFILE",
+    "save": "保存",
+    "changePhoto": "写真を変更",
+    "uploading": "アップロード中...",
+    "photoError": "写真を設定できませんでした。もう一度お試しください。",
+    "noInterests": "まだ興味がありません — 追加してみましょう。",
+    "addInterest": "興味を追加",
+    "addInterestPlaceholder": "例：ラーメン",
+    "personalityCap": "性格タグは最大{{max}}個です。"
   },
   "createEvent": {
     "title": "集まりを主催する",

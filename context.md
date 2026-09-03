@@ -17,7 +17,9 @@
 > (2026-08-31); §15 the personality/interest/category onboarding work (2026-09-01,
 > complete); §16 the TEE decision + hardware-backed device identity (2026-09-01,
 > code complete, needs a dev build to run); §17 the security-hardening pass against
-> ATSUMARU_SECURITY_COMPLETE.md (2026-09-02; findings + fixes in `docs/SECURITY_AUDIT.md`).
+> ATSUMARU_SECURITY_COMPLETE.md (2026-09-02; findings + fixes in `docs/SECURITY_AUDIT.md`);
+> §18 the handle-suggestions/bloom/sheet-scroll work (2026-09-03, complete); §19 the
+> editable-profile + photos + match-scoring work (2026-09-03, complete).
 
 ---
 
@@ -1190,3 +1192,75 @@ live and suggest similar alphanumeric usernames (drivinggames-a128df style)."
 - Turnstile always-pass env flag (`TURNSTILE_ALWAYS_PASS=true` in `server/.env`, flag in `env.ts`)
   was wired earlier this session and verified live (sign-in passes the gate → INVALID_CODE, not
   CAPTCHA_FAILED); the client Turnstile widget still needs a dev build to actually run.
+
+## 19. Session log — editable profile + photos + better group-fit scoring (2026-09-03, DONE)
+
+### The ask
+
+"On onboarding, after the AI collects the info and brings you to the handle choosing page, you
+cannot edit anything on that page like interests and personality except the handle and display
+name; the same editing modal is not present on the profile page either; no image uploads, no
+display picture, etc; also i want to make the group compatibility scoring better."
+
+Four gaps, one pass. Two were pure UI (read-only extraction on confirm, no editor on profile), one
+was an end-to-end feature (avatar uploads), one was a scoring change. All were already
+structurally possible: `PATCH /users/me` supported `interests` but not `personality`/`handle`,
+`avatar_url` existed in the schema and the public user shape but nothing ever set it, and
+matching used a centroid cosine that both washed out outlier members and hard-capped
+unembedded users.
+
+### What was built
+
+| File | Change |
+|---|---|
+| `components/profile/TagEditor.tsx` (new) | `InterestEditor` (removable chips + free-text add) and `PersonalityEditor` (fixed-vocab toggles; tags matched across all three locales + canonical key since the AI returns them in the user's chat language; out-of-vocab strays render as removable chips). Shared by confirm screen and profile modal |
+| `components/profile/ProfileEditModal.tsx` (new) | Full-screen edit modal: photo (picker → upload), display name, handle with live availability (skipped for the owner's own handle), both tag editors, save via `PATCH /users/me` |
+| `onboardingPersonality.ts` | `traitKeyFor` / `traitLabel` helpers (alias map over en/ja/zh labels) |
+| `ProfileConfirmScreen.tsx` | Interests/personality now editable inline (was read-only chips) |
+| `ProfileScreen.tsx` | "Edit profile" row → modal; personality displayed (localised); avatar passes `uri` |
+| `Avatar.tsx` | Renders the photo when `avatar_url` set; all four call sites pass `uri` |
+| `services/api/users.ts` | `updateMe` gains `handle` + `personality`; new `uploadAvatar(dataUrl)` |
+| `services/api/demo/index.ts` | `PATCH /users/me` merges handle/personality/avatar_url; `POST /users/me/avatar` stores the data URL; matchScore mirrors pairwise `tagFit` |
+| `server/.../users/routes.ts` | `patchSchema` + handler accept `handle`/`personality`, map 23505 → `409 HANDLE_TAKEN`, re-embed the vector when tags change; new `POST /users/me/avatar` (base64 data URL → public `avatars` bucket → `avatar_url`, `503 STORAGE_UNAVAILABLE` on failure) |
+| `server/.../users/avatar.ts` + `avatar.test.ts` (new) | Pure `parseDataUrl` (jpeg/png/webp only, 5 MB cap) + tests |
+| `server/.../matching/score.ts` | `fit` = pairwise mean cosine per member; `tagSimilarity`/`tagFit` cold-start fallback; weights stay 0.6/0.2/0.2 |
+| `server/.../events/routes.ts` | `memberProfiles` (per-member vector + tags) replaces centroid `groupVector`; match-preview composes via the new `matchScore` input, excluding the caller |
+| `server/src/utils/handle.ts` (new) | Shared `HANDLE_RE` so onboarding and profile edits cannot drift |
+| `server/src/index.ts` | `express.json` 1mb → 8mb (base64 photo fits) |
+| `app.json` | `expo-image-picker` plugin + photo permission string |
+| `docs/AI.md` §5 | Reference formula rewritten: `0.6*fit + 0.2*group_balance + 0.2*reputation`, pairwise + cold-start fallback defined |
+| i18n | `profile.*` (edit/save/changePhoto/uploading/photoError/noInterests/addInterest/personalityCap) in en/ja/zh |
+
+### Decisions
+
+- **Pairwise fit beats centroid fit.** A group where most members align with you
+  and one does not scored as high as an all-align group under the centroid;
+  pairwise mean scores it honestly lower. The caller's own vector is excluded
+  when they are already a member. Mean clamped at 0 so one opposite member does
+  not zero the whole score.
+- **Cold-start fallback, chosen by data availability not value.** When either
+  side has no preference vector, `fit` falls back to set-overlap tag similarity
+  over interests+personality — always present after onboarding — so a fresh
+  user is no longer hard-capped at the 0.40 ceiling. `pairwiseFit` returning 0
+  because of a genuinely bad fit does not silently switch to tags; the branch
+  is on vector presence.
+- **Demo mirrors the server** (docs/RULES.md §7): the demo's set-overlap
+  `similarity` is now computed pairwise per member, same `tagFit` shape.
+- **Avatar goes through the API, not client-side Storage.** The mobile client
+  has only the anon key; uploading via `POST /users/me/avatar` keeps storage
+  access server-side with the service-role key and no storage RLS policy to
+  write. 5 MB decoded cap, jpeg/png/webp only (no SVG — a script tag in an
+  `<img>` is a real risk). One object per user (`{userId}.{ext}`, upsert).
+- **Personality tags match across locales.** The AI returns tags in the user's
+  chat language; toggles match en/ja/zh labels + the canonical key so a ja tag
+  shows as selected and removes correctly when the app is in English.
+- **Handle availability is skipped for the owner's own handle** — it is
+  legitimately "taken" by them.
+
+### Verified
+- `npm run typecheck` clean (server + mobile).
+- `npm test` **82 pass / 1 skip / 0 fail** (was 75 → +7: 2 pairwise-fit/tag tests
+  rewritten + 3 new fit/fallback/cold-start + 3 avatar parse tests − 1 merged).
+- Not verified live: **Supabase Storage round-trip** (bucket creation, public
+  URL, Expo Go picker → upload) and the **new pairwise scores against the live
+  DB**. Same standing as the Mapbox path — code complete, needs a live run.

@@ -283,7 +283,7 @@ export function AIChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   head: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.page,
     paddingBottom: spacing.md,
     gap: spacing.xs,
   },
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
 
   list: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.page,
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.page,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.separator,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   },
   sendDisabled: { backgroundColor: colors.border },
   traitTray: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.page,
     paddingTop: spacing.sm,
     gap: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,

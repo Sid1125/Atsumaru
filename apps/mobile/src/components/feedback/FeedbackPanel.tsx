@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../common/Button";
 import { Card } from "../ui/Card";
 import { Chip } from "../common/Chip";
-import { IconSparkle } from "../ui/Icons";
+import { IconFaceGood, IconFaceMeh, IconFire, IconSparkle } from "../ui/Icons";
 import { ScreenState } from "../common/ScreenState";
 import { useFeedbackForm } from "../../features/feedback/hooks/useFeedbackForm";
 import { useVibeRecap } from "../../features/events/hooks/useEvents";
@@ -13,10 +13,17 @@ import { feedbackApi } from "../../services/api/feedback";
 import { colors, sectionHeader, spacing, type } from "../../theme";
 import type { Connection, Rating } from "../../types/api";
 
-const RATINGS: { value: Rating; emoji: string }[] = [
-  { value: "meh", emoji: "😐" },
-  { value: "good", emoji: "🙂" },
-  { value: "fire", emoji: "🔥" },
+// Each rating is a data mark: selected, the chip wears its own sticker colour
+// (meh stays quiet, good sages, fire burns coral) — ink is chosen per colour
+// (docs/DESIGN.md §10).
+const RATINGS: {
+  value: Rating;
+  mark: ReactElement<{ color?: string }>;
+  sticker: { bg: string; on: string };
+}[] = [
+  { value: "meh", mark: <IconFaceMeh size={16} />, sticker: colors.rating.meh },
+  { value: "good", mark: <IconFaceGood size={16} />, sticker: colors.rating.good },
+  { value: "fire", mark: <IconFire size={16} />, sticker: colors.rating.fire },
 ];
 
 interface FeedbackPanelProps {
@@ -121,14 +128,16 @@ export function FeedbackPanel({
         <View key={member.user_id} style={styles.row}>
           <Text style={styles.handle}>@{member.user.handle}</Text>
           <View style={styles.ratingRow}>
-            {RATINGS.map(({ value, emoji }) => (
+            {RATINGS.map(({ value, mark, sticker }) => (
               <Chip
                 key={value}
-                label={`${emoji} ${t(`feedback.ratings.${value}`)}`}
+                icon={mark}
+                label={t(`feedback.ratings.${value}`)}
                 selected={ratings[member.user_id] === value}
                 onPress={() =>
                   setRatings((prev) => ({ ...prev, [member.user_id]: value }))
                 }
+                sticker={sticker}
               />
             ))}
           </View>

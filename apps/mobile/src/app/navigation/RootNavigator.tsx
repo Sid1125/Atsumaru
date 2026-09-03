@@ -1,5 +1,6 @@
 import { NavigationContainer, type Theme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
 
 import { ScreenState } from "../../components/common/ScreenState";
@@ -46,11 +47,16 @@ const navigationTheme: Theme = {
   },
 };
 
-/** Large-ish, tightly tracked titles with no hard divider under the bar. */
+/**
+ * Editorial headers: left-aligned title (modern native feel), no hard divider,
+ * headline-weight text on the cream ground. `headerTitleAlign` is iOS-only
+ * (Android already left-aligns), so the bar reads the same on both.
+ */
 const headerOptions = {
   headerTintColor: colors.text,
   headerShadowVisible: false,
   headerStyle: { backgroundColor: colors.background },
+  headerTitleAlign: "left",
   headerTitleStyle: {
     ...type.headline,
     color: colors.text,
@@ -80,6 +86,10 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer linking={linking} theme={navigationTheme}>
+      {/* The auth stage sits on the night ground, everything else on cream — the
+          status bar icons must flip with the surface or the login screen reads
+          as broken chrome on a dark background. */}
+      <StatusBar style={stage === "auth" ? "light" : "dark"} />
       {stage === "auth" ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />

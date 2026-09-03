@@ -1,3 +1,4 @@
+import { cloneElement, type ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressableScale } from "../ui/PressableScale";
@@ -8,8 +9,13 @@ interface ChipProps {
   label: string;
   selected?: boolean;
   onPress?: () => void;
-  /** Leading glyph; never the only carrier of meaning (docs/DESIGN.md §10). */
-  icon?: string;
+  /**
+   * Leading mark, passed without a colour — the chip tints it to match the
+   * label (sticker ink when the chip wears a sticker, white when selected,
+   * secondary text otherwise). Never the only carrier of meaning
+   * (docs/DESIGN.md §10).
+   */
+  icon?: ReactElement<{ color?: string }>;
   tone?: "neutral" | "accent";
   /**
    * When set, the *selected* chip renders as a category sticker (site vinyl:
@@ -28,10 +34,14 @@ export function Chip({
   sticker,
 }: ChipProps) {
   const onColor = selected && sticker ? sticker.on : undefined;
+  // The leading mark follows the same colour logic as the label: sticker ink,
+  // selected white, secondary text otherwise.
+  const iconColor =
+    onColor ?? (selected ? colors.textOnColor : colors.textSecondary);
 
   const body = (
     <View style={styles.row}>
-      {icon ? <Text style={styles.icon}>{icon}</Text> : null}
+      {icon ? cloneElement(icon, { color: iconColor }) : null}
       <Text
         style={[
           styles.label,
@@ -106,7 +116,6 @@ const styles = StyleSheet.create({
   selectedAccent: { backgroundColor: colors.accent, borderColor: colors.accent },
   selectedNeutral: { backgroundColor: colors.text, borderColor: colors.text },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.xs + 2 },
-  icon: { fontSize: 14 },
   label: { ...type.subhead, color: colors.textSecondary },
   labelSelected: { color: colors.textOnColor, fontWeight: "600" },
 });

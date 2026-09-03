@@ -8,7 +8,10 @@ import {
   groupBalance,
   matchScore,
   normalizeReputation,
+  pairwiseFit,
   ratingDelta,
+  tagFit,
+  tagSimilarity,
   updatePreferenceVector,
 } from "./score.js";
 
@@ -34,7 +37,9 @@ test("reputation is clamped into 0..1", () => {
 test("match score follows the 0.6/0.2/0.2 weighting", () => {
   const perfect = matchScore({
     userVector: [1, 0],
-    groupVector: [1, 0],
+    userTags: ["hiking"],
+    memberVectors: [[1, 0], [1, 0]],
+    memberTags: [["hiking"], ["hiking"]],
     currentSize: 5,
     maxSize: 6,
     reputation: 100,
@@ -43,12 +48,55 @@ test("match score follows the 0.6/0.2/0.2 weighting", () => {
 
   const worst = matchScore({
     userVector: [1, 0],
-    groupVector: [0, 1],
+    userTags: ["hiking"],
+    memberVectors: [[0, 1], [0, 1]],
+    memberTags: [["ramen"], ["ramen"]],
     currentSize: 6,
     maxSize: 6,
     reputation: 0,
   });
   assert.equal(worst, 0);
+});
+
+test("pairwise fit is the mean over members, so an outlier drags it down", () => {
+  assert.equal(pairwiseFit([1, 0], [[1, 0], [1, 0]]), 1);
+  assert.equal(pairwiseFit([1, 0], [[1, 0], [0, 1]]), 0.5);
+  // Opposite members are clamped to 0 for the mean, never negative.
+  assert.equal(pairwiseFit([1, 0], [[0, 1]]), 0);
+  // No user vector, or no usable member vectors, means no signal.
+  assert.equal(pairwiseFit(null, [[1, 0]]), 0);
+  assert.equal(pairwiseFit([1, 0], [null, null]), 0);
+});
+
+test("tag similarity is set-overlap over normalized tags", () => {
+  assert.equal(tagSimilarity(["Hiking", "Coffee"], ["hiking", "coffee"]), 1);
+  assert.equal(tagSimilarity(["a", "b"], ["a", "c"]), 1 / 2);
+  assert.equal(tagSimilarity(["a"], ["b"]), 0);
+  assert.equal(tagSimilarity([], ["a"]), 0);
+});
+
+test("tag fit is the mean pairwise tag similarity", () => {
+  assert.equal(tagFit(["a", "b"], [["a", "b"]]), 1);
+  assert.equal(tagFit(["a", "b"], [["a", "c"]]), 0.5);
+  assert.equal(tagFit([], [["hiking"]]), 0);
+  assert.equal(tagFit(["hiking"], [[]]), 0);
+});
+
+test("cold-start (no vectors) match score beats the old 0.40 ceiling", () => {
+  const coldStart = matchScore({
+    userVector: null,
+    userTags: ["hiking", "coffee", "board games"],
+    memberVectors: [null, null],
+    memberTags: [["hiking", "ramen"], ["coffee", "photography"]],
+    currentSize: 2,
+    maxSize: 6,
+    reputation: 50,
+  });
+
+  // fit = 1/sqrt(6) ≈ 0.408 (one shared tag of three against two 2-tag members),
+  // so the score is 0.6*0.408 + 0.2*0.5 + 0.2*0.5 ≈ 0.44 — above the 0.40 ceiling
+  // an unembedded user was hard-capped at when cosine had no fallback.
+  assert.equal(Math.round(coldStart * 100) / 100, 0.44);
 });
 
 test("feedback pulls the preference vector toward liked profiles", () => {

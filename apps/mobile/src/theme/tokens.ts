@@ -38,6 +38,11 @@ export const palette = {
   amber500: "#C98A2E",
   rose500: "#B3402C",
 
+  // The electric band (site `--color-neon`). Lime is the Gen-Z register —
+  // highlighter marks, tape badges, sticker highlights. It is never the action
+  // colour: coral owns that. Lime appears only where the site wears it.
+  lime500: "#C8FF00",
+
   // Category sticker band (site/globals.css). Each maps to a category; the pair
   // decides text colour per WCAG. These are DATA-ENCODED content accents only —
   // they never decorate generic UI chrome. Food lost the neon lime, settling on
@@ -107,6 +112,25 @@ export const colors = {
   neon: "#FF432A",
   neonText: "#F7F4EE",
 
+  /**
+   * The electric band (site `--color-neon`). Lime is the Gen-Z register —
+   * highlighter marks, tape badges, sticker highlights. Coral stays THE action
+   * colour; lime only appears where the site wears it, never on generic chrome.
+   */
+  lime: "#C8FF00",
+  /** Ink that clears WCAG AA on lime. */
+  limeInk: "#171717",
+
+  /**
+   * Feedback rating stickers — data-encoded marks, one { bg, on } pair per
+   * rating so ink stays legible on the specific colour (docs/DESIGN.md §10).
+   */
+  rating: {
+    meh: { bg: "#E4DDD1", on: "#171717" },
+    good: { bg: "#719B86", on: "#FFFFFF" },
+    fire: { bg: "#FF432A", on: "#FFFFFF" },
+  } as const,
+
   /** Scrim behind modal surfaces — dim to focus (skill §12). */
   scrim: "rgba(23,23,23,0.32)",
 
@@ -137,6 +161,8 @@ export const spacing = {
   xs: 4,
   sm: 8,
   md: 16,
+  /** Screen-level page padding — one step above `md` so forms and lists breathe. */
+  page: 20,
   lg: 24,
   xl: 32,
   xxl: 48,
@@ -172,7 +198,21 @@ export const elevation = {
     },
     default: { elevation: 1 },
   })!,
-  /** Cards. */
+  /**
+   * Cards. One step above `low` so a grouped card lifts off the page without
+   * reaching sheet depth — buttons keep `low`, so cards and buttons read at
+   * different levels.
+   */
+  card: Platform.select({
+    ios: {
+      shadowColor: "#3D2F22",
+      shadowOpacity: 0.09,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    default: { elevation: 2 },
+  })!,
+  /** Sheets, floating chrome over the map. */
   medium: Platform.select({
     ios: {
       shadowColor: "#3D2F22",

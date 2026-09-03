@@ -62,15 +62,15 @@ type Role =
 export const type: Record<Role, TextStyle> = {
   display: {
     fontFamily: systemFont,
-    fontSize: 34,
-    lineHeight: 38,
+    fontSize: 36,
+    lineHeight: 40,
     letterSpacing: -1.5,
     fontWeight: "700",
   },
   title1: {
     fontFamily: systemFont,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 30,
+    lineHeight: 34,
     letterSpacing: -1.0,
     fontWeight: "700",
   },
@@ -90,8 +90,8 @@ export const type: Record<Role, TextStyle> = {
   },
   headline: {
     fontFamily: systemFontMedium,
-    fontSize: 17,
-    lineHeight: 23,
+    fontSize: 18,
+    lineHeight: 25,
     letterSpacing: -0.1,
     fontWeight: "600",
   },

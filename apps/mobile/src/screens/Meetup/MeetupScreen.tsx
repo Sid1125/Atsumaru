@@ -13,8 +13,9 @@ import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
 import { Card } from "../../components/ui/Card";
 import { Sticker } from "../../components/ui/Sticker";
+import { Tape } from "../../components/ui/Tape";
 import { IconSparkle } from "../../components/ui/Icons";
-import { categoryGlyph, categorySticker } from "../../categoryMeta";
+import { categoryIcon, categorySticker } from "../../categoryMeta";
 import { ChatThread } from "../../components/chat/ChatThread";
 import { FeedbackPanel } from "../../components/feedback/FeedbackPanel";
 import { VibeRecapCard } from "../../components/recap/VibeRecapCard";
@@ -44,7 +45,12 @@ type Nav = NativeStackNavigationProp<AppStackParamList, "Meetup">;
 function MemberAvatar({ member }: { member: GroupMember }) {
   return (
     <View style={styles.member}>
-      <Avatar id={member.user_id} label={member.user.handle.slice(0, 1)} size="md" />
+      <Avatar
+        id={member.user_id}
+        label={member.user.handle.slice(0, 1)}
+        uri={member.user.avatar_url}
+        size="md"
+      />
       <Text style={styles.memberHandle} numberOfLines={1}>
         @{member.user.handle}
       </Text>
@@ -107,7 +113,7 @@ export function MeetupScreen() {
     ? Math.round(matchQuery.data.match_score * 100)
     : null;
   const sticker = categorySticker(event.category);
-  const glyph = categoryGlyph(event.category);
+  const CategoryMark = categoryIcon(event.category);
 
   function openConnection(connection: Connection) {
     const otherId =
@@ -139,36 +145,28 @@ export function MeetupScreen() {
             rotate={-1.5}
             style={styles.heroSticker}
           >
-            <Text style={styles.heroGlyphText}>{glyph}</Text>
+            <CategoryMark size={30} color={sticker.on} />
           </Sticker>
-          <Sticker
-            color={
+          {/* Status rides on a tape badge — open wears the electric band,
+              ongoing the coral register, finished sits quiet on the ink. */}
+          <Tape
+            label={t(
               event.status === "completed"
-                ? colors.nightRaised
+                ? "discover.status.completed"
                 : event.status === "ongoing"
-                  ? colors.neon
-                  : colors.nightRaised
+                  ? "discover.status.ongoing"
+                  : "discover.status.open"
+            )}
+            tone={
+              event.status === "ongoing"
+                ? "coral"
+                : event.status === "completed"
+                  ? "night"
+                  : "lime"
             }
-            borderRadius={radius.xs}
             rotate={1}
-            offset={2}
             style={styles.statusTape}
-          >
-            <Text
-              style={[
-                styles.statusTapeText,
-                event.status === "ongoing" && { color: colors.neonText },
-              ]}
-            >
-              {t(
-                event.status === "completed"
-                  ? "discover.status.completed"
-                  : event.status === "ongoing"
-                    ? "discover.status.ongoing"
-                    : "discover.status.open"
-              )}
-            </Text>
-          </Sticker>
+          />
         </View>
         <Text style={[styles.categoryKicker, { color: sticker.bg }]}>
           {t(`discover.categories.${event.category}`)}
@@ -192,7 +190,11 @@ export function MeetupScreen() {
       {score != null ? (
         <View style={styles.matchCard}>
           <View style={styles.matchHead}>
-            <Text style={styles.matchScore}>{score}%</Text>
+            {/* The score is the loudest number on the page — it wears the
+                sticker, the way the site stamps its payoff figures. */}
+            <Sticker color={colors.lime} borderRadius={radius.md} rotate={-1.5} offset={2}>
+              <Text style={styles.matchScore}>{score}%</Text>
+            </Sticker>
             <Text style={styles.matchLabel}>{t("meetup.groupFitLabel")}</Text>
           </View>
           <View style={styles.matchReasons}>
@@ -297,7 +299,7 @@ export function MeetupScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.md, gap: spacing.lg },
+  content: { paddingHorizontal: spacing.page, gap: spacing.lg },
 
   hero: {
     backgroundColor: colors.night,
@@ -316,12 +318,6 @@ const styles = StyleSheet.create({
     height: 64,
   },
   statusTape: { marginTop: spacing.xxs },
-  statusTapeText: {
-    ...type.overline,
-    color: colors.nightMuted,
-    paddingHorizontal: spacing.sm,
-  },
-  heroGlyphText: { fontSize: 30 },
   categoryKicker: { ...type.overline },
 
   title: { ...type.display, color: colors.nightText },
@@ -334,8 +330,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
-  matchHead: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm },
-  matchScore: { ...type.display, color: colors.accent },
+  matchHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  matchScore: {
+    ...type.title1,
+    color: colors.limeInk,
+    paddingHorizontal: spacing.sm + 2,
+  },
   matchLabel: { ...type.subhead, color: colors.accent, flex: 1 },
   matchReasons: { gap: spacing.xs },
   reasonRow: { flexDirection: "row", gap: spacing.sm },

@@ -5,8 +5,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "../../components/common/Avatar";
-import { IconChevronRight } from "../../components/ui/Icons";
+import { Chip } from "../../components/common/Chip";
+import { ProfileEditModal } from "../../components/profile/ProfileEditModal";
+import { Card } from "../../components/ui/Card";
+import { IconChevronRight, IconGlobe } from "../../components/ui/Icons";
+import { Marker } from "../../components/ui/Marker";
 import { PressableScale } from "../../components/ui/PressableScale";
+import { traitLabel } from "../../onboardingPersonality";
 import { authApi } from "../../services/api/auth";
 import { usersApi } from "../../services/api/users";
 import { useConnections } from "../../features/connections/hooks/useConnections";
@@ -36,6 +41,7 @@ export function ProfileScreen() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const connections = connectionsQuery.data?.connections?.length ?? 0;
   const meetups = meetupsQuery.data?.events?.length ?? 0;
@@ -68,6 +74,7 @@ export function ProfileScreen() {
   }
 
   const interests = user?.interests ?? [];
+  const personality = user?.personality ?? [];
 
   return (
     <ScrollView
@@ -83,25 +90,49 @@ export function ProfileScreen() {
         <Avatar
           id={user?.id ?? ""}
           label={(user?.handle ?? "?").slice(0, 1)}
+          uri={user?.avatar_url}
           size="lg"
         />
         <Text style={styles.heroKicker}>{t("profile.heroKicker")}</Text>
-        <Text style={styles.handle}>@{user?.handle}</Text>
+        {/* The handle wears the highlighter mark — the loudest move in the
+            vocabulary, reserved for the one word that is the person. */}
+        <Marker style={styles.handle}>@{user?.handle}</Marker>
         <Text style={styles.name}>{user?.display_name}</Text>
       </View>
 
-      {/* Stats — three figures separated by hairlines, no boxes */}
-      <View style={styles.stats}>
-        <Stat value={`${rep}`} label={t("settings.repLabel")} accent />
-        <View style={styles.statRule} />
-        <Stat value={`${connections}`} label={t("profile.statConnections")} />
-        <View style={styles.statRule} />
-        <Stat value={`${meetups}`} label={t("profile.statMeetups")} />
+      {/* Stats — one lime vinyl strip, not three figures on hairline rules */}
+      <View style={styles.statsWrap}>
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          style={styles.statsShadow}
+        />
+        <View style={styles.stats}>
+          <Stat value={`${rep}`} label={t("settings.repLabel")} />
+          <View style={styles.statRule} />
+          <Stat value={`${connections}`} label={t("profile.statConnections")} />
+          <View style={styles.statRule} />
+          <Stat value={`${meetups}`} label={t("profile.statMeetups")} />
+        </View>
       </View>
 
-      {/* Interests — numbered editorial index */}
+      {/* Edit profile — the one door into the edit modal. */}
+      <Card style={styles.blockCard}>
+        <PressableScale
+          onPress={() => setEditing(true)}
+          scaleTo={0.98}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel={t("profile.edit")}
+        >
+          <Text style={styles.rowLabel}>{t("profile.edit")}</Text>
+          <IconChevronRight size={18} color={colors.textMuted} />
+        </PressableScale>
+      </Card>
+
+      {/* Interests — numbered editorial index on a card */}
       {interests.length > 0 ? (
-        <View style={styles.block}>
+        <Card style={styles.blockCard}>
           <Text style={styles.groupLabel}>{t("onboarding.interests")}</Text>
           {interests.map((interest, index) => (
             <View key={interest} style={styles.interestRow}>
@@ -111,48 +142,58 @@ export function ProfileScreen() {
               <Text style={styles.interestText}>{interest}</Text>
             </View>
           ))}
-        </View>
+        </Card>
       ) : null}
 
-      {/* Apps prefs */}
-      <View style={styles.block}>
-        <Text style={styles.groupLabel}>{t("profile.prefsGroup")}</Text>
-        <Text style={styles.rowLabel}>{t("settings.language")}</Text>
-        <View style={styles.languageMenu}>
-          {LANGUAGES.map((item, index) => (
-            <PressableScale
-              key={item.code}
-              onPress={() => chooseLanguage(item.code)}
-              scaleTo={0.98}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              accessibilityState={{ selected: language === item.code }}
-              style={styles.languageRow}
-            >
-              <Text
-                style={[
-                  styles.languageIndex,
-                  { color: colors.textMuted },
-                ]}
-              >
-                {String(index + 1).padStart(2, "0")}
-              </Text>
-              <Text
-                style={[
-                  styles.languageLabel,
-                  language === item.code && styles.languageSelected,
-                ]}
-              >
-                {item.label}
-              </Text>
-              {language === item.code ? <View style={styles.languageDot} /> : null}
-            </PressableScale>
-          ))}
+      {/* Personality — tags read in the caller's language when they match the
+          vocabulary, raw otherwise (an out-of-vocab tag is never rewritten). */}
+      {personality.length > 0 ? (
+        <Card style={styles.blockCard}>
+          <Text style={styles.groupLabel}>{t("onboarding.personality")}</Text>
+          <View style={styles.personalityChips}>
+            {personality.map((tag) => (
+              <Chip key={tag} label={traitLabel(tag, language)} />
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
+      {/* Apps prefs — language as a segmented control, not a list */}
+      <Card style={styles.blockCard}>
+        <View style={styles.groupHeader}>
+          <IconGlobe size={14} color={colors.textMuted} />
+          <Text style={styles.groupLabel}>{t("profile.prefsGroup")}</Text>
         </View>
-      </View>
+        <View style={styles.segmented}>
+          {LANGUAGES.map((item) => {
+            const selected = language === item.code;
+            return (
+              <PressableScale
+                key={item.code}
+                onPress={() => chooseLanguage(item.code)}
+                scaleTo={0.96}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                accessibilityState={{ selected }}
+                style={[styles.segment, selected && styles.segmentSelected]}
+              >
+                <Text
+                  style={[
+                    styles.segmentLabel,
+                    selected && styles.segmentLabelSelected,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+              </PressableScale>
+            );
+          })}
+        </View>
+      </Card>
 
       {/* Account */}
-      <View style={styles.block}>
+      <Card style={styles.blockCard}>
         <Text style={styles.groupLabel}>{t("profile.accountGroup")}</Text>
         <PressableScale
           onPress={handleSignOut}
@@ -167,7 +208,7 @@ export function ProfileScreen() {
           </Text>
           <IconChevronRight size={18} color={colors.danger} />
         </PressableScale>
-      </View>
+      </Card>
 
       {error ? (
         <Text style={styles.error} accessibilityLiveRegion="polite">
@@ -176,6 +217,10 @@ export function ProfileScreen() {
       ) : null}
 
       <Text style={styles.privacy}>{t("settings.privacyNote")}</Text>
+
+      {user && editing ? (
+        <ProfileEditModal user={user} onClose={() => setEditing(false)} />
+      ) : null}
     </ScrollView>
   );
 }
@@ -183,17 +228,13 @@ export function ProfileScreen() {
 function Stat({
   value,
   label,
-  accent,
 }: {
   value: string;
   label: string;
-  accent?: boolean;
 }) {
   return (
     <View style={styles.stat}>
-      <Text style={[styles.statValue, accent && styles.statValueAccent]}>
-        {value}
-      </Text>
+      <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -211,24 +252,46 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   heroKicker: { ...type.overline, color: colors.neon },
-  handle: { ...type.display, color: colors.nightText, marginTop: spacing.sm },
+  handle: { ...type.display, marginTop: spacing.sm },
   name: { ...type.callout, color: colors.nightMuted },
 
+  statsWrap: {
+    position: "relative",
+    marginHorizontal: spacing.page,
+    marginTop: -spacing.sm,
+  },
+  statsShadow: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(9,9,11,0.9)",
+  },
   stats: {
     flexDirection: "row",
     alignItems: "stretch",
-    marginHorizontal: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    paddingBottom: spacing.md,
+    backgroundColor: colors.lime,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    transform: [{ rotate: "-0.8deg" }],
   },
   stat: { flex: 1, alignItems: "center", gap: spacing.xxs },
-  statRule: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border },
-  statValue: { ...type.title2, color: colors.text, fontWeight: "700" },
-  statValueAccent: { color: colors.primary },
-  statLabel: { ...type.overline, color: colors.textMuted },
+  statRule: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.limeInk,
+    opacity: 0.25,
+  },
+  statValue: { ...type.title2, color: colors.limeInk, fontWeight: "800" },
+  statLabel: { ...type.overline, color: colors.limeInk, opacity: 0.62 },
 
-  block: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  blockCard: { marginHorizontal: spacing.page, gap: spacing.sm },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   groupLabel: { ...sectionHeader, color: colors.textMuted },
 
   interestRow: {
@@ -237,10 +300,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.separator,
   },
-  interestIndex: { ...type.overline, color: colors.primary, fontSize: 9 },
+  interestIndex: { ...type.overline, color: colors.primary },
   interestText: { ...type.callout, color: colors.text },
+  personalityChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
 
   row: {
     flexDirection: "row",
@@ -248,27 +312,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: spacing.md - 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.separator,
   },
   rowLabel: { ...type.callout, color: colors.text },
 
-  languageMenu: { gap: spacing.xs },
-  languageRow: {
+  segmented: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  languageIndex: { ...type.overline },
-  languageLabel: { ...type.body, color: colors.textSecondary },
-  languageSelected: { color: colors.primary, fontWeight: "700" },
-  languageDot: {
-    width: 8,
-    height: 8,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    marginLeft: "auto",
+    padding: 3,
+    gap: 2,
   },
+  segment: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xs,
+  },
+  segmentSelected: { backgroundColor: colors.lime },
+  segmentLabel: { ...type.subhead, color: colors.textMuted, fontWeight: "600" },
+  segmentLabelSelected: { color: colors.limeInk },
 
   signOutLabel: { color: colors.danger },
 
@@ -276,12 +341,12 @@ const styles = StyleSheet.create({
     ...type.footnote,
     color: colors.danger,
     textAlign: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.page,
   },
   privacy: {
     ...type.overline,
     color: colors.textMuted,
     textAlign: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.page,
   },
 });

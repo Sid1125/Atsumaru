@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { StyleProp, TextInputProps, TextStyle } from "react-native";
 
@@ -22,12 +23,17 @@ export function TextField({
   prefix,
   style,
   multiline,
+  onFocus,
+  onBlur,
   ...inputProps
 }: TextFieldProps) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <View
       style={[
         styles.field,
+        focused && styles.fieldFocused,
         multiline && styles.fieldMultiline,
       ]}
     >
@@ -35,6 +41,14 @@ export function TextField({
       <TextInput
         multiline={multiline}
         placeholderTextColor={colors.textMuted}
+        onFocus={(event) => {
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          onBlur?.(event);
+        }}
         style={[styles.input, multiline && styles.inputMultiline, style]}
         {...inputProps}
       />
@@ -53,6 +67,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
+  },
+  /** The field signals focus with the action colour — where your cursor is. */
+  fieldFocused: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   fieldMultiline: {
     alignItems: "flex-start",

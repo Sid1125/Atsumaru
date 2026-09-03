@@ -1,19 +1,27 @@
-import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { PressableScale } from "../ui/PressableScale";
-import { colors, elevation, MIN_TARGET, radius, spacing, type } from "../../theme";
+import { colors, MIN_TARGET, radius, spacing, type } from "../../theme";
 
 interface ButtonProps {
   label: string;
   onPress: () => void;
-  /** `neon` is the electric CTA — the site's neon pill on night surfaces. */
+  /**
+   * `neon` is the electric CTA on night surfaces — the site's neon pill with a
+   * hard offset vinyl shadow. `primary` is the coral pill with a coral glow.
+   */
   variant?: "primary" | "secondary" | "tinted" | "plain" | "neon";
   size?: "regular" | "large";
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
-  /** Leading glyph. Kept decorative — the label always carries the meaning. */
-  icon?: string;
   /** Leading ReactNode — use for SVG logos or complex icons. */
   leadingIcon?: React.ReactNode;
   haptic?: "none" | "light" | "medium" | "success";
@@ -27,7 +35,6 @@ export function Button({
   disabled,
   loading,
   style,
-  icon,
   leadingIcon,
   haptic = "light",
 }: ButtonProps) {
@@ -59,7 +66,7 @@ export function Button({
           />
         ) : (
           <>
-            {leadingIcon ?? (icon ? <Text style={styles.icon}>{icon}</Text> : null)}
+            {leadingIcon}
             <Text
               style={[
                 styles.label,
@@ -81,7 +88,22 @@ export function Button({
     </PressableScale>
   );
 
-  // Neon CTA — flat neon pill, no vinyl shadow wrapper (that layout breaks).
+  // The neon CTA is vinyl: a hard offset shadow under the pill, exactly the
+  // site's sticker-badge look on dark surfaces. The underlay is a plain shifted
+  // View because RN elevation cannot do hard shadows.
+  if (variant === "neon") {
+    return (
+      <View>
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          style={[styles.vinylShadow, { top: 3, left: 3 }]}
+        />
+        {surface}
+      </View>
+    );
+  }
+
   return surface;
 }
 
@@ -89,9 +111,8 @@ const styles = StyleSheet.create({
   base: {
     minHeight: MIN_TARGET,
     paddingHorizontal: spacing.lg,
-    // Substantial, rectangular — restrained corner, never a capsule. The CTA
-    // reads as a solid editorial slab (JOIN MEETUP →), not a rounded button.
-    borderRadius: radius.xs,
+    // Pill — the site's CTA shape (site/components/ui/Button.tsx `rounded-full`).
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -102,17 +123,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  primary: { backgroundColor: colors.primary, ...elevation.low },
+  primary: {
+    backgroundColor: colors.primary,
+    // Coral glow — the site's `shadow-accent/20` lifted: the CTA reads as lit,
+    // not just floated.
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      default: { elevation: 4 },
+    }),
+  },
   secondary: {
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    ...elevation.low,
   },
   tinted: { backgroundColor: colors.primarySoft },
   plain: { backgroundColor: "transparent" },
-  /** Neon pill keeps no soft shadow — the hard underlay is its shadow. */
-  neon: { backgroundColor: colors.neon },
+  /** Neon keeps no soft shadow — the hard underlay is its shadow. */
+  neon: { backgroundColor: colors.primary },
+  vinylShadow: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(9,9,11,0.9)",
+  },
   labelOnNeon: { color: colors.neonText },
   /**
    * Disabled state is expressed in colour, not opacity. Opacity is owned by the
@@ -128,9 +168,8 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   labelDisabled: { color: colors.textMuted },
-  icon: { fontSize: 17 },
   label: { ...type.headline },
   labelOnColor: { color: colors.primaryText },
   labelOnSurface: { color: colors.text },
   labelTinted: { color: colors.primary },
-});
+});

@@ -11,7 +11,7 @@ import {
   toApiEvent,
   type EventRow,
 } from "../../db/queries.js";
-import { centroid, matchScore } from "../matching/score.js";
+import { matchScore } from "../matching/score.js";
 import { matchReasons } from "../matching/reasons.js";
 import type { Language } from "../../types.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
@@ -234,22 +234,34 @@ eventsRouter.get(
   })
 );
 
-/** Group vector = centroid of the members' preference vectors (docs/AI.md §5). */
-async function groupVector(eventId: string): Promise<number[]> {
+/**
+ * Each member's preference vector plus their interest/personality tags. Fit is
+ * computed pairwise against the people actually in the group (docs/AI.md §5); the
+ * tags are the cold-start fallback when a side has no vector yet.
+ */
+async function memberProfiles(eventId: string) {
   const { data, error } = await db()
     .from("group_members")
-    .select("user:users (preference_vector)")
+    .select("user_id, user:users (preference_vector, interests, personality)")
     .eq("event_id", eventId);
 
   if (error) throw dbError(error);
 
-  const vectors = ((data ?? []) as unknown as {
-    user: { preference_vector: unknown } | null;
-  }[])
-    .map((row) => parseVector(row.user?.preference_vector))
-    .filter((vector): vector is number[] => vector !== null);
-
-  return centroid(vectors);
+  return ((data ?? []) as unknown as {
+    user_id: string;
+    user: {
+      preference_vector: unknown;
+      interests: string[] | null;
+      personality: string[] | null;
+    } | null;
+  }[]).map((row) => ({
+    user_id: row.user_id,
+    vector: parseVector(row.user?.preference_vector),
+    tags: [
+      ...(row.user?.interests ?? []),
+      ...(row.user?.personality ?? []),
+    ],
+  }));
 }
 
 eventsRouter.get(
@@ -261,28 +273,38 @@ eventsRouter.get(
     const event = await findEvent(param(req, "id"));
     const members = await findMembers(event.id);
 
-    const [userVector, groupCentroid] = await Promise.all([
+    const [userVector, profiles] = await Promise.all([
       preferenceVector(req.userId!),
-      groupVector(event.id),
+      memberProfiles(event.id),
     ]);
 
     const me = members.find((member) => member.user_id === req.userId);
 
     const { data: profile, error } = await db()
       .from("users")
-      .select("interests, reputation_score, language")
+      .select("interests, personality, reputation_score, language")
       .eq("id", req.userId!)
       .maybeSingle<{
         interests: string[];
+        personality: string[];
         reputation_score: number;
         language: Language;
       }>();
 
     if (error) throw dbError(error);
 
+    // Fit measures the caller against everyone *else* in the group — for a member
+    // viewing their own meetup, including themselves would flatter the score.
+    const others = profiles.filter((row) => row.user_id !== req.userId);
+
     const score = matchScore({
-      userVector: userVector ?? [],
-      groupVector: groupCentroid,
+      userVector,
+      userTags: [
+        ...(profile?.interests ?? []),
+        ...(profile?.personality ?? []),
+      ],
+      memberVectors: others.map((other) => other.vector),
+      memberTags: others.map((other) => other.tags),
       currentSize: Number(event.current_size),
       maxSize: event.max_size,
       reputation: profile?.reputation_score ?? 50,

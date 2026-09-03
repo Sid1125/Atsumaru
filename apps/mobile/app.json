@@ -29,6 +29,12 @@
       "expo-secure-store",
       "expo-localization",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Atsumaru uses your photo only as your profile picture."
+        }
+      ],
+      [
         "@rnmapbox/maps",
         {
           "RNMapboxMapsVersion": "11.23.1"

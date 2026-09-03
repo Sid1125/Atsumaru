@@ -13,16 +13,22 @@ import {
   registerDeviceKey,
   setDeviceChallenge,
 } from "../../db/queries.js";
+import { parseDataUrl } from "./avatar.js";
 import { verifyDeviceSignature } from "./deviceIdentity.js";
 import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
+import { HANDLE_RE } from "../../utils/handle.js";
+import { serializeVector } from "../../utils/vector.js";
+import { embed } from "../../services/ai.js";
 import { LANGUAGES } from "../../types.js";
 
 const patchSchema = z.object({
+  handle: z.string().regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore").optional(),
   display_name: z.string().min(1).max(40).optional(),
   avatar_url: z.string().url().nullable().optional(),
   interests: z.array(z.string().min(1).max(40)).max(30).optional(),
+  personality: z.array(z.string().min(1).max(40)).max(8).optional(),
   language: z.enum(LANGUAGES).optional(),
   location: z
     .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
@@ -58,7 +64,106 @@ usersRouter.patch(
       patch.location = `SRID=4326;POINT(${location.lng} ${location.lat})`;
     }
 
+    // Changing interests/personality changes what matching should optimise for, so
+    // re-embed the merged tags into the preference vector the same way onboarding
+    // does. Embedding is best-effort: on failure the profile still saves and the
+    // stored vector stays — matching already falls back to tag similarity.
+    if (rest.interests !== undefined || rest.personality !== undefined) {
+      const { data: current, error: currentError } = await db()
+        .from("users")
+        .select("interests, personality")
+        .eq("id", req.userId!)
+        .maybeSingle<{ interests: string[]; personality: string[] }>();
+
+      if (currentError) throw dbError(currentError);
+
+      try {
+        const tags = [
+          ...(rest.interests ?? current?.interests ?? []),
+          ...(rest.personality ?? current?.personality ?? []),
+        ];
+        patch.preference_vector = serializeVector(await embed(tags.join(", ")));
+      } catch (error) {
+        console.warn("Embedding unavailable, keeping existing preference vector:", error);
+      }
+    }
+
     const { error } = await db().from("users").update(patch).eq("id", req.userId!);
+
+    if (error) {
+      // 23505 = unique_violation — the handle was taken between check and save.
+      if (error.code === "23505") {
+        throw new HttpError(409, "HANDLE_TAKEN", "That handle is already taken.");
+      }
+      throw dbError(error);
+    }
+
+    return ok(res, { user: await publicUser(req.userId!) });
+  })
+);
+
+/**
+ * Profile photo. The client sends a base64 data URL; the server decodes it,
+ * validates it (avatar.ts), stores it in Supabase Storage under a public
+ * `avatars` bucket, and points `users.avatar_url` at it. Storage failing is a
+ * 503, not a crash — the same degradation convention as every integration.
+ */
+const avatarSchema = z.object({
+  data_url: z.string().min(1).max(16 * 1024 * 1024),
+});
+
+usersRouter.post(
+  "/me/avatar",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const parsed = avatarSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", "Expected { data_url }.");
+    }
+
+    const decoded = parseDataUrl(parsed.data.data_url);
+
+    if (!decoded.ok) {
+      throw decoded.reason === "too-large"
+        ? new HttpError(413, "PAYLOAD_TOO_LARGE", "That photo is too large (max 5 MB).")
+        : new HttpError(400, "INVALID_BODY", "Expected a base64 jpeg/png/webp data URL.");
+    }
+
+    let publicUrl: string;
+
+    try {
+      const storage = db().storage;
+
+      // Bucket is created lazily on first upload; `getBucket` is the cheapest way
+      // to ask, and a later `upload` failure surfaces the same way.
+      const { data: bucket } = await storage.getBucket("avatars");
+      if (!bucket) {
+        await storage.createBucket("avatars", { public: true });
+      }
+
+      const ext = decoded.mime.split("/")[1];
+      const path = `${req.userId}.${ext}`;
+
+      const { error: uploadError } = await storage
+        .from("avatars")
+        .upload(path, decoded.buffer, {
+          contentType: decoded.mime,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      publicUrl = storage.from("avatars").getPublicUrl(path).data.publicUrl;
+    } catch (error) {
+      console.warn("Avatar storage unavailable:", error);
+      throw new HttpError(503, "STORAGE_UNAVAILABLE", "Photo storage is not configured.");
+    }
+
+    const { error } = await db()
+      .from("users")
+      .update({ avatar_url: publicUrl })
+      .eq("id", req.userId!);
 
     if (error) throw dbError(error);
 

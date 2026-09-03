@@ -56,20 +56,30 @@ function groupBalance(currentSize: number, maxSize: number): number {
   return (currentSize + 1) / maxSize;
 }
 
+/** Mean pairwise tag similarity — mirrors `tagFit` in score.ts (docs/RULES.md §7). */
+function tagFit(userTags: string[], memberTags: string[][]): number {
+  const usable = memberTags.filter((tags) => tags.length > 0);
+  if (userTags.length === 0 || usable.length === 0) return 0;
+
+  const sum = usable.reduce((acc, tags) => acc + similarity(userTags, tags), 0);
+  return sum / usable.length;
+}
+
 function matchScore(user: User, event: EventSeed): number {
   const others = memberIds(event.id).filter((id) => id !== user.id);
   const world = getWorld();
 
-  const groupTraits = others.flatMap((id) => {
+  // Pairwise, member by member — the same shape as the server's `fit` term.
+  const memberTags = others.map((id) => {
     const member = world.users.get(id);
     return member ? [...member.interests, ...member.personality] : [];
   });
 
-  const sim = similarity([...user.interests, ...user.personality], groupTraits);
+  const fit = tagFit([...user.interests, ...user.personality], memberTags);
   const reputation = Math.min(1, Math.max(0, user.reputation_score / 100));
 
   return (
-    0.6 * sim +
+    0.6 * fit +
     0.2 * groupBalance(memberIds(event.id).length, event.max_size) +
     0.2 * reputation
   );
@@ -466,9 +476,24 @@ export async function demoRequest<T>(
     const user = requireUser();
     const next: User = {
       ...user,
+      handle: (body.handle as string) ?? user.handle,
       display_name: (body.display_name as string) ?? user.display_name,
+      avatar_url: (body.avatar_url as string | null) ?? user.avatar_url,
       language: (body.language as Language) ?? user.language,
       interests: (body.interests as string[]) ?? user.interests,
+      personality: (body.personality as string[]) ?? user.personality,
+    };
+    world.users.set(user.id, next);
+    return settle({ user: next } as T);
+  }
+
+  // Mirrors POST /users/me/avatar: in demo mode the data URL is stored as-is,
+  // which RN's <Image> renders directly.
+  if (path === "/users/me/avatar" && method === "POST") {
+    const user = requireUser();
+    const next: User = {
+      ...user,
+      avatar_url: (body.data_url as string) ?? user.avatar_url,
     };
     world.users.set(user.id, next);
     return settle({ user: next } as T);

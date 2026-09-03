@@ -16,8 +16,10 @@ import Animated, {
 
 import { Button } from "../../components/common/Button";
 import { LineLogo, GoogleLogo } from "../../components/common/BrandLogos";
+import { IconMail } from "../../components/ui/Icons";
+import { Marker } from "../../components/ui/Marker";
 import { Sticker } from "../../components/ui/Sticker";
-import { CATEGORY_ORDER, categoryGlyph, categorySticker } from "../../categoryMeta";
+import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMeta";
 import { DEMO_MODE } from "../../config/env";
 import { useOAuthLogin } from "../../features/auth/hooks/useOAuthLogin";
 import type { AuthStackParamList } from "../../app/navigation/types";
@@ -111,7 +113,9 @@ export function LoginScreen() {
         <View style={styles.hero}>
           <Animated.View style={riseTitle}>
             <Text style={styles.positionKicker}>{t("auth.tagline")}</Text>
-            <Text style={styles.kicker}>集まる</Text>
+            {/* The wordmark wears the highlighter band — the site's loudest
+                move, reserved for the brand itself. */}
+            <Marker style={styles.kicker}>集まる</Marker>
             <Text style={styles.brand}>{t("common.appName")}</Text>
           </Animated.View>
         </View>
@@ -142,7 +146,7 @@ export function LoginScreen() {
             onPress={() => navigation.navigate("EmailAuth")}
             disabled={pending !== null}
             size="large"
-            icon="✉️"
+            leadingIcon={<IconMail size={20} color={colors.text} />}
           />
 
           {error ? (
@@ -173,7 +177,7 @@ const FLOATER_LAYOUT = [
 const FLOATERS = CATEGORY_ORDER.map((category, i) => {
   const sticker = categorySticker(category);
   return {
-    glyph: categoryGlyph(category),
+    Mark: categoryIcon(category),
     color: sticker.bg,
     on: sticker.on,
     ...FLOATER_LAYOUT[i]!,
@@ -196,7 +200,7 @@ function FloatingStickers() {
 }
 
 function Floater({
-  glyph,
+  Mark,
   color,
   on,
   top,
@@ -233,9 +237,7 @@ function Floater({
         offset={6}
         style={[styles.floaterSticker, { width: size, height: size, overflow: "hidden" }]}
       >
-        <Text style={[styles.floaterGlyph, { fontSize: size * 0.42 }]}>
-          {glyph}
-        </Text>
+        <Mark size={size * 0.42} color={on} />
       </Sticker>
     </Animated.View>
   );
@@ -259,7 +261,6 @@ const styles = StyleSheet.create({
   },
   floater: { position: "absolute" },
   floaterSticker: {},
-  floaterGlyph: {},
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
@@ -275,7 +276,6 @@ const styles = StyleSheet.create({
   },
   kicker: {
     ...type.title1,
-    color: colors.nightText,
     letterSpacing: 6,
     marginBottom: spacing.xs,
   },

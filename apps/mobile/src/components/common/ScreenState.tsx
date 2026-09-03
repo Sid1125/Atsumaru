@@ -4,7 +4,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "./Button";
 import { IconMap, IconWarning } from "../ui/Icons";
-import { colors, spacing, type } from "../../theme";
+import { colors, radius, spacing, type } from "../../theme";
 
 interface ScreenStateProps {
   status: "loading" | "error" | "empty";
@@ -32,11 +32,13 @@ export function ScreenState({ status, message, onRetry, dark }: ScreenStateProps
         </>
       ) : (
         <>
-          {status === "error" ? (
-            <IconWarning size={40} color={tint} />
-          ) : (
-            <IconMap size={40} color={tint} />
-          )}
+          <View style={[styles.badge, dark && styles.badgeDark]}>
+            {status === "error" ? (
+              <IconWarning size={26} color={dark ? colors.neon : colors.primary} />
+            ) : (
+              <IconMap size={26} color={dark ? colors.neon : colors.primary} />
+            )}
+          </View>
           <Text style={[styles.label, dark && styles.labelDark]}>
             {message ??
               (status === "error" ? t("common.error") : t("common.empty"))}
@@ -63,6 +65,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
     minHeight: 200,
+  },
+  badge: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeDark: {
+    backgroundColor: colors.nightRaised,
   },
   label: {
     ...type.callout,

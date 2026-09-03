@@ -108,7 +108,7 @@
     "leave": "退出小组",
     "openChat": "打开聊天",
     "messagePlaceholder": "给小组发消息...",
-    "chatEmpty": "还没有消息，打个招呼吧 👋",
+    "chatEmpty": "还没有消息，打个招呼吧",
     "groupFitLabel": "小组契合度"
   },
   "feedback": {
@@ -155,7 +155,17 @@
     "statConnections": "好友",
     "statMeetups": "聚会",
     "prefsGroup": "应用设置",
-    "accountGroup": "账户"
+    "accountGroup": "账户",
+    "edit": "编辑个人资料",
+    "editKicker": "EDIT PROFILE",
+    "save": "保存",
+    "changePhoto": "更换照片",
+    "uploading": "上传中...",
+    "photoError": "无法设置这张照片，请重试。",
+    "noInterests": "还没有兴趣 — 添加几个吧。",
+    "addInterest": "添加兴趣",
+    "addInterestPlaceholder": "例如：拉面",
+    "personalityCap": "性格标签最多 {{max}} 个。"
   },
   "createEvent": {
     "title": "发起聚会",

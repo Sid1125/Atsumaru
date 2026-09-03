@@ -1,12 +1,12 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing, type } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 
 /**
- * Coloured circle with the user's initial — the site's social avatar pattern
- * (site/globals.css hero section). Color is derived from the handle so the same
- * user always gets the same colour, and two users in a group are visually
- * distinct. The initial carries the meaning; colour is decoration (DESIGN.md §10).
+ * Circle avatar. With a photo (`uri`), the image fills the circle; without one,
+ * the initial on a handle-derived colour is the fallback — the same user always
+ * gets the same colour, and two users in a group stay visually distinct. The
+ * initial carries the meaning; colour is decoration (DESIGN.md §10).
  */
 
 const AVATAR_COLORS = [
@@ -35,6 +35,7 @@ const SIZES = {
 export function Avatar({
   id,
   label,
+  uri,
   size = "md",
   style,
 }: {
@@ -42,6 +43,8 @@ export function Avatar({
   id: string;
   /** Single character to display (usually the first letter of the handle). */
   label: string;
+  /** A photo URL (or data URL in demo mode) to render instead of the initial. */
+  uri?: string | null;
   size?: "sm" | "md" | "lg";
   style?: any;
 }) {
@@ -56,9 +59,17 @@ export function Avatar({
         style,
       ]}
     >
-      <Text style={[styles.text, { fontSize: s.text }]}>
-        {label.slice(0, 1).toUpperCase()}
-      </Text>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={{ width: s.container, height: s.container, borderRadius: s.container / 2 }}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <Text style={[styles.text, { fontSize: s.text }]}>
+          {label.slice(0, 1).toUpperCase()}
+        </Text>
+      )}
     </View>
   );
 }

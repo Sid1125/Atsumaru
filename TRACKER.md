@@ -52,7 +52,11 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 
 ### Matching (docs/AI.md §5–7)
 
-- [x] `0.6*cosine + 0.2*group_balance + 0.2*normalized_reputation`, backend-authoritative
+- [x] `0.6*fit + 0.2*group_balance + 0.2*normalized_reputation`, backend-authoritative —
+      `fit` is the **pairwise** mean cosine against each current member (an outlier
+      member scores honestly lower than the old centroid did), with a set-overlap
+      tag fallback when either side has no preference vector (cold-start users are
+      no longer hard-capped at 0.40)
 - [x] Preference update: fire pulls, meh pushes, good at half rate
 - [x] Reputation: credit for submitting, penalty for skipping, clamped 0–100
 - [x] Match reasons returned in the member's own language
@@ -760,6 +764,145 @@ changes app-only (`site/` untouched), `tsc --noEmit` clean.
 - [x] **Dead code removed** — CreateEvent's always-true `●` marker row (`cardSticker`),
       unused `sticker` const, FeedbackPanel's unused `title` style
 
+### 5e. Modernisation + emoji→SVG pass (2026-09-03)
+
+Second visual pass on top of §5d — same boundaries: app-only, no core-page
+restructure, `tsc --noEmit` clean after every batch.
+
+**Modernisation (moderate):**
+
+- [x] `spacing.page` (20) token — screen-level containers now breathe at 20pt
+      (ProfileConfirm, CreateEvent, EmailAuth, Connections, Meetup, Dm, Discover
+      sheet/filter rail, AI chat head/list/composer/trait tray); components keep
+      `spacing.md`
+- [x] `elevation.card` — cards got their own depth level (softer, slightly
+      stronger than `low`), so a grouped card lifts off the page while buttons
+      stay flat; `Card` uses it
+- [x] Type scale bumps — `headline` 17→18 (button labels), `title1` 28→30,
+      `display` 34→36 (meetup hero, profile handle)
+- [x] **TextField focus ring** — the field borders coral while focused, so the
+      active field is always visible (forms were dead until you typed)
+- [x] **ScreenState** — loading/error/empty icons now sit in a tinted rounded
+      badge with the accent colour instead of floating grey glyphs (dark variant
+      included)
+- [x] **Status bar correctness** — `RootNavigator` now renders `expo-status-bar`
+      per stage: light icons on the night login ground, dark everywhere else
+      (before this the login screen showed dark icons on dark)
+- [x] **Headers** — left-aligned titles (iOS-only flag, Android already does it)
+      with the bumped headline weight; no divider
+- [x] `IconMail` added; the email login button's ✉️ emoji → SVG
+
+**Emoji → SVG (chrome marks only; copy/data content keeps its emoji):**
+
+- [x] **Category system is now SVG** — 9 new stroke icons in `Icons.tsx` (bowl,
+      gamepad, palette, mountain, note, leaf, compass, book, dumbbell);
+      `categoryMeta.ts` maps category → icon component (replacing the emoji
+      glyph map), applied on the meetup hero sticker, event cards, map pins,
+      filter chips, create-event chips and the login floaters — every surface
+      draws the same mark in the sticker's ink
+- [x] **`Chip.icon` takes an SVG element** — the chip tints it to match the label
+      (sticker ink / selected white / secondary), so a hot-pink sticker still
+      gets legible ink marks
+- [x] **Feedback ratings** — 😐🙂🔥 → stroke face/flame icons (`IconFaceMeh`,
+      `IconFaceGood`, `IconFire`), keeping the text label; colour-blind safe
+      (shape + label)
+- [x] `Button.icon` string prop deleted (dead once the last ✉️ went); 👋 dropped
+      from `chatEmpty` copy (the `IconWave` already greets)
+
+### 5f. Gen-Z register pass (2026-09-03) — the site's vocabulary, applied
+
+User direction: the design language read "plain old boring"; bring the whole
+app onto a modern, clean, Gen-Z register without looking AI-generated. The
+reference was already in the repo — the marketing site's pop pass (§4). Mobile
+had drifted away from it (§5b's "rectangular slab, no pills, no cards"
+grammar diverged from the site's own pill CTA + sticker/tape/marker system).
+This pass re-anchors mobile to the site vocabulary, structurally untouched.
+`tsc --noEmit` clean; `docs/VISUAL_OVERHAUL.md` updated so docs and code agree.
+
+- [x] **Electric band returns** — `colors.lime` (`#C8FF00`, site `--color-neon`)
+      + `colors.limeInk`. Coral stays THE action colour; lime only where the
+      site wears it: highlighter marks, tape badges, sticker highlights
+- [x] **`Tape` badge** (new, site `.tape-badge`) — mono uppercase, hard offset
+      shadow, -2° tilt; lime/coral/night tones. Meetup status tape now wears it
+      (open=lime, ongoing=coral, finished=ink) instead of a flat sticker
+- [x] **`Marker` highlighter** (new, site `.marker`) — lime band behind short
+      display text with ink flip. Worn by the 集まる wordmark on Login and the
+      @handle on Profile — the two loudest identity moments, nowhere else
+- [x] **Buttons are pills again** (site CTA `rounded-full` + `shadow-accent/20`):
+      `primary` = coral pill with coral glow; `neon` = coral pill on a hard
+      offset vinyl underlay (site `.sticker-badge`); secondary/tinted follow
+      suit. Pills reserved for CTAs — "no pills-everywhere" still holds
+- [x] **Profile menus redesigned** — stats row is now one lime vinyl strip with
+      hard shadow + ink figures; interests/prefs/account blocks are cards with
+      hairline rows; language is a segmented pill control (selected segment
+      lime); prefs header gets `IconGlobe`
+- [x] **Match score wears the sticker** — Meetup's group-fit % sits on a lime
+      sticker with hard shadow instead of plain sage text
+- [x] **Discover host CTA** — `+ Host` is a lime vinyl pill (hard shadow)
+      popping on the dark sheet
+- [x] **Feedback ratings are data stickers** — meh/good/fire chips wear their
+      own `{ bg, on }` sticker colour when selected (`colors.rating`), ink
+      chosen per colour
+
+### 5g. Editable profile + photos + better group-fit scoring (2026-09-03)
+
+The onboarding confirm page showed the AI's extraction but made it read-only
+(only handle/display name were editable), the profile page had no editing at
+all, there was no photo upload anywhere, and match scoring used a centroid that
+washed out outliers and hard-capped cold-start users. All four closed in one
+pass; docs/AI.md §5 and docs/RULES.md §7 stay in force (scoring is
+backend-authoritative, demo mirror updated in the same change).
+
+- [x] **Onboarding confirm: interests & personality editable.** New shared
+      `components/profile/TagEditor.tsx` — `InterestEditor` (removable chips +
+      free-text add field) and `PersonalityEditor` (fixed-vocab toggle chips;
+      a stored tag is matched against **all three** locale labels + the canonical
+      key, because the AI returns it in the user's chat language; stray
+      out-of-vocab tags render as removable chips so nothing is silently
+      dropped). Used by both the confirm screen and the profile edit modal so
+      the two surfaces behave identically
+- [x] **Profile page: same editing.** `ProfileEditModal.tsx` (full-screen
+      modal) — display name, handle with the same live availability check as
+      onboarding (skipped for the owner's own handle), the two tag editors, and
+      a photo button. Saves through `PATCH /users/me`; profile now also
+      *displays* personality (tags localised via `traitLabel`, raw when
+      out-of-vocab)
+- [x] **`PATCH /users/me` accepts `handle` + `personality`** (was display_name/
+      avatar_url/interests/language/location only), maps the 23505
+      unique-violation to `409 HANDLE_TAKEN`, and **re-embeds the preference
+      vector** when interests/personality change (best-effort, same as
+      onboarding — matching's tag fallback covers a failed embed). Shared
+      `HANDLE_RE` moved to `utils/handle.ts` so onboarding and profile edits
+      cannot drift
+- [x] **Photo uploads.** `expo-image-picker` installed (plugin + permission
+      string in `app.json`); new `POST /users/me/avatar` accepts a base64
+      jpeg/png/webp data URL (`modules/users/avatar.ts` — pure `parseDataUrl`,
+      5 MB cap, unit-tested), stores it in a public Supabase Storage `avatars`
+      bucket (created lazily, one object per user, upsert) and points
+      `users.avatar_url` at it. Storage failure → `503 STORAGE_UNAVAILABLE`
+      (the `has*` degrade convention). Global `express.json` limit 1mb → 8mb
+      so the base64 fits. `Avatar` now renders the photo when `avatar_url` is
+      set, everywhere (Discover, Profile, Connections, Meetup); demo mode
+      stores the data URL directly
+- [x] **Better group-fit scoring** (`modules/matching/score.ts`, docs/AI.md §5):
+      the 0.6 cosine term is now a **pairwise mean** against each current member
+      (outliers score honestly lower than the centroid did; the caller's own
+      vector is excluded), and when either side has no preference vector it
+      falls back to set-overlap tag similarity (`tagFit`) — a fresh user is no
+      longer hard-capped at 0.40. Weights unchanged (0.6/0.2/0.2). Match-preview
+      route fetches per-member vectors + tags and composes via the new
+      `matchScore` input; demo mirror updated to pairwise `tagFit`
+- [x] i18n `profile.*` (edit/save/changePhoto/uploading/photoError/
+      noInterests/addInterest/personalityCap) added in en/ja/zh
+- [x] Verified: `npm run typecheck` clean (server + mobile), `npm test` 82 pass
+      / 1 skip / 0 fail (new: pairwise fit, tag similarity/fallback, cold-start
+      score above 0.40, avatar data-URL validation)
+- [ ] **Avatar upload is code-complete, not yet run against live Supabase
+      Storage** (same standing as the Mapbox path) — no storage round-trip has
+      been exercised. The `avatars` bucket, public URL, and the picker→upload
+      flow in Expo Go all need a live run; `exp://10.0.2.2:8081` demo/real
+      walkthrough still open
+
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 
 AI icebreakers, conversational feedback, women-only groups and safety layer, LINE
@@ -787,4 +930,5 @@ premium tier.
 | Mobile loop against the real API | **Closed 2026-08-30** — Google sign-in, onboarding (Groq), discovery, feedback submit, mutual unlock, and the DM thread were all driven live against `:4000`/Supabase with `DEMO_MODE=0` (Pixel emulator, Expo Go, ngrok tunnel; `context.md` §8). Only the DM *send* and the `atsumaru://` deep-link variant remain |
 | `schema.sql` drift | It is behind `migrations/001–003`, so a fresh project is missing the `event_sizes` RLS fix and the rest. `004` is **not** part of this drift — it was written into `schema.sql` at the same time. See §5 |
 | Vibe recap in demo mode | `EXPO_PUBLIC_DEMO_MODE=1` always takes the `source: "template"` path — there is no Groq offline. The card, traits and privacy line are real; nothing pretends a model ran |
+| Avatar upload | Code-complete (base64 → Supabase Storage `avatars` bucket → `avatar_url`), **never run against live Storage** — bucket creation, public URL and the Expo Go picker flow need a live round-trip |
 

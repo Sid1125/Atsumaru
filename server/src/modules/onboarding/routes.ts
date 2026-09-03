@@ -12,10 +12,9 @@ import { dbError, HttpError, ok } from "../../utils/response.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { serializeVector } from "../../utils/vector.js";
 import { BloomFilter } from "../../utils/bloom.js";
+import { HANDLE_RE } from "../../utils/handle.js";
 import { handleVariants } from "./suggest.js";
 import { LANGUAGES } from "../../types.js";
-
-const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
 // A bloom filter over taken handles, loaded lazily from the DB. It is a fast negative
 // pre-check, never the source of truth: the `users.handle` unique constraint is. A

@@ -4,7 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { colors, elevation, radius, spacing } from "../../theme";
 
 /**
- * The grouped-card surface: white paper, hairline border, low shadow. Before
+ * The grouped-card surface: white paper, hairline border, card shadow. Before
  * this existed every screen restated the same four lines and they drifted
  * (border width, corner radius, shadow) — this is the single source for card
  * chrome. Content layout (gaps, padding tweaks) stays with the caller via
@@ -27,6 +27,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.md,
-    ...elevation.low,
+    ...elevation.card,
   },
 });

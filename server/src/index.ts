@@ -17,7 +17,9 @@ import { ok, HttpError } from "./utils/response.js";
 const app = express();
 
 app.use(cors({ origin: env.CORS_ORIGIN }));
-app.use(express.json({ limit: "1mb" }));
+// 8 MB so a base64 profile photo fits in one request (a compressed phone photo
+// is ~1-2 MB in base64). Everything else stays far under this.
+app.use(express.json({ limit: "8mb" }));
 
 // Liveness only. Integration/oauth config state is deliberately withheld: it is not
 // needed by any health probe and disclosing which providers are enabled is information

@@ -58,10 +58,29 @@ Reference score:
 
 ```text
 match_score =
-  0.6 * cosine(user_preference, candidate_vector)
+  0.6 * fit
   + 0.2 * group_balance(size, ratio)
   + 0.2 * normalized_reputation
 ```
+
+`fit` measures the caller against the people **actually in the group**, not
+against an averaged ghost:
+
+```text
+fit = mean( cosine(caller_vector, member_vector) )   # pairwise, members only
+    = tag_overlap(caller_tags, member_tags)          # cold-start fallback
+```
+
+- **Pairwise, not centroid.** The mean over each current member's preference
+  vector scores a group where one member is an outlier honestly lower than a
+  group where everyone aligns. The centroid washes that out. The caller's own
+  vector is excluded when they are already a member.
+- **Cold-start fallback.** When either side has no preference vector (a brand-new
+  profile, or a group of unembedded users), `fit` falls back to set-overlap
+  similarity over the interest/personality tags — which exist after onboarding
+  even when the embedding did not land. That keeps an unembedded user from being
+  hard-capped at the 0.40 ceiling the old centroid-only cosine imposed. With
+  neither tags nor vectors, `fit` is 0.
 
 The backend should own the authoritative score.
 

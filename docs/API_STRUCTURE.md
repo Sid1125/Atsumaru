@@ -138,7 +138,8 @@
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
 | GET | `/users/me` | — | `{ user }` |
-| PATCH | `/users/me` | `{ display_name?, avatar_url?, interests?, language?, location? }` | `{ user }` |
+| PATCH | `/users/me` | `{ handle?, display_name?, avatar_url?, interests?, personality?, language?, location? }` — editing interests/personality re-embeds the preference vector; a taken handle answers `409 HANDLE_TAKEN` | `{ user }` |
+| POST | `/users/me/avatar` | `{ data_url }` — base64 jpeg/png/webp data URL, ≤ 5 MB decoded | `{ user }` — stored in the public `avatars` bucket, `avatar_url` pointed at it |
 | GET | `/users/:id` | — | `{ user }` (public profile) |
 
 ### 3.4 Events (discovery)

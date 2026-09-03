@@ -61,6 +61,8 @@ interface OnboardingDraftState {
   handle: string;
   displayName: string;
   setExtracted: (interests: string[], personality: string[]) => void;
+  setInterests: (interests: string[]) => void;
+  setPersonality: (personality: string[]) => void;
   setHandle: (handle: string) => void;
   setDisplayName: (displayName: string) => void;
   reset: () => void;
@@ -72,6 +74,8 @@ export const useOnboardingDraft = create<OnboardingDraftState>((set) => ({
   handle: "",
   displayName: "",
   setExtracted: (interests, personality) => set({ interests, personality }),
+  setInterests: (interests) => set({ interests }),
+  setPersonality: (personality) => set({ personality }),
   setHandle: (handle) => set({ handle }),
   setDisplayName: (displayName) => set({ displayName }),
   reset: () =>

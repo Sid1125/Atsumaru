@@ -11,7 +11,7 @@ import * as Location from "expo-location";
 
 import {
   CATEGORY_ORDER,
-  categoryGlyph,
+  categoryIcon,
   categorySticker,
 } from "../../categoryMeta";
 import { Chip } from "../../components/common/Chip";
@@ -235,6 +235,7 @@ export function DiscoverScreen() {
             <Avatar
               id={user?.id ?? ""}
               label={(user?.handle ?? "?").slice(0, 1)}
+              uri={user?.avatar_url}
               size="md"
             />
           </PressableScale>
@@ -259,10 +260,11 @@ export function DiscoverScreen() {
           />
           {CATEGORY_ORDER.map((key) => {
             const sticker = categorySticker(key);
+            const Mark = categoryIcon(key);
             return (
               <Chip
                 key={key}
-                icon={categoryGlyph(key)}
+                icon={<Mark size={14} />}
                 label={t(`discover.categories.${key}`)}
                 selected={category === key}
                 onPress={() => setCategory(key)}
@@ -283,14 +285,23 @@ export function DiscoverScreen() {
             <Text style={styles.sheetKicker}>{t("discover.titleKicker")}</Text>
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{t("discover.forYou")}</Text>
-              <PressableScale
-                accessibilityLabel={t("createEvent.title")}
-                onPress={() => navigation.navigate("CreateEvent")}
-                style={styles.hostButton}
-                scaleTo={0.93}
-              >
-                <Text style={styles.hostLabel}>+ {t("createEvent.short")}</Text>
-              </PressableScale>
+              <View style={styles.hostWrap}>
+                <View
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  style={styles.hostShadow}
+                />
+                <PressableScale
+                  accessibilityLabel={t("createEvent.title")}
+                  onPress={() => navigation.navigate("CreateEvent")}
+                  style={styles.hostButton}
+                  scaleTo={0.93}
+                >
+                  <Text style={styles.hostLabel}>
+                    + {t("createEvent.short")}
+                  </Text>
+                </PressableScale>
+              </View>
             </View>
           </View>
         }
@@ -471,7 +482,7 @@ const styles = StyleSheet.create({
 
   filterRail: { position: "absolute", left: 0, right: 0 },
   filterRow: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.page,
     gap: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -489,15 +500,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sheetTitle: { ...type.title2, color: colors.nightText },
+  hostWrap: { position: "relative" },
+  hostShadow: {
+    position: "absolute",
+    top: 2,
+    left: 2,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(9,9,11,0.9)",
+  },
   hostButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
-    borderRadius: radius.xs,
-    backgroundColor: colors.neon,
+    borderRadius: radius.pill,
+    backgroundColor: colors.lime,
   },
-  hostLabel: { ...type.footnote, color: colors.neonText, fontWeight: "700" },
+  hostLabel: { ...type.footnote, color: colors.limeInk, fontWeight: "800" },
 
-  sheetBody: { paddingHorizontal: spacing.md, gap: spacing.md },
+  sheetBody: { paddingHorizontal: spacing.page, gap: spacing.md },
   section: { gap: spacing.sm },
   sectionKicker: { ...sectionHeader, color: colors.nightMuted, marginBottom: spacing.xxs },
 

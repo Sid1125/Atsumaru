@@ -4,10 +4,7 @@ import { useTranslation } from "react-i18next";
 import { PressableScale } from "../ui/PressableScale";
 import { IconChevronRight } from "../ui/Icons";
 import { Sticker } from "../ui/Sticker";
-import {
-  categoryGlyph,
-  categorySticker,
-} from "../../categoryMeta";
+import { categoryIcon, categorySticker } from "../../categoryMeta";
 import { colors, radius, spacing, type } from "../../theme";
 import type { MeetupEvent } from "../../types/api";
 
@@ -64,7 +61,7 @@ export function EventCard({
   const score = matchScore != null ? Math.round(matchScore * 100) : null;
 
   const sticker = categorySticker(event.category);
-  const glyph = categoryGlyph(event.category);
+  const CategoryMark = categoryIcon(event.category);
   const text = dark ? styles.textDark : styles.text;
 
   return (
@@ -87,7 +84,7 @@ export function EventCard({
         rotate={selected ? -2 : 0}
         style={styles.sticker}
       >
-        <Text style={styles.glyph}>{glyph}</Text>
+        <CategoryMark size={24} color={sticker.on} />
       </Sticker>
 
       <View style={styles.body}>
@@ -157,7 +154,6 @@ const styles = StyleSheet.create({
   text: { color: colors.text },
   textDark: { color: colors.nightText },
   sticker: { width: 52, height: 52 },
-  glyph: { fontSize: 24 },
   body: { flex: 1, gap: spacing.xxs },
   kickerRow: {
     flexDirection: "row",

@@ -51,6 +51,7 @@ function ConnectionRow({
       <Avatar
         id={otherId}
         label={(handle ?? "?").slice(0, 1)}
+        uri={profile.data?.user.avatar_url}
         size="md"
       />
       <View style={styles.rowBody}>
@@ -108,7 +109,7 @@ export function ConnectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.page },
   kicker: { ...type.overline, color: colors.primary, marginBottom: spacing.xxs },
   subtitle: { ...type.footnote, color: colors.textMuted, marginBottom: spacing.sm },
   list: { gap: spacing.sm },
