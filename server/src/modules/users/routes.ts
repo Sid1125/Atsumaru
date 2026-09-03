@@ -6,7 +6,7 @@ import { asyncRoute } from "../../middleware/errorHandler.js";
 import { db, publicUser } from "../../db/queries.js";
 import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { LANGUAGES } from "../../types.js";
 
 const patchSchema = z.object({
@@ -94,5 +94,5 @@ usersRouter.post(
 usersRouter.get(
   "/:id",
   requireAuth,
-  asyncRoute(async (req, res) => ok(res, { user: await publicUser(param(req, "id")) }))
+  asyncRoute(async (req, res) => ok(res, { user: await publicUser(uuidParam(req, "id")) }))
 );

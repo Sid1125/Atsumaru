@@ -377,11 +377,18 @@ async function seedMessages(
 
   if ((count ?? 0) > 0) return;
 
+  // One batch insert gives every row the same default `created_at`, which is how the
+  // missing tiebreaker in listMessages was found: the API read them back in the opposite
+  // order to this list. The ordering is fixed there, but a seeded conversation should also
+  // look like a conversation, so the timestamps are staggered a minute apart.
+  const firstSentAt = Date.now() - event.messages.length * 60_000;
+
   const { error: insertError } = await client.from("messages").insert(
-    event.messages.map((entry) => ({
+    event.messages.map((entry, index) => ({
       event_id: eventId,
       sender_id: ids.get(entry.from)!,
       message: entry.message,
+      created_at: new Date(firstSentAt + index * 60_000).toISOString(),
     }))
   );
 

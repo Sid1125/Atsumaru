@@ -22,7 +22,7 @@ import {
 } from "../matching/score.js";
 import { emitToUser } from "../../socket/index.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { parseVector, serializeVector } from "../../utils/vector.js";
 
 const submitSchema = z.object({
@@ -47,9 +47,9 @@ feedbackRouter.get(
   "/:id/feedback-form",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
-    const members = await findMembers(param(req, "id"));
+    const members = await findMembers(uuidParam(req, "id"));
 
     return ok(res, {
       members: members.filter((member) => member.user_id !== req.userId),
@@ -106,7 +106,7 @@ feedbackRouter.post(
   "/:id/feedback",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const eventId = param(req, "id");
+    const eventId = uuidParam(req, "id");
     const userId = req.userId!;
 
     await requireMembership(eventId, userId);

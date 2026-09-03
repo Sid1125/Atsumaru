@@ -114,12 +114,25 @@ export async function sessionForIdentity(identity: Identity): Promise<AuthSessio
 
     if (created?.user) {
       userId = created.user.id;
-    } else if (createError && isEmailTaken(createError) && !isSyntheticEmail(email)) {
+    } else if (createError && isEmailTaken(createError)) {
       // One human, second provider: the address already has an account (e.g. they signed
       // in with Google first), so this identity is linked to it below rather than creating
-      // a twin. Only ever for an address the provider actually returned — a synthetic one
-      // is unique per provider subject and cannot legitimately collide, so a collision
-      // there would mean something is wrong, not that it is the same person.
+      // a twin.
+      //
+      // Linking hands over an existing account, so it takes two guarantees. The address
+      // must be one the provider actually returned — a synthetic one is unique per provider
+      // subject and cannot legitimately collide, so a collision there means something is
+      // wrong, not that it is the same person. And the provider must vouch for the address:
+      // one that let a user claim any address unchecked would let them claim the account
+      // behind it too.
+      if (isSyntheticEmail(email) || !identity.emailVerified) {
+        throw new HttpError(
+          409,
+          "IDENTITY_NOT_LINKABLE",
+          "This sign-in could not be linked to an existing account."
+        );
+      }
+
       userId = null;
     } else {
       throw new HttpError(

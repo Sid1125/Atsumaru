@@ -1,6 +1,12 @@
 import "dotenv/config";
 import { z } from "zod";
 
+/**
+ * Ships in the repo, so it is only ever a development convenience — production refuses
+ * to boot on it (see the bottom of this file).
+ */
+const DEV_STATE_SECRET_PREFIX = "atsumaru-dev";
+
 // Fail fast at boot rather than at the first request with a missing key.
 const schema = z.object({
   PORT: z.coerce.number().default(4000),
@@ -32,7 +38,7 @@ const schema = z.object({
   /** Deep link the app listens on when the callback is asked to redirect. */
   APP_AUTH_REDIRECT: z.string().default("atsumaru://auth"),
   /** Signs the OAuth `state` blob. Random per deployment; a default keeps dev simple. */
-  AUTH_STATE_SECRET: z.string().min(16).default("atsumaru-dev-state-secret"),
+  AUTH_STATE_SECRET: z.string().min(16).default(`${DEV_STATE_SECRET_PREFIX}-state-secret`),
 
   /** Set to run the sweep through BullMQ instead of the in-process interval. */
   REDIS_URL: z.string().optional(),
@@ -60,6 +66,30 @@ export const hasLine = !!(env.LINE_CHANNEL_ID && env.LINE_CHANNEL_SECRET);
 export const hasGoogle = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 export const hasRedis = !!env.REDIS_URL;
 
-if (env.NODE_ENV === "production" && env.AUTH_STATE_SECRET.startsWith("atsumaru-dev")) {
-  console.warn("AUTH_STATE_SECRET is still the development default — set a real one.");
+/**
+ * Both of these are fine defaults in development and unsafe in production, so a
+ * production boot fails on them instead of warning into a log nobody reads.
+ *
+ * `AUTH_STATE_SECRET` is the sharper one: it signs the OAuth `state` blob, and its
+ * default is committed to this repo — leaving it in place makes that signature forgeable
+ * by anyone who has read the source.
+ */
+if (env.NODE_ENV === "production") {
+  const faults: string[] = [];
+
+  if (env.AUTH_STATE_SECRET.startsWith(DEV_STATE_SECRET_PREFIX)) {
+    faults.push(
+      "AUTH_STATE_SECRET is still the development default, which is public in this repo."
+    );
+  }
+
+  if (env.CORS_ORIGIN === "*") {
+    faults.push("CORS_ORIGIN must name the allowed origin in production, not '*'.");
+  }
+
+  if (faults.length > 0) {
+    console.error("Refusing to start in production:");
+    for (const fault of faults) console.error(`  - ${fault}`);
+    process.exit(1);
+  }
 }

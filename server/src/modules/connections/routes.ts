@@ -12,7 +12,7 @@ import {
   type ConnectionRow,
 } from "../../db/queries.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { pageParams, param } from "../../utils/request.js";
+import { pageParams, uuidParam } from "../../utils/request.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
@@ -42,11 +42,11 @@ connectionsRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireConnection(param(req, "id"), req.userId!);
+    await requireConnection(uuidParam(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);
 
-    return ok(res, await listMessages("connection_id", param(req, "id"), page, limit));
+    return ok(res, await listMessages("connection_id", uuidParam(req, "id"), page, limit));
   })
 );
 
@@ -54,7 +54,7 @@ connectionsRouter.post(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireConnection(param(req, "id"), req.userId!);
+    await requireConnection(uuidParam(req, "id"), req.userId!);
 
     const parsed = bodySchema.safeParse(req.body);
 
@@ -64,7 +64,7 @@ connectionsRouter.post(
 
     const message = await insertMessage(
       "connection_id",
-      param(req, "id"),
+      uuidParam(req, "id"),
       req.userId!,
       parsed.data.message
     );

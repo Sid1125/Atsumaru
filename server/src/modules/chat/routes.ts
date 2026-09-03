@@ -5,7 +5,7 @@ import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { insertMessage, listMessages, requireMembership } from "../../db/queries.js";
 import { HttpError, ok } from "../../utils/response.js";
-import { pageParams, param } from "../../utils/request.js";
+import { pageParams, uuidParam } from "../../utils/request.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
@@ -16,11 +16,11 @@ chatRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);
 
-    return ok(res, await listMessages("event_id", param(req, "id"), page, limit));
+    return ok(res, await listMessages("event_id", uuidParam(req, "id"), page, limit));
   })
 );
 
@@ -28,7 +28,7 @@ chatRouter.post(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
     const parsed = bodySchema.safeParse(req.body);
 
@@ -38,7 +38,7 @@ chatRouter.post(
 
     const message = await insertMessage(
       "event_id",
-      param(req, "id"),
+      uuidParam(req, "id"),
       req.userId!,
       parsed.data.message
     );

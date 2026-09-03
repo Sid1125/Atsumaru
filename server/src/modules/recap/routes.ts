@@ -25,7 +25,7 @@ import {
 } from "../../db/queries.js";
 import { vibeRecap } from "../../services/ai.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import type { Rating } from "../matching/score.js";
 import {
@@ -106,7 +106,7 @@ recapRouter.get(
   "/:id/recap",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const eventId = param(req, "id");
+    const eventId = uuidParam(req, "id");
     const userId = req.userId!;
 
     await requireMembership(eventId, userId);
