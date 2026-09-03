@@ -45,6 +45,12 @@
         {
           "locationWhenInUsePermission": "Atsumaru uses your location only to show nearby meetups."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FBF7F2"
+        }
       ]
     ]
   }

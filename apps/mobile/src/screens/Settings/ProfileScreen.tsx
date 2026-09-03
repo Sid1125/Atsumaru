@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "../../components/common/Avatar";
 import { Chip } from "../../components/common/Chip";
 import { ProfileEditModal } from "../../components/profile/ProfileEditModal";
+import { NotificationPrefsCard } from "../../components/profile/NotificationPrefsCard";
 import { Card } from "../../components/ui/Card";
 import { IconChevronRight, IconGlobe } from "../../components/ui/Icons";
 import { Marker } from "../../components/ui/Marker";
@@ -191,6 +192,8 @@ export function ProfileScreen() {
           })}
         </View>
       </Card>
+
+      <NotificationPrefsCard />
 
       {/* Account */}
       <Card style={styles.blockCard}>

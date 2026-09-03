@@ -120,3 +120,13 @@ export interface MessagePage {
   limit: number;
   total: number;
 }
+
+/** The five push types (server/src/services/notifications.ts). Absent row = enabled. */
+export type NotificationType =
+  | "feedback"
+  | "meetup_soon"
+  | "chat"
+  | "nearby"
+  | "reengagement";
+
+export type NotificationPrefs = Record<NotificationType, boolean>;

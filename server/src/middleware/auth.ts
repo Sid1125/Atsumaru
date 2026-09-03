@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 
 import { supabase } from "../db/supabase.js";
 import { isUuid } from "../utils/request.js";
+import { touchLastActive } from "../utils/lastActive.js";
 import { HttpError } from "../utils/response.js";
 
 export interface AuthedRequest extends Request {
@@ -44,6 +45,11 @@ export async function requireAuth(
   }
 
   req.userId = data.user.id;
+
+  // Coarse "still around" signal for the re-engagement nudge. Throttled internally and
+  // never awaited — a request must not slow down or fail over a timestamp.
+  touchLastActive(data.user.id);
+
   return next();
 }
 

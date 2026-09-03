@@ -31,6 +31,7 @@ import {
   useNearbyEvents,
 } from "../../features/events/hooks/useEvents";
 import { eventsApi } from "../../services/api/events";
+import { usePersistLocation } from "../../features/location/usePersistLocation";
 import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
@@ -70,6 +71,12 @@ export function DiscoverScreen() {
    * instead of being quietly stranded in a city they may not be in.
    */
   const [permissionDenied, setPermissionDenied] = useState(false);
+  /**
+   * True only when `coords` came from the device rather than the Shibuya fallback. The
+   * "meetup near you" notice is built on the saved point, and saving a fallback would make
+   * it confidently wrong for everyone who denied the permission or got no fix.
+   */
+  const [hasRealFix, setHasRealFix] = useState(false);
   /**
    * Where the user has panned the map to, once they have. Held separately from the
    * location fix so the fix stays a genuine one-shot read (docs/RULES.md — no
@@ -111,6 +118,7 @@ export function DiscoverScreen() {
       if (cancelled) return;
 
       setPermissionDenied(false);
+      setHasRealFix(!!position);
       setCoords(
         position
           ? { lat: position.coords.latitude, lng: position.coords.longitude }
@@ -124,6 +132,10 @@ export function DiscoverScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Saves the fix above once per session, so the "meetup near you" notice has a point to
+  // work from. No new reading is taken.
+  usePersistLocation(coords, hasRealFix);
 
   const query = useNearbyEvents(pannedTo ?? coords, category);
   const events = query.data?.events ?? [];
@@ -185,6 +197,7 @@ export function DiscoverScreen() {
       ]);
       if (position) {
         setCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setHasRealFix(true);
         setPannedTo(null);
         setPermissionDenied(false);
       }

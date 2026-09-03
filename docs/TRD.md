@@ -354,6 +354,50 @@ Use Expo Push Notifications for:
 
 The supplied contract specifies a feedback notification approximately one hour after the meetup start time. fileciteturn0file0L277-L286
 
+### 14.1 Types
+
+Five, each with its own trigger, and all of them sent through one `notify()` gate in
+`server/src/services/notifications.ts` so the guards below cannot be applied inconsistently.
+
+| Type | Trigger | Idempotency / limit |
+|---|---|---|
+| `feedback` | ~1h after `start_time`, by the sweep | `events.feedback_reminder_sent_at` |
+| `meetup_soon` | ~15 min before `start_time`, by the sweep | `events.start_reminder_sent_at` |
+| `chat` | a message whose recipient has no live socket | 5-min per-thread debounce + daily cap |
+| `nearby` | a meetup opens within 5 km of `users.location` | daily cap; location must be < 7 days old |
+| `reengagement` | `users.last_active_at` older than 7 days | `users.last_reengaged_at`, 14-day gap |
+
+Every stamp is **claimed before the send**, never written after it: a crash between the two
+costs one notification, whereas stamping afterwards lets two drivers send the same thing
+twice.
+
+### 14.2 Guards
+
+- **Opt-out** — `notification_prefs (user_id, type, enabled)`. An absent row means enabled,
+  so shipping the table does not mute anyone.
+- **Quiet hours** — 22:00-08:00 JST, for `nearby` and `reengagement` only. The other three
+  follow from something the member did, and holding them until morning would make them
+  arrive after they mattered.
+- **Daily caps** — persisted through `bump_quota`, so a restart cannot reset a budget.
+  Charged per person, not per device.
+
+### 14.3 Routing
+
+The payload carries a `url` (`atsumaru://meetup/:id`, `atsumaru://dm/:id`) alongside
+`data.type`. React Navigation's linking only reads URLs, so
+`apps/mobile/src/app/navigation/linking.ts` overrides `getInitialURL`/`subscribe` to feed it
+notification taps — that override is what makes cold start, warm start and background behave
+the same. Group chat has no route of its own, so a chat notification deep-links to the
+meetup screen.
+
+### 14.4 Copy
+
+Server-side, in `push.ts`, in all three languages (RULES §12). A notification may name a
+co-member — they already share a group chat — using `display_name` only, and may state only
+what the data proves. Nothing claims a member is waiting for, missing, or asking after
+someone, and nothing is ever drawn from `feedback` or `connections`.
+
+
 ## 15. Security / Privacy
 
 - Never display `real_name` in another user's profile.

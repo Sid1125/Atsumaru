@@ -1,11 +1,13 @@
 import { NavigationContainer, type Theme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ScreenState } from "../../components/common/ScreenState";
 import { useSession } from "../../features/auth/hooks/useSession";
 import { usePushRegistration } from "../../features/notifications/usePushRegistration";
+import { configureNotificationHandler } from "../../features/notifications/notificationRouting";
 import { LoginScreen } from "../../screens/Auth/LoginScreen";
 import { EmailAuthScreen } from "../../screens/Auth/EmailAuthScreen";
 import { AIChatScreen } from "../../screens/Onboarding/AIChatScreen";
@@ -72,6 +74,12 @@ export function RootNavigator() {
   const isBootstrapped = useAuthStore((s) => s.isBootstrapped);
 
   usePushRegistration();
+
+  // Present notifications that arrive while the app is foregrounded. Registered once,
+  // not per render; a no-op in Expo Go, where the native module does not exist.
+  useEffect(() => {
+    configureNotificationHandler();
+  }, []);
 
   if (!isBootstrapped && session.isPending) {
     return <ScreenState status="loading" />;

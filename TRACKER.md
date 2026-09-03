@@ -80,10 +80,11 @@ that stopped being true on 2026-08-30.
 
 ### Background work (docs/TRD.md §14)
 
-- [~] `runSweep()`: close finished meetups, send feedback reminders ~1h after start, settle reputation once
+- [~] `runSweep()`: remind ~15 min before start, close finished meetups, send feedback reminders ~1h after start, settle reputation once, re-engage dormant members
 - [x] BullMQ + ioredis when `REDIS_URL` is set, in-process timer otherwise, clean fallback when Redis is down
 - [~] Expo push delivery: chunked sends, stale-token cleanup, localized copy, deep-link payload
 - [~] `POST /users/me/push-token` device registration
+- [~] Five notification types behind one `notify()` gate — per-type opt-out, JST quiet hours, persisted daily caps (§1g)
 
 ### Demo data
 
@@ -92,6 +93,60 @@ that stopped being true on 2026-08-30.
 - [~] Finished meetup pre-seeded so `@trailbrew` unlocks a mutual connection on first submit
 
 ## To do
+
+### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
+
+Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere
+to land**: nothing in `apps/mobile/src` registered a notification listener, and nothing
+joined the push payload to `linking.ts`. A delivered notification would have sat in the tray
+and opened whatever screen the user last had open. That is fixed first; the four new types
+sit on top.
+
+- [x] **Routing.** `features/notifications/notificationRouting.ts` — `setNotificationHandler`,
+      `getLastNotificationResponseAsync`, a tap listener, and `urlFromNotificationData`.
+      Loaded through the same deferred `require()` + `ExecutionEnvironment` gate as
+      `usePushRegistration.ts`, because a module-scope import of `expo-notifications` kills
+      the bundle in Expo Go. `linking.ts` now overrides `getInitialURL`/`subscribe`, so cold
+      start, warm start and background all route the same way. `PushMessage` carries a `url`
+      alongside the existing `data.type`
+- [x] **One gate.** `services/notifications.ts` — every type goes through `notify()`, which
+      applies quiet hours, then the opt-out, then the daily cap, in that order (the cap
+      *spends* budget, so it must not be spent on something a cheaper check would drop).
+      Caps are charged per person, not per device
+- [x] **`meetup_soon`** — new sweep pass, forward-looking query of its own because the
+      existing candidate select can only return events already past `start_time`. Stamps
+      `start_reminder_sent_at` via `claim()` **before** sending. **Verified live**: rewound
+      an event into the window, swept twice, one stamp, second sweep did not re-stamp
+- [x] **`nearby`** — `events_nearby_users()` does radius, freshness, host/member exclusion
+      and limit in one statement, triggered per created event. **Verified live**: 0 host
+      leaks, 0 member leaks, 0 closed-event leaks across five events; returns nothing while
+      `location_updated_at` is null, which is what the freshness guard is for
+- [x] **`chat`** — `services/chatNotice.ts`, for recipients with no live socket. Debounced
+      one per thread per 5 minutes by reusing the fixed-window limiter. Fired
+      fire-and-forget from both the socket path and the REST fallback, so the two behave
+      alike. No model touches a message (`docs/AI.md` §10 holds)
+- [x] **`reengagement`** — `reengagement_candidates()` finds members dormant 7+ days and
+      names a co-member from their most recent multi-member group. **Verified live**:
+      returns nothing while `last_active_at` is null (so shipping it cannot nudge everyone
+      at once), names a real co-member, never the recipient, and stamping
+      `last_reengaged_at` removes them for 14 days
+- [x] **Copy.** All five types in en/ja/zh, server-side next to `FEEDBACK_PROMPT`, truncated
+      to what a tray shows. The re-engagement line states only what the query proves — a
+      test asserts it never says "waiting", "misses" or "asked about you", and that a lone
+      co-member does not read "and 0 others"
+- [x] **Opt-out UI.** `GET`/`PATCH /users/me/notifications` plus a settings card; absent row
+      means enabled, so shipping it mutes nobody. Mirrored in the demo layer
+- [x] Migration `007_notifications.sql` + `schema.sql` mirror, applied live 2026-09-03 with
+      `notify pgrst, 'reload schema'`. **006 had to be applied first — it never had been**,
+      which means `enforceQuota` had been failing open on live all along
+- [ ] Real delivery. Still needs `eas init`, FCM credentials and a dev build; nothing below
+      `pushTargets` has ever run. `expo-notifications` is now in `app.json` plugins
+- [ ] `@socket.io/redis-adapter` so presence is not per-process (see Known gaps)
+
+Verification: `npm run typecheck` clean, `npm test` 95/95, API boots, both new routes
+answer 401 rather than 404 (a deliberately missing route was checked as the control). All
+live scratch state was reverted — the three new `users` columns are back to null and the
+pre-existing `location` rows are untouched.
 
 ### 0. Mapbox wired behind a fallback, 2026-08-31 — code complete, unverified
 
@@ -991,8 +1046,12 @@ premium tier.
 | Google OAuth | **Brokered by Supabase Auth (PKCE) since 2026-08-30**, so no public tunnel is needed and the client secret is out of the API. Walked live on the emulator. Three URLs must agree: Google console → Supabase's `/auth/v1/callback`, `OAUTH_CALLBACK_URL` → the API's own callback, and that same callback listed in Supabase → Redirect URLs (otherwise GoTrue silently falls back to Site URL — that failure looked like a broken app) |
 | Identity linking trust | Linking a second provider to an existing address trusts the provider's email claim. LINE only releases verified addresses, and Google is now verified by Supabase itself, but the `email_verified` gap in §5 is what keeps this honest — do not extend linking to a provider that does not verify |
 | Push receipts | **Collected since 2026-09-03.** Accepted tickets land in `push_receipts`, and `collectPushReceipts()` reads them back on a later sweep pass (Expo needs ~15 minutes to produce one), retiring a `DeviceNotRegistered` token and discarding a ticket Expo never answers within 24h. Isolated from the rest of the sweep, so a receipt problem cannot fail the stamped work. Unexercised for the same reason as the row below |
-| Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
-| Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers and rate-limit counters moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
+| Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. Every notification path is verified up to `pushTargets` returning zero devices, and no further. Real delivery needs `eas init`, FCM credentials and a dev build (§1g) |
+| Notification routing | **Fixed 2026-09-03.** The app had no notification listeners at all and nothing joined the payload to `linking.ts`, so a delivered notification would have sat in the tray and opened the last screen. `features/notifications/notificationRouting.ts` + a `getInitialURL`/`subscribe` override now route it. Verifiable today with `scheduleNotificationAsync`; unverified against a real remote push for the row above |
+| Socket presence | The chat notice asks `fetchSockets()` whether a member is connected, which sees **this process only**. With two API instances a member connected to the other one reads as offline and gets a redundant push. Needs `@socket.io/redis-adapter` behind `REDIS_URL`, the same way the job queue degrades — the one piece of per-instance state the ephemeral store does not cover |
+| Notification caps | The chat debounce and the `last_active_at` throttle run through `services/ephemeral.ts`, so two instances share one window once `REDIS_URL` is set. The persisted daily caps (`bump_quota`) are the backstop either way, and they are per-person, not per-device |
+| Migration 006 | `usage_quotas` + `bump_quota` were in the repo but **had never been applied to the live project**, so every `enforceQuota`/`tryQuota` call was silently failing open. Applied 2026-09-03 alongside 007 |
+| Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers, rate-limit counters and the notification debounces moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |

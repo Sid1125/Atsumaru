@@ -11,6 +11,7 @@ import {
   requireConnection,
   type ConnectionRow,
 } from "../../db/queries.js";
+import { notifyDmMessage } from "../../services/chatNotice.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { pageParams, uuidParam } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
@@ -88,6 +89,13 @@ connectionsRouter.post(
       uuidParam(req, "id"),
       req.userId!,
       parsed.data.message
+    );
+
+    // Matches the socket path, so REST and live sends notify identically.
+    void notifyDmMessage(uuidParam(req, "id"), req.userId!, parsed.data.message).catch(
+      (error: unknown) => {
+        console.error("DM notice failed:", (error as Error).message);
+      }
     );
 
     return ok(res, { message }, 201);

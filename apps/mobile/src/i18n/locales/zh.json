@@ -147,7 +147,31 @@
     "language": "语言",
     "reputation": "信誉分 {{score}}/100",
     "repLabel": "信誉",
-    "privacyNote": "你的真实姓名不会展示给其他成员。"
+    "privacyNote": "你的真实姓名不会展示给其他成员。",
+    "notifications": "通知",
+    "quietHours": "「附近的聚会」和「回归提醒」在日本时间 22:00–08:00 不会发送。",
+    "notify": {
+      "meetup_soon": {
+        "title": "即将开始",
+        "hint": "你报名的聚会开始前提醒一次。"
+      },
+      "chat": {
+        "title": "消息",
+        "hint": "你不在应用里时收到的消息。"
+      },
+      "feedback": {
+        "title": "反馈提醒",
+        "hint": "聚会结束后一次，你的评分保持私密。"
+      },
+      "nearby": {
+        "title": "附近的聚会",
+        "hint": "你上次所在位置附近有新聚会时。"
+      },
+      "reengagement": {
+        "title": "回归提醒",
+        "hint": "偶尔提到你已经加入的小组。"
+      }
+    }
   },
   "profile": {
     "title": "个人主页",

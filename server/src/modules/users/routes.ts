@@ -60,8 +60,12 @@ usersRouter.patch(
     const patch: Record<string, unknown> = { ...rest };
 
     // Location is stored as PostGIS geography; only used for nearby discovery.
+    // `location_updated_at` is stamped with it so the nearby notice can refuse a point
+    // that is too old to mean anything (services/notifications.ts). Still one-shot — this
+    // records when the single fix was taken, it does not ask for another.
     if (location) {
       patch.location = `SRID=4326;POINT(${location.lng} ${location.lat})`;
+      patch.location_updated_at = new Date().toISOString();
     }
 
     // Changing interests/personality changes what matching should optimise for, so
@@ -198,6 +202,86 @@ usersRouter.post(
         },
         { onConflict: "user_id,token" }
       );
+
+    if (error) throw dbError(error);
+
+    return ok(res, { success: true });
+  })
+);
+
+/**
+ * Per-type notification preferences.
+ *
+ * An absent row means enabled, so `GET` reports every type as on until the member turns
+ * something off. That default is deliberate: shipping the opt-out must not quietly mute
+ * the feedback reminder people already receive.
+ */
+const NOTIFICATION_TYPES = [
+  "feedback",
+  "meetup_soon",
+  "chat",
+  "nearby",
+  "reengagement",
+] as const;
+
+const prefsSchema = z
+  .object(
+    Object.fromEntries(
+      NOTIFICATION_TYPES.map((type) => [type, z.boolean().optional()])
+    ) as Record<(typeof NOTIFICATION_TYPES)[number], z.ZodOptional<z.ZodBoolean>>
+  )
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "Name at least one notification type.",
+  });
+
+usersRouter.get(
+  "/me/notifications",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    await enforceReadLimit(req, res);
+
+    const { data, error } = await db()
+      .from("notification_prefs")
+      .select("type, enabled")
+      .eq("user_id", req.userId!);
+
+    if (error) throw dbError(error);
+
+    const stored = new Map(
+      ((data ?? []) as { type: string; enabled: boolean }[]).map((row) => [
+        row.type,
+        row.enabled,
+      ])
+    );
+
+    return ok(res, {
+      preferences: Object.fromEntries(
+        NOTIFICATION_TYPES.map((type) => [type, stored.get(type) ?? true])
+      ),
+    });
+  })
+);
+
+usersRouter.patch(
+  "/me/notifications",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    const parsed = prefsSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", parsed.error.issues[0]!.message);
+    }
+
+    const rows = Object.entries(parsed.data).map(([type, enabled]) => ({
+      user_id: req.userId!,
+      type,
+      enabled: enabled as boolean,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await db()
+      .from("notification_prefs")
+      .upsert(rows, { onConflict: "user_id,type" });
 
     if (error) throw dbError(error);
 

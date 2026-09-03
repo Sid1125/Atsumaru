@@ -147,7 +147,31 @@
     "language": "Language",
     "reputation": "Reputation {{score}}/100",
     "repLabel": "REP",
-    "privacyNote": "Your real name is never shown to other members."
+    "privacyNote": "Your real name is never shown to other members.",
+    "notifications": "NOTIFICATIONS",
+    "quietHours": "Nearby and catch-up notices stay quiet between 22:00 and 08:00 JST.",
+    "notify": {
+      "meetup_soon": {
+        "title": "Starting soon",
+        "hint": "Shortly before a meetup you joined."
+      },
+      "chat": {
+        "title": "Messages",
+        "hint": "When someone writes and you're not in the app."
+      },
+      "feedback": {
+        "title": "Feedback reminder",
+        "hint": "Once after a meetup. Your ratings stay private."
+      },
+      "nearby": {
+        "title": "Meetups near you",
+        "hint": "When one opens close to where you last were."
+      },
+      "reengagement": {
+        "title": "Catch-up nudge",
+        "hint": "Occasionally, about a group you're already in."
+      }
+    }
   },
   "profile": {
     "title": "Profile",

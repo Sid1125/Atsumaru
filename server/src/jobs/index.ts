@@ -15,13 +15,19 @@ async function sweepOnce() {
 
     if (
       result.completed ||
+      result.startRemindersSent ||
       result.remindersSent ||
       result.eventsSettled ||
-      result.receiptsChecked
+      result.receiptsChecked ||
+      result.reengaged
     ) {
       console.log(
-        `Sweep: ${result.completed} completed, ${result.remindersSent} reminders, ` +
-          `${result.eventsSettled} settled, ${result.receiptsChecked} receipts.`
+        `Sweep: ${result.completed} completed, ` +
+          `${result.startRemindersSent} starting-soon, ` +
+          `${result.remindersSent} reminders, ` +
+          `${result.eventsSettled} settled, ` +
+          `${result.receiptsChecked} receipts, ` +
+          `${result.reengaged} re-engaged.`
       );
     }
   } catch (error) {

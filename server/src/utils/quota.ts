@@ -3,7 +3,15 @@ import type { Response } from "express";
 import { db } from "../db/queries.js";
 import { HttpError } from "./response.js";
 
-export type QuotaResource = "events_created" | "feedback_submitted" | "groq_turns";
+export type QuotaResource =
+  | "events_created"
+  | "feedback_submitted"
+  | "groq_turns"
+  // Unsolicited notification types (services/notifications.ts). A per-day ceiling on top
+  // of the in-process debounce, so recycling the process cannot reset someone's budget.
+  | "notif_chat"
+  | "notif_nearby"
+  | "notif_reengagement";
 
 /**
  * Per-user daily usage quotas, persisted in Postgres via the `bump_quota` RPC

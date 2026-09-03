@@ -13,6 +13,7 @@ import {
 } from "../../db/queries.js";
 import { matchScore } from "../matching/score.js";
 import { matchReasons } from "../matching/reasons.js";
+import { notifyNearbyMeetup } from "../../services/notifications.js";
 import type { Language } from "../../types.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { uuidParam } from "../../utils/request.js";
@@ -150,6 +151,13 @@ eventsRouter.post(
     if (typeof data !== "string" || data.length === 0) {
       throw dbError({ message: "create_event returned no event id." });
     }
+
+    // Tell nearby members a meetup has opened. Deliberately not awaited: hosting must not
+    // get slower, or fail, because a notification did. `notifyNearbyMeetup` applies the
+    // opt-out, quiet hours and daily cap itself (services/notifications.ts).
+    void notifyNearbyMeetup(data).catch((error: unknown) => {
+      console.error("Nearby notice failed:", (error as Error).message);
+    });
 
     return ok(res, { event: toApiEvent(await findEvent(data)) }, 201);
   })

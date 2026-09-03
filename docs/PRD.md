@@ -171,6 +171,15 @@ Secondary states such as feedback, connection unlocked, and chat can be presente
 | FR-12 | UI supports JP/EN/ZH | P1 |
 | FR-13 | User can create/host events | P1 |
 | FR-14 | Push notification deep-links to feedback | P1 |
+| FR-15 | Meetup reminder ~15 minutes before it starts | P1 |
+| FR-16 | Chat notification when the recipient has no live connection | P1 |
+| FR-17 | Nudge when a meetup opens near the member's last known area | P2 |
+| FR-18 | Re-engagement nudge naming a co-member of a group they are in | P2 |
+| FR-19 | Per-type notification opt-out, JST quiet hours, daily caps | P1 |
+
+FR-18 states only what the data proves — who is in a group the recipient is also in. It
+never claims anyone is waiting for, missing, or asking after them, and the name is drawn
+from group membership alone, never from feedback or connections (RULES §8–9).
 
 ## 9. Non-Functional Requirements
 
