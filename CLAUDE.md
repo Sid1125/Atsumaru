@@ -382,8 +382,10 @@ OAuth canonical and the code follows TRD. Do not implement phone OTP.
 
 ## Not implemented
 
-Mobile: infinite scroll on message history, and a venue/location picker for create-event
-(it posts a fixed Shibuya point).
+Mobile: infinite scroll on message history. Create-event now takes its coordinates from a
+picked place (`VenuePicker`); the fixed Shibuya point survives only as the fallback for when
+no Mapbox token is configured, and the screen says when that is what happened. There is still
+no drag-a-pin fine-tune — the picked place's coordinates are taken as-is.
 
 **No push notification has ever been delivered.** `push_tokens` is empty, `app.json` has no
 `extra.eas.projectId`, and there are no FCM credentials, so `getExpoPushTokenAsync()` throws
@@ -399,11 +401,13 @@ members who are online elsewhere. `@socket.io/redis-adapter` behind `REDIS_URL` 
 and is not wired. The chat debounce and the `last_active_at` throttle are in-process for the
 same reason; the persisted daily caps are the backstop.
 
-**The Mapbox path is written but has never run.** `MapboxMap.tsx` compiles and the bundle
-builds, but Mapbox needs a `pk.*` token plus a dev build and neither exists here — no
-token has been issued, and Expo Go cannot load the native module. Everything verified so
-far is the vector-city branch. Refetch-on-region-settle is likewise written and unexercised,
-because only the Mapbox surface raises the event.
+**The Mapbox path is written but has still never run.** A `pk.*` token now exists in
+`apps/mobile/.env` and is verified against the live service, so that half of the requirement
+is met — but `@rnmapbox/maps` is native and Expo Go cannot load it, so `hasMapbox()` is false
+there and everything verified so far is the vector-city branch. Refetch-on-region-settle and
+the search-radius ring are written and unexercised for the same reason: only the Mapbox
+surface raises the one and draws the other. The venue place-search shares the token but no
+native module, so it does run today.
 
 **The Keystore native module is written but has never run either.** `AtsumaruKeystoreModule`
 compiles in the sense that the TS bundle builds, but the Kotlin code only runs in a
