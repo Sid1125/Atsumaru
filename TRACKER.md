@@ -1,12 +1,12 @@
 # Atsumaru — work tracker
 
-Status of the build against `docs/`. Updated 2026-09-02.
+Status of the build against `docs/`. Updated 2026-09-03.
 
 Legend: `[x]` done and verified · `[~]` code complete, not verified against a live
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 59/59 passing, and **the backend proven against a live Supabase project**
+`npm test` 88/88 passing, and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -31,12 +31,12 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
 
 - [x] `{ success, data }` / `{ success, error }` envelope, `asyncRoute`, `param`, `pageParams`
 - [x] Postgres error text logged, never returned (`dbError`)
-- [~] Users: `GET/PATCH /users/me`, `GET /users/:id` — public projection only, never `real_name`
-- [~] Onboarding: Groq chat (rate-limited, untrusted-output validation), handle suggest/check, `complete` with MiniLM embedding
-- [~] Events: nearby (PostGIS radius, clamped), detail, create, mine, members, match-preview
-- [~] Join/leave: `join_event` RPC holds a row lock, so the last seat cannot be double-booked
-- [~] Group chat + DMs: paginated `{ messages, page, limit, total }`, membership/connection gated
-- [~] Feedback: private ratings, reputation deltas, preference-vector learning, mutual-only unlock, replay-proof
+- [x] Users: `GET/PATCH /users/me`, `GET /users/:id` — public projection only, never `real_name`
+- [x] Onboarding: Groq chat (rate-limited, untrusted-output validation), handle suggest/check, `complete` with MiniLM embedding
+- [x] Events: nearby (PostGIS radius, clamped), detail, create, mine, members, match-preview
+- [x] Join/leave: `join_event` RPC holds a row lock, so the last seat cannot be double-booked
+- [x] Group chat + DMs: paginated `{ messages, page, limit, total }`, membership/connection gated
+- [x] Feedback: private ratings, reputation deltas, preference-vector learning, mutual-only unlock, replay-proof
 - [x] Vibe recap: `GET /events/:id/recap` — per-user Groq recap of the caller's own ratings,
       cached in `meetup_recaps`, deterministic template fallback in en/ja/zh. **Verified
       live 2026-08-30** (10/10 assertions, both the `ai` and `template` paths). Brute pass
@@ -47,8 +47,13 @@ onboarding → discovery → feedback → **real mutual connection** → DM thre
       a meh member's traits; all-fire bucket is alphabetical top-3; feedback added *after*
       a recap is generated is invisible to later reads (cache-first wins; the recap never
       changes — by design)
-- [~] Connections: mutual-only list, participants only
-- [~] Socket.io: `group:*`, `dm:*`, `member:joined`, `match:unlocked`, `typing`, `user:{id}` room; membership checked, persist-before-broadcast
+- [x] Connections: mutual-only list, participants only
+- [x] Socket.io: `group:*`, `dm:*`, `member:joined`, `match:unlocked`, `typing`, `user:{id}` room; membership checked, persist-before-broadcast
+
+Every line above carries `[x]` because §1 and §1e drove each of them against the live
+project. They read `[~]` until 2026-09-03, which understated what had actually been
+verified — the legend's `[~]` means "not verified against a live Supabase project", and
+that stopped being true on 2026-08-30.
 
 ### Matching (docs/AI.md §5–7)
 
@@ -233,8 +238,9 @@ API, so re-applying needs no browser.
       its channel email permission was approved, linking onto the same account
       (`context.md` §10)
 - [ ] Optional: set `REDIS_URL` (Upstash) and confirm the BullMQ driver takes over.
-      **Blocked on the sweep atomicity issue below** — two drivers can currently
-      double-notify
+      No longer blocked: the sweep claims each idempotency stamp before acting (§5,
+      2026-09-03), so two drivers can no longer double-notify. BullMQ itself has still
+      never run
 
 ### 1c. Keeping the free-tier project alive
 
@@ -375,26 +381,66 @@ was walked live (see §1b checkbox + `context.md` §8); LINE and `REDIS_URL` rem
 
 New defects this run surfaced:
 
-- [ ] **Message ordering has no tiebreaker.** `listMessages` sorts on `created_at` alone.
-      The two seeded messages share an identical timestamp (one batch insert), and the API
-      returned them in the opposite order to the seed. Equal timestamps also make paging
-      able to skip or repeat a row. Add `id` as a secondary sort key, and stagger the
-      timestamps in `seed.ts`
-- [ ] A malformed path param (`GET /events/not-a-uuid`) returns **`500 DB_ERROR`** where it
-      should be `400`. Nothing leaks — Postgres' `invalid input syntax for uuid` is
-      swallowed correctly — but the status is wrong. Validate id params as UUIDs in
-      `utils/request.ts`
-- [ ] `join_event`'s already-a-member early return reports `matched` / `joined` from size
-      alone, ignoring derived status, so re-joining a **completed** meetup answers
-      `matched`. Cosmetic, but it is the one join response that can contradict
-      `event_status()`
-- [ ] Left behind in the live project by this run: one `"env smoke test"` message and one
+- [x] **Message ordering has a tiebreaker** (2026-09-03). `listMessages` sorted on
+      `created_at` alone, the two seeded messages shared a timestamp from one batch insert,
+      and the API returned them in the opposite order to the seed; equal timestamps also let
+      `range()` paging skip or repeat a row. Now ordered by `(created_at, id)`, with
+      `messages_event_idx` / `messages_connection_idx` widened to match so the sort stays
+      index-supported, and `seed.ts` staggers its conversation a minute per message
+- [x] A malformed path param answers `400 INVALID_ID` (2026-09-03) instead of
+      `500 DB_ERROR`. Nothing ever leaked — Postgres' `invalid input syntax for uuid` was
+      swallowed correctly — but the status blamed the server for the caller's mistake.
+      `uuidParam()` in `utils/request.ts` validates first; every `:id` route uses it, while
+      `param()` stays for `:provider`
+- [x] `join_event`'s already-a-member early return no longer contradicts `event_status()`
+      (2026-09-03). It read `matched` off group size alone, so re-joining a **completed**
+      meetup answered `matched`; `matched` is now withheld once the meetup has started or
+      finished, which is what §3.5 means by it — the group filled while still forming
+- [x] Left behind in the live project by this run: one `"env smoke test"` message and one
       `"socket smoke test"` message on Morning Trail Run, plus an
-      `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. `npm run seed -- --reset`
-      clears them along with all demo data
+      `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. **Deleted 2026-09-03** by id
+      and exact token — 2 messages + 1 push token, confirmed by a select first. Deliberately
+      not `seed -- --reset`, which would have taken every demo row with them. Older
+      `"E2E group chat check"` / `"shape probe"` messages from the E2E run are still on that
+      meetup; they were never on this list, so they were left alone
 - [x] `verifyOtp` / `authDb()` path in `modules/auth/session.ts` — exercised live by the
       Google OAuth callback (2026-08-30): provider identity created, session link generated,
       `oauth_identities` row written (Supabase logs + live user). LINE would reuse the same path
+
+### 1f. Backend hardening pass, 2026-09-03 — `fix-backend-hardening`
+
+Worked the whole §5 / §1e backend list in one branch: **16 items closed**, nothing from that
+list left open. Typecheck clean both packages, `npm test` 54/54 (five new: uuid params,
+limiter growth, limiter namespacing, state binding, the binding cookie). Each fix is marked
+in place above and in §5 rather than repeated here.
+
+`migrations/005_backend_hardening.sql` is **applied to the live project** — `create_event`
+exists with the expected signature, `join_event` is replaced, `push_receipts` is created with
+RLS on, and the two message indexes are rebuilt on `(…, created_at, id)`. PostgREST's schema
+cache was reloaded by the migration's trailing `notify`, so `create_event` is visible.
+
+Driven live against `:4000` and the real Supabase project after the migration:
+
+| Assertion | Result |
+|---|---|
+| `POST /events` with a future `start_time` | `201`, `current_size: 1` — the host row is written in the same transaction |
+| `POST /events` with a past `start_time` | `400 INVALID_BODY`, "start_time must be in the future." |
+| `GET /events/not-a-uuid` | `400 INVALID_ID` (was `500 DB_ERROR`) |
+| `POST /events/:id/leave` on a completed meetup | `409 MEETUP_ALREADY_STARTED` |
+| Re-join a completed **full** meetup | `joined`, not `matched` — no longer contradicts `event_status()` |
+| `POST /auth/refresh` with a junk token | `401 REFRESH_REJECTED` |
+| `GET /auth/google` | `302` + `Set-Cookie: atsumaru_oauth=…; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=600`, and the state payload carries `bind` |
+| Callback replayed **without** the cookie | `400 INVALID_STATE` — login CSRF refused at the binding |
+| Same callback **with** the cookie | `502 AUTH_PROVIDER_ERROR` from the PKCE exchange, i.e. it got past the binding, which is the proof the check is the thing rejecting the first case |
+| `GET /events/:id/messages` twice | Identical, ascending `created_at` both times |
+
+Test rows created by this run (two `"Hardening check"` events) were deleted afterwards;
+`events` is back to 13.
+
+Still unexercised, and not from the §5 list: the **Redis** path of `services/ephemeral.ts`
+and the BullMQ sweep driver, both because `REDIS_URL` is empty; and Expo receipt collection,
+because `sendPush` has never delivered a notification (no EAS project id).
+
 
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
@@ -481,22 +527,26 @@ vulnerabilities**; mobile 11 moderate, all one advisory (`uuid <11.1.1` via `xco
 bundle. No secrets tracked — nothing matching `.env`/token/key in `git ls-files`, no
 JWT-shaped literals anywhere.
 
-- [ ] **`schema.sql` does not mirror `migrations/001`, `002`, or `003`.** `CLAUDE.md`
-      requires both, so that a fresh project comes up identical in one paste. Today a
-      fresh paste gets `event_sizes` **without** `security_invoker` — the exact RLS bypass
-      001 exists to close, leaking every event id and group size to the anon key — plus no
-      FK on `messages.connection_id`, no PK on `push_tokens`, none of the 8 indexes, no
-      pinned `search_path`, and no `keepalive`/`ping_keepalive()`. The live project is
-      fine; any new environment is not. Highest-priority item in this section
-- [ ] **`AUTH_STATE_SECRET` ships a hardcoded default and production only warns.**
-      `config/env.ts:35` defaults to `"atsumaru-dev-state-secret"` and line 63 logs a
-      warning and continues — that value is in the repo, so the OAuth `state` HMAC is
-      forgeable on any deploy that forgets the env var. Make it `process.exit(1)` when
-      `NODE_ENV === "production"`
-- [ ] OAuth `state` is a stateless HMAC blob only, not bound to the browser or session, so
-      any well-formed state is accepted from any client — login CSRF. Bounded by the
-      one-time deep-link code, and for Google now also by the PKCE verifier (a state with
-      no stashed verifier is rejected), but the browser binding is still missing
+- [x] **`schema.sql` now mirrors `migrations/001`, `002` and `003`** (2026-09-03). A fresh
+      paste previously got `event_sizes` **without** `security_invoker` — the exact RLS
+      bypass 001 exists to close, leaking every event id and group size to the anon key —
+      plus no FK on `messages.connection_id`, no PK on `push_tokens`, none of the 8
+      indexes, no pinned `search_path`, and no `keepalive`/`ping_keepalive()`. All of it is
+      in `schema.sql` now, each index next to the table it belongs to, so a new environment
+      comes up identical to the live one in one paste
+- [x] **`AUTH_STATE_SECRET` no longer warns and carries on** (2026-09-03). The default is
+      committed to this repo, so leaving it set made the OAuth `state` HMAC forgeable by
+      anyone who had read the source. `config/env.ts` now collects production faults and
+      `process.exit(1)`s on them, and the default is derived from one constant so the check
+      and the value cannot drift apart
+- [x] **OAuth `state` is now bound to the browser that started the flow** (2026-09-03).
+      A signature only proved this server minted the state, so any well-formed one was
+      accepted from any client — login CSRF. `signState` now also returns a random binding
+      value, carried to the browser in an httpOnly `atsumaru_oauth` cookie
+      (`Path=/api/auth`, `SameSite=Lax` because the provider's callback is a cross-site
+      top-level navigation, `Secure` in production) while only its SHA-256 digest rides
+      inside `state`. The callback rejects a state whose digest does not match the cookie
+      and clears it on redemption, so a lifted state is useless in another client
 - [x] The old Google `email_verified` hole is gone with the code that held it: Google no
       longer produces an `Identity` here at all — Supabase Auth verifies the provider and
       keys the user. **The equivalent risk now lives in identity linking** (`session.ts`):
@@ -514,34 +564,58 @@ JWT-shaped literals anywhere.
       elevation cannot). Login gained the positioning kicker + 集まる wordmark + lilac
       ambient wash. Deliberately skipped: noise, marquee, dark mode, photo grids, real
       avatars. Typecheck clean, 34/34 tests
-- [ ] Linking has no re-authentication step: if a provider ever released an unverified
-      address, it would inherit the matching account. Gate any future provider on an
-      explicit verified-email claim before adding it to the linking path
-- [ ] `CORS_ORIGIN` defaults to `*` for both Express and Socket.io. Auth is a Bearer
-      header rather than a cookie, so the exposure is low, but pin it in production
-- [ ] Mobile drops the `refresh_token`: `services/api/auth.ts` types it,
-      `storage/session.ts` stores only the access token, and there is no 401 handling
-      outside the demo layer. When the Supabase access token expires the app dead-ends
-      into silent failures with no re-auth path
-- [ ] `utils/rateLimit.ts` exposes `prune()` but nothing calls it, so the onboarding
-      limiter's counter map grows one entry per user for the process lifetime
-- [ ] `POST /events` accepts a `start_time` in the past, which creates a meetup that is
-      already `completed` by `event_status()`
-- [ ] **Sweep side effects are not atomic with their stamps.** `remind()` pushes then
-      stamps; `settle()` docks then stamps. One driver is safe (verified), but two —
-      BullMQ plus the boot-time `sweepOnce()`, or two API instances — can double-notify
-      and double-dock. Make the stamp a conditional update before enabling Redis
-- [ ] `connections/routes.ts:32` interpolates `userId` into a PostgREST `.or()` filter.
-      Safe today (it is a UUID off the verified JWT); defence-in-depth only
+- [x] **Linking is gated on an explicit verified-email claim** (2026-09-03). It used to
+      rest on an unwritten assumption that every provider verifies its addresses. `Identity`
+      now carries `emailVerified`, each provider entry in `oauth.ts` declares
+      `emailIsVerified` for itself, and `sessionForIdentity` answers
+      `409 IDENTITY_NOT_LINKABLE` rather than attaching an identity to an existing account
+      when the claim is missing. A new provider has to state the guarantee deliberately
+      instead of inheriting it
+- [x] `CORS_ORIGIN` defaulting to `*` is now a production boot failure (2026-09-03),
+      alongside the state secret. Auth is a Bearer header rather than a cookie, so the
+      exposure was low, but it is pinned now rather than trusted
+- [x] **The app keeps its `refresh_token` and recovers from a 401** (2026-09-03). It was
+      typed by `services/api/auth.ts` and then dropped, with no 401 handling outside the
+      demo layer, so an expired access token dead-ended every screen with no way back.
+      `storage/session.ts` now keeps it in SecureStore beside the access token (never
+      AsyncStorage, per docs/RULES.md), `client.ts` refreshes once on a 401 and replays the
+      original request, and `POST /api/auth/refresh` does the Supabase exchange server-side
+      so no Supabase credential reaches the client. One refresh at a time — Supabase rotates
+      the refresh token, so four concurrent queries firing four refreshes would spend it
+      three times and kill the session. A failed refresh signs out rather than looping
+- [x] `utils/rateLimit.ts` exported `prune()` and nothing ever called it, so the onboarding
+      limiter held one counter per caller for the process lifetime. `take()` now prunes
+      itself — but at most once per window, since walking the map is O(n) and doing it on
+      every request would be worse than the leak (2026-09-03)
+- [x] `POST /events` rejects a `start_time` in the past (2026-09-03). It used to create a
+      meetup that `event_status()` already reported as `completed`: joinable by nobody, and
+      immediately eligible for the sweep's ghost penalty against a group that never met
+- [x] **Sweep side effects are now atomic with their stamps** (2026-09-03). `remind()`
+      pushed then stamped and `settle()` docked then stamped, so BullMQ alongside the
+      boot-time `sweepOnce()`, or two API instances, could double-notify and double-dock.
+      Both now go through `claim()`, a conditional `update ... where <column> is null`
+      that returns the row: exactly one caller wins and does the work. The deliberate
+      trade is the opposite failure — a crash between the claim and the effect skips that
+      event instead of repeating it, which is the right way round, because a missed
+      reminder costs one notification while a double dock permanently alters a reputation
 - [ ] Accessibility pass: emoji ratings need text equivalents, touch targets, no colour-only state (docs/DESIGN.md §10)
 - [x] Index on `events (start_time, status)` — added in `migrations/001` along with the
       other 7 unindexed filter columns
-- [ ] Move OAuth handoff codes out of memory if the API ever runs more than one instance
-- [ ] `POST /events` inserts the event and the host's `group_members` row in two
-      statements; a failure between them leaves a hostless group. Move into an RPC like
-      `join_event`
-- [ ] `POST /events/:id/leave` has no status guard, so a member can leave an ongoing or
-      completed meetup and escape the ghost penalty before `settle()` runs
+- [x] **Handoff codes, PKCE verifiers and rate limits are out of process memory**
+      (2026-09-03) — `services/ephemeral.ts` is one keyed store with two backends, the same
+      one-body-two-drivers shape as the sweep: in-process Maps by default, Redis when
+      `REDIS_URL` is set. Every operation degrades to the in-memory store on a Redis error
+      rather than failing the request, so a dead Redis costs per-instance limiting and one
+      re-login instead of a 500. Limiters are namespaced now that they share a store, and
+      `take()` returns `{ allowed, retryAfterSeconds }` in one round trip. **The Redis path
+      has never run** — `REDIS_URL` is still empty
+- [x] `POST /events` writes the event and the host's `group_members` row in one
+      transaction (2026-09-03) — `create_event` in `schema.sql`, called through `rpc()`
+      exactly like `join_event`. Two separate inserts could leave a group with no members
+      at all if the second one failed
+- [x] `POST /events/:id/leave` now answers `409 MEETUP_ALREADY_STARTED` on an ongoing or
+      completed meetup (2026-09-03). Without the guard a member could drop their
+      `group_members` row before `settle()` read it and escape the ghost penalty
 - [x] **All-meh recap inverts the caller's dislikes into a compliment.** A member who
       rates everyone `meh` gets `liked: []` but the AI path still ran — `vibeRecap`
       sees the `cooled` traits in `recapPrompt`, and the system prompt's "never say
@@ -916,9 +990,9 @@ premium tier.
 | LINE credentials | **Live 2026-08-30.** Channel configured and walked end to end; email permission approved, so LINE returns the real address and its identity links onto the existing account instead of creating a twin. The synthetic `@oauth.atsumaru.invalid` fallback remains for channels without that permission |
 | Google OAuth | **Brokered by Supabase Auth (PKCE) since 2026-08-30**, so no public tunnel is needed and the client secret is out of the API. Walked live on the emulator. Three URLs must agree: Google console → Supabase's `/auth/v1/callback`, `OAUTH_CALLBACK_URL` → the API's own callback, and that same callback listed in Supabase → Redirect URLs (otherwise GoTrue silently falls back to Site URL — that failure looked like a broken app) |
 | Identity linking trust | Linking a second provider to an existing address trusts the provider's email claim. LINE only releases verified addresses, and Google is now verified by Supabase itself, but the `email_verified` gap in §5 is what keeps this honest — do not extend linking to a provider that does not verify |
-| Push receipts | Tickets are checked, but Expo's async receipt endpoint is not polled — a token can go stale for one cycle |
+| Push receipts | **Collected since 2026-09-03.** Accepted tickets land in `push_receipts`, and `collectPushReceipts()` reads them back on a later sweep pass (Expo needs ~15 minutes to produce one), retiring a `DeviceNotRegistered` token and discarding a ticket Expo never answers within 24h. Isolated from the rest of the sweep, so a receipt problem cannot fail the stamped work. Unexercised for the same reason as the row below |
 | Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
-| Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both — and the sweep atomicity fix in §5 first |
+| Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers and rate-limit counters moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |

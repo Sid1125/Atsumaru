@@ -50,7 +50,7 @@ export function useOAuthLogin() {
       try {
         const turnstileToken = await acquireTurnstileToken();
         const session = await authApi.session(code, turnstileToken);
-        await signIn(session.access_token, session.user);
+        await signIn(session.access_token, session.user, session.refresh_token);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 
         // A real (non-demo) sign-in proves this install's Keystore key to the server.
@@ -87,7 +87,7 @@ export function useOAuthLogin() {
       if (DEMO_MODE) {
         try {
           const session = await authApi.session("demo");
-          await signIn(session.access_token, session.user);
+          await signIn(session.access_token, session.user, session.refresh_token);
           await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
         } catch (e) {
           setError(e instanceof Error ? e.message : "Sign-in failed.");

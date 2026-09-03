@@ -17,7 +17,7 @@ import { parseDataUrl } from "./avatar.js";
 import { verifyDeviceSignature } from "./deviceIdentity.js";
 import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { HANDLE_RE } from "../../utils/handle.js";
 import { serializeVector } from "../../utils/vector.js";
 import { embed } from "../../services/ai.js";
@@ -210,8 +210,8 @@ usersRouter.get(
   "/:id",
   requireAuth,
   asyncRoute(async (req, res) => {
-    enforceReadLimit(req, res);
-    return ok(res, { user: await publicUser(param(req, "id")) });
+    await enforceReadLimit(req, res);
+    return ok(res, { user: await publicUser(uuidParam(req, "id")) });
   })
 );
 

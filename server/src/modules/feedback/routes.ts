@@ -22,7 +22,7 @@ import {
 } from "../matching/score.js";
 import { emitToUser } from "../../socket/index.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { parseVector, serializeVector } from "../../utils/vector.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { enforceQuota } from "../../utils/quota.js";
@@ -46,7 +46,10 @@ export const feedbackRouter = Router();
 // Feedback is a §19.1 "Very strict" surface: resubmissions re-run connection-unlock
 // processing and hit the DB on every call, and it is how reputation moves. Authenticated,
 // so budget by user (an IP-only cap would catch a whole shared-network classroom).
-const feedbackLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const feedbackLimiter = createRateLimiter(
+  { limit: 10, windowMs: 60 * 60 * 1000 },
+  "feedback-submit"
+);
 
 // Ratings and connection picks stay private: only mutual pairs may be revealed,
 // and the response must never say who did not pick the caller (docs/RULES.md §8-9).
@@ -54,9 +57,9 @@ feedbackRouter.get(
   "/:id/feedback-form",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
-    const members = await findMembers(param(req, "id"));
+    const members = await findMembers(uuidParam(req, "id"));
 
     return ok(res, {
       members: members.filter((member) => member.user_id !== req.userId),
@@ -113,13 +116,15 @@ feedbackRouter.post(
   "/:id/feedback",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const eventId = param(req, "id");
+    const eventId = uuidParam(req, "id");
     const userId = req.userId!;
 
     await requireMembership(eventId, userId);
 
-    if (!feedbackLimiter.take(userId)) {
-      res.setHeader("Retry-After", feedbackLimiter.retryAfter(userId));
+    const budget = await feedbackLimiter.take(userId);
+
+    if (!budget.allowed) {
+      res.setHeader("Retry-After", budget.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many submissions. Try again later.");
     }
 

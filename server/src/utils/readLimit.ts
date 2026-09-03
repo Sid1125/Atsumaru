@@ -12,18 +12,22 @@ import { HttpError } from "./response.js";
  * "Request throttling" in practice: reads are the high-frequency path, so they get a
  * fixed per-user per-window allowance rather than a per-endpoint stack of counters.
  */
-const readLimiter = createRateLimiter({
-  limit: Number(process.env.READ_RATE_LIMIT ?? 240),
-  windowMs: 60 * 1000,
-});
+const readLimiter = createRateLimiter(
+  {
+    limit: Number(process.env.READ_RATE_LIMIT ?? 240),
+    windowMs: 60 * 1000,
+  },
+  "read"
+);
 
 /** Throws 429 when the (authenticated) caller is over the shared read budget. */
-export function enforceReadLimit(req: Request, res: Response): void {
+export async function enforceReadLimit(req: Request, res: Response): Promise<void> {
   const userId = (req as Request & { userId?: string }).userId;
   const key = userId ?? (req.socket.remoteAddress ?? "unknown");
+  const budget = await readLimiter.take(key);
 
-  if (!readLimiter.take(key)) {
-    res.setHeader("Retry-After", readLimiter.retryAfter(key));
+  if (!budget.allowed) {
+    res.setHeader("Retry-After", budget.retryAfterSeconds);
     throw new HttpError(429, "RATE_LIMITED", "Too many requests. Try again shortly.");
   }
 }

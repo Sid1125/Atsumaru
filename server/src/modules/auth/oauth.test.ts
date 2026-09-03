@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 
+import { memoryStore } from "../../services/ephemeral.js";
 import {
+  bindingCookie,
+  bindingMatches,
+  BINDING_COOKIE,
   callbackWithState,
   claimVerifier,
+  clearedBindingCookie,
   emailForIdentity,
   isProvider,
   isSyntheticEmail,
   pkcePair,
+  readBinding,
   signState,
   stashVerifier,
   supabaseAuthorizeUrl,
@@ -62,6 +68,7 @@ test("identities without an email get an internal synthetic one", () => {
     email: null,
     name: null,
     picture: null,
+    emailVerified: false,
   };
 
   const synthetic = emailForIdentity(base);
@@ -99,20 +106,66 @@ test("the callback carries the signed state, so Supabase can hand it back", () =
   assert.equal(verifyState(url.searchParams.get("st")!, NOW)?.provider, "google");
 });
 
-test("a stashed verifier is returned once, then never again", () => {
+test("a stashed verifier is returned once, then never again", async () => {
+  const store = memoryStore(() => NOW);
   const { state } = signState("google", true, NOW);
 
-  stashVerifier(state, "verifier-1", NOW);
+  await stashVerifier(state, "verifier-1", store);
 
-  assert.equal(claimVerifier(state, NOW), "verifier-1");
+  assert.equal(await claimVerifier(state, store), "verifier-1");
   // Replayed callback: the code cannot be redeemed a second time.
-  assert.equal(claimVerifier(state, NOW), null);
+  assert.equal(await claimVerifier(state, store), null);
 });
 
-test("a verifier expires with its state window", () => {
+test("a verifier expires with its state window", async () => {
+  let now = NOW;
+  const store = memoryStore(() => now);
   const { state } = signState("google", true, NOW);
 
-  stashVerifier(state, "verifier-2", NOW);
+  await stashVerifier(state, "verifier-2", store);
 
-  assert.equal(claimVerifier(state, NOW + 601_000), null);
+  now = NOW + 601_000;
+
+  assert.equal(await claimVerifier(state, store), null);
+});
+
+test("state only verifies in the browser it was issued to", () => {
+  const { state, binding } = signState("google", true, NOW);
+  const payload = verifyState(state, NOW)!;
+
+  assert.ok(payload);
+  assert.equal(bindingMatches(payload, binding), true);
+
+  // Login CSRF: an attacker holding a valid state but not the victim's cookie, and a
+  // victim's browser holding a cookie from its own flow, must both fail.
+  assert.equal(bindingMatches(payload, null), false);
+  assert.equal(bindingMatches(payload, ""), false);
+  assert.equal(bindingMatches(payload, "some-other-browser"), false);
+  assert.equal(
+    bindingMatches(payload, signState("google", true, NOW).binding),
+    false
+  );
+
+  // Only the digest travels, so the state itself gives an attacker nothing to replay.
+  assert.equal(state.includes(binding), false);
+});
+
+test("the binding cookie is httpOnly, scoped to auth, and cleared on redemption", () => {
+  const { binding } = signState("line", false, NOW);
+  const cookie = bindingCookie(binding);
+
+  assert.match(cookie, /^atsumaru_oauth=/);
+  assert.ok(cookie.includes("HttpOnly"));
+  assert.ok(cookie.includes("Path=/api/auth"));
+  // Lax, not Strict: the provider's callback is a cross-site top-level navigation, and
+  // Strict would withhold the cookie and break every login.
+  assert.ok(cookie.includes("SameSite=Lax"));
+
+  assert.equal(readBinding(cookie.split(";")[0]), binding);
+  assert.equal(readBinding(`other=1; ${BINDING_COOKIE}=${binding}; last=2`), binding);
+  assert.equal(readBinding("other=1"), null);
+  assert.equal(readBinding(undefined), null);
+
+  assert.ok(clearedBindingCookie().includes("Max-Age=0"));
+  assert.equal(readBinding(clearedBindingCookie().split(";")[0]), null);
 });

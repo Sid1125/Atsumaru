@@ -6,7 +6,12 @@
 
 import { db } from "../db/queries.js";
 import { applyReputation, REPUTATION_DELTA } from "../modules/matching/score.js";
-import { feedbackMessage, pushTargets, sendPush } from "../services/push.js";
+import {
+  collectPushReceipts,
+  feedbackMessage,
+  pushTargets,
+  sendPush,
+} from "../services/push.js";
 import { dbError } from "../utils/response.js";
 
 /** Matches `event_status()` in schema.sql; the two must stay in step. */
@@ -48,10 +53,16 @@ export interface SweepResult {
   completed: number;
   remindersSent: number;
   eventsSettled: number;
+  receiptsChecked: number;
 }
 
 export async function runSweep(now = Date.now()): Promise<SweepResult> {
-  const result: SweepResult = { completed: 0, remindersSent: 0, eventsSettled: 0 };
+  const result: SweepResult = {
+    completed: 0,
+    remindersSent: 0,
+    eventsSettled: 0,
+    receiptsChecked: 0,
+  };
   const cutoff = new Date(now - MEETUP_DURATION_MS).toISOString();
 
   // 1. Stored status catches up with what event_status() already reports.
@@ -80,10 +91,18 @@ export async function runSweep(now = Date.now()): Promise<SweepResult> {
       result.remindersSent += await remind(event);
     }
 
-    if (dueForSettlement(event, now)) {
-      await settle(event);
+    if (dueForSettlement(event, now) && (await settle(event))) {
       result.eventsSettled += 1;
     }
+  }
+
+  // 4. Expo answers a send with a ticket and the real outcome only minutes later, so
+  //    receipts are their own pass. Isolated on purpose: a receipt problem must never
+  //    fail the stamped work above, which is what the sweep exists for.
+  try {
+    result.receiptsChecked = await collectPushReceipts(now);
+  } catch (error) {
+    console.error("Push receipt collection failed:", (error as Error).message);
   }
 
   return result;
@@ -111,34 +130,59 @@ async function submitterIds(eventId: string): Promise<string[]> {
   return ((data ?? []) as { from_user: string }[]).map((row) => row.from_user);
 }
 
-/** Nudges everyone who has not submitted yet, then marks the event as reminded. */
+/**
+ * Takes ownership of one of the two idempotency stamps. The update only matches while the
+ * column is still null, so when two drivers race — BullMQ alongside the boot-time
+ * `sweepOnce()`, or two API instances — exactly one gets a row back and does the work.
+ *
+ * Deliberately stamped *before* the side effect rather than after. Stamping afterwards is
+ * what let both drivers send the same reminder and dock the same ghosts twice. The cost of
+ * this order is the opposite failure: a crash between the claim and the effect skips that
+ * event instead of repeating it. That is the right way round — a missed reminder costs one
+ * notification, while a double dock permanently alters someone's reputation.
+ */
+async function claim(
+  eventId: string,
+  column: "feedback_reminder_sent_at" | "reputation_settled_at"
+): Promise<boolean> {
+  const { data, error } = await db()
+    .from("events")
+    .update({ [column]: new Date().toISOString() })
+    .eq("id", eventId)
+    .is(column, null)
+    .select("id");
+
+  if (error) throw dbError(error);
+
+  return (data ?? []).length > 0;
+}
+
+/** Nudges everyone who has not submitted yet. Claims the event first. */
 async function remind(event: SweepEvent): Promise<number> {
+  if (!(await claim(event.id, "feedback_reminder_sent_at"))) return 0;
+
   const members = await memberIds(event.id);
 
-  // A solo group has nobody to rate, so there is nothing worth a notification.
-  if (members.length < 2) {
-    await stamp(event.id, { feedback_reminder_sent_at: new Date().toISOString() });
-    return 0;
-  }
+  // A solo group has nobody to rate, so there is nothing worth a notification. The claim
+  // above already stamped it: the window has passed either way.
+  if (members.length < 2) return 0;
 
   const pending = membersMissingFeedback(members, await submitterIds(event.id));
   const targets = await pushTargets(pending);
 
-  const sent = await sendPush(
+  return sendPush(
     targets.map((target) => feedbackMessage(target.token, event.id, target.language))
   );
-
-  // Stamped even when nobody had a device registered: the window has passed either way.
-  await stamp(event.id, { feedback_reminder_sent_at: new Date().toISOString() });
-
-  return sent;
 }
 
 /**
- * Reputation reflects reliability, so skipping feedback costs a little. Applied once
- * per event, after the meetup window closes.
+ * Reputation reflects reliability, so skipping feedback costs a little. Applied once per
+ * event, after the meetup window closes. Returns false when another driver got there
+ * first.
  */
-async function settle(event: SweepEvent) {
+async function settle(event: SweepEvent): Promise<boolean> {
+  if (!(await claim(event.id, "reputation_settled_at"))) return false;
+
   const members = await memberIds(event.id);
   const ghosts = membersMissingFeedback(members, await submitterIds(event.id));
 
@@ -165,11 +209,5 @@ async function settle(event: SweepEvent) {
     }
   }
 
-  await stamp(event.id, { reputation_settled_at: new Date().toISOString() });
-}
-
-async function stamp(eventId: string, patch: Record<string, string>) {
-  const { error } = await db().from("events").update(patch).eq("id", eventId);
-
-  if (error) throw dbError(error);
+  return true;
 }
