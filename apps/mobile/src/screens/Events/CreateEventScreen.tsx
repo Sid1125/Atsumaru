@@ -11,8 +11,10 @@ import { Button } from "../../components/common/Button";
 import { Card } from "../../components/ui/Card";
 import { Chip } from "../../components/common/Chip";
 import { TextField } from "../../components/common/TextField";
+import { VenuePicker } from "../../components/events/VenuePicker";
 import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
+import type { ResolvedPlace } from "../../services/places";
 import { colors, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
@@ -20,7 +22,13 @@ type Nav = NativeStackNavigationProp<AppStackParamList, "CreateEvent">;
 
 const SIZES = [4, 5, 6] as const;
 
-/** Shibuya, matching the discovery fallback — hosting a meetup elsewhere needs a picker. */
+/**
+ * Where a meetup lands when no place was picked — Shibuya, matching the discovery fallback.
+ *
+ * It used to be the *only* possibility: hosting posted this point no matter what venue name
+ * was typed, so the name and the pin could describe different cities. `VenuePicker` is the
+ * way out of that, and this is now just the floor for when place search is unavailable.
+ */
 const DEFAULT_LOCATION = { lat: 35.6595, lng: 139.7005 };
 
 /** FR-13. `POST /events` already existed with nothing calling it. */
@@ -33,6 +41,8 @@ export function CreateEventScreen() {
 
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
+  /** Set once a searched place is resolved; null means the fallback point is in use. */
+  const [place, setPlace] = useState<ResolvedPlace | null>(null);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>("food");
   const [maxSize, setMaxSize] = useState<number>(6);
@@ -55,7 +65,7 @@ export function CreateEventScreen() {
         category,
         description: description.trim(),
         venue_name: venue.trim(),
-        location: DEFAULT_LOCATION,
+        location: place?.location ?? DEFAULT_LOCATION,
         start_time: new Date(Date.now() + startsIn * 3600_000).toISOString(),
         max_size: maxSize,
       });
@@ -89,11 +99,15 @@ export function CreateEventScreen() {
             onChangeText={setTitle}
             placeholder={t("createEvent.namePlaceholder")}
           />
-          <TextField
-            accessibilityLabel={t("createEvent.venue")}
+          <VenuePicker
             value={venue}
             onChangeText={setVenue}
-            placeholder={t("createEvent.venuePlaceholder")}
+            picked={place}
+            onPick={(next) => {
+              setPlace(next);
+              setVenue(next.name);
+            }}
+            onClearPick={() => setPlace(null)}
           />
           <TextField
             accessibilityLabel={t("createEvent.description")}

@@ -98,7 +98,8 @@
       "full": "已满",
       "ongoing": "进行中",
       "completed": "已结束"
-    }
+    },
+    "recenter": "回到我的位置"
   },
   "meetup": {
     "yourGroup": "你的小组",
@@ -207,6 +208,11 @@
     "hostKicker": "HOST A MEETUP",
     "hostHint": "填写详细信息并发布到活动板。",
     "detailsKicker": "DETAILS",
-    "groupKicker": "GROUP"
+    "groupKicker": "GROUP",
+    "venueSearchPlaceholder": "搜索地点",
+    "venueSearching": "正在搜索…",
+    "venueNoResults": "没有找到地点，你可以自己输入名称。",
+    "venuePicked": "位置已设定",
+    "venueSearchUnavailable": "地点搜索已关闭，聚会将标记在涩谷中心。"
   }
 }

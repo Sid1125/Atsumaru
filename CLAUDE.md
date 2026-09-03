@@ -264,6 +264,16 @@ changes. Framing numbers shared by both live in `framing.ts`.
   visible band is neither the view's centre nor its full height. Mapbox feeds `framing.ts`
   to camera padding; the vector map clamps its pan against it — using the full view height
   silently clamps away any attempt to frame content.
+- The 5 km search radius is drawn **only on Mapbox** (`radius.ts` → `ShapeSource`, a real
+  coordinate polygon, never a `CircleLayer` — its radius is screen pixels, so it would hold
+  its size while the ground moved). The vector city models a 3.35 x 3.33 km slice, so a 5 km
+  radius wants 10 km across, three times its whole world: the ring's edge is unreachable at
+  any zoom and only a flat tint would render. That difference is measured, not an oversight.
+- **Mapbox Search Box, not the Geocoding API**, powers the venue picker
+  (`services/places.ts`, the single gate). And it must send `language=ja`: with `en` or `zh`
+  the same query returns wards instead of venues, because Japan's POI index is
+  Japanese-language. Threading `i18n.language` through is the change that silently turns a
+  venue picker into an administrative-area picker.
 - Panning the Mapbox map refetches nearby meetups on settle (`docs/FRONTEND.md` §9):
   gesture-driven moves only, past a 400 m threshold, so framing cannot feed itself a
   fetch. The panned centre is held separately from the location fix — panning changes what

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { useTranslation } from "react-i18next";
 // Type-only: erased at compile time, so this does *not* load the native module.
@@ -13,6 +21,8 @@ import {
   SHEET_MAX_EXPOSURE,
 } from "./framing";
 import { loadMapbox } from "./mapbox";
+import { radiusFeature } from "./radius";
+import type { MapSurfaceHandle } from "./MapSurface";
 import { colors, spacing } from "../../theme";
 import type { Coords, MeetupEvent } from "../../types/api";
 
@@ -28,6 +38,10 @@ interface MapboxMapProps {
    * cannot feed itself a fetch.
    */
   onRegionSettled?: (center: Coords) => void;
+  /** The member's own position, once a fix has been taken. Draws the radius ring. */
+  userLocation?: Coords | null;
+  /** Radius of that ring, in kilometres. */
+  radiusKm?: number;
 }
 
 /** Zoom the map opens at: tight enough that Shibuya reads as a place. */
@@ -75,13 +89,11 @@ function metresBetween(a: Coords, b: Coords): number {
  * Mapbox that directly is cleaner than biasing every target coordinate, and it is
  * the same measurement the vector map clamps its pan against (`framing.ts`).
  */
-export function MapboxMap({
-  events,
-  selectedId,
-  onSelect,
-  onOpen,
-  onRegionSettled,
-}: MapboxMapProps) {
+export const MapboxMap = forwardRef<MapSurfaceHandle, MapboxMapProps>(
+  function MapboxMap(
+    { events, selectedId, onSelect, onOpen, onRegionSettled, userLocation, radiusKm },
+    ref
+  ) {
   // Non-null by construction: `MapSurface` only mounts this once the module loaded.
   const Mapbox = loadMapbox()!;
 
@@ -177,6 +189,31 @@ export function MapboxMap({
     fitToEvents(events, !first);
   }, [events, selectedId, height, fitToEvents]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      recenter: (coords: Coords) => {
+        camera.current?.setCamera({
+          centerCoordinate: [coords.lng, coords.lat],
+          zoomLevel: SELECTION_ZOOM,
+          padding,
+          animationMode: "easeTo",
+          animationDuration: 420,
+        });
+      },
+    }),
+    [padding]
+  );
+
+  /**
+   * The search radius as a GeoJSON polygon. Recomputed only when the centre or the radius
+   * changes, never on a gesture — Mapbox scales real coordinates with the map itself.
+   */
+  const ringFeature = useMemo(
+    () => (userLocation && radiusKm ? radiusFeature(userLocation, radiusKm) : null),
+    [userLocation, radiusKm]
+  );
+
   /** Recentre on the selected meetup so selection and map agree. */
   useEffect(() => {
     const target = events.find((event) => event.id === selectedId);
@@ -239,6 +276,24 @@ export function MapboxMap({
           }}
         />
 
+        {ringFeature ? (
+          <Mapbox.ShapeSource id="search-radius" shape={ringFeature}>
+            <Mapbox.FillLayer
+              id="search-radius-fill"
+              style={{ fillColor: colors.primary, fillOpacity: 0.08 }}
+            />
+            <Mapbox.LineLayer
+              id="search-radius-line"
+              style={{
+                lineColor: colors.primary,
+                lineOpacity: 0.45,
+                lineWidth: 1.5,
+                lineDasharray: [3, 2],
+              }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
+
         {events.map((event) => (
           <Mapbox.MarkerView
             key={event.id}
@@ -262,7 +317,8 @@ export function MapboxMap({
       </Mapbox.MapView>
     </View>
   );
-}
+  }
+);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundElevated },

@@ -19,7 +19,11 @@ import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
 import { MapSurface } from "../../components/map/MapSurface";
-import { IconChevronRight, IconConnections } from "../../components/ui/Icons";
+import {
+  IconChevronRight,
+  IconConnections,
+  IconLocate,
+} from "../../components/ui/Icons";
 import {
   BottomSheet,
   type BottomSheetHandle,
@@ -32,6 +36,8 @@ import {
 } from "../../features/events/hooks/useEvents";
 import { eventsApi } from "../../services/api/events";
 import { usePersistLocation } from "../../features/location/usePersistLocation";
+import { EXPOSED_FRACTION } from "../../components/map/framing";
+import type { MapSurfaceHandle } from "../../components/map/MapSurface";
 import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
@@ -46,6 +52,15 @@ import type { Coords, MeetupEvent } from "../../types/api";
 type Nav = NativeStackNavigationProp<AppStackParamList, "Discover">;
 
 const FALLBACK_COORDS: Coords = { lat: 35.6595, lng: 139.7005 };
+
+/**
+ * The radius the ring draws, in kilometres.
+ *
+ * It is 5 because that is what the query actually asks for — `eventsApi.nearby` sends
+ * `radius: 5000` and the server defaults to the same. The ring is only honest while those
+ * three agree, so changing one means changing all three.
+ */
+const NEARBY_RADIUS_KM = 5;
 
 /**
  * Map-first discovery.
@@ -86,6 +101,7 @@ export function DiscoverScreen() {
   const [pannedTo, setPannedTo] = useState<Coords | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bandBottom, setBandBottom] = useState(0);
+  const map = useRef<MapSurfaceHandle>(null);
   const sheet = useRef<BottomSheetHandle>(null);
 
   // One-shot location read for discovery only — no background tracking.
@@ -206,14 +222,38 @@ export function DiscoverScreen() {
     }
   }, []);
 
+  /**
+   * Take the map back to the member.
+   *
+   * Clearing `pannedTo` is the part that matters. The nearby query reads
+   * `pannedTo ?? coords`, so without it the camera would fly home while the results stayed
+   * pinned to wherever the map was last dragged — the ring and the list would be describing
+   * two different places. `requestLocation` above clears it for the same reason.
+   *
+   * With no fix yet there is nothing to return to, so the control asks for one instead of
+   * quietly centring on the Shibuya fallback.
+   */
+  const recenter = useCallback(() => {
+    if (!coords) return;
+
+    setPannedTo(null);
+    setSelectedId(null);
+    map.current?.recenter(coords);
+  }, [coords]);
+
   return (
     <View style={styles.root}>
       <MapSurface
+        ref={map}
         events={events}
         selectedId={selectedId}
         onSelect={selectPin}
         onOpen={open}
         onRegionSettled={searchHere}
+        // Only drawn around a real fix. Ringing the Shibuya fallback would draw a
+        // confident 5 km circle around somewhere the member may never have been.
+        userLocation={hasRealFix ? coords : null}
+        radiusKm={NEARBY_RADIUS_KM}
       />
 
       {/* Floating chrome — the map scrolls underneath it */}
@@ -253,6 +293,25 @@ export function DiscoverScreen() {
             />
           </PressableScale>
         </View>
+      </View>
+
+      {/* Map controls — right-hand side, above the sheet's resting edge. Deliberately not
+          bottom-left: that corner is where Mapbox pins its attribution and wordmark, which
+          are a licence condition and cannot be covered. */}
+      <View style={styles.mapControls} pointerEvents="box-none">
+        <PressableScale
+          accessibilityLabel={t("discover.recenter")}
+          accessibilityState={{ disabled: !coords }}
+          onPress={recenter}
+          style={styles.circleButton}
+          scaleTo={0.92}
+        >
+          <IconLocate
+            size={20}
+            // Disabled state is expressed in colour, never opacity (docs/DESIGN.md).
+            color={coords ? colors.nightText : colors.nightMuted}
+          />
+        </PressableScale>
       </View>
 
       {/* Category filters float over the map, below the identity chrome */}
@@ -493,6 +552,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
+  mapControls: {
+    position: "absolute",
+    right: spacing.md,
+    // Just above where the sheet rests at its default detent, so the control never sits
+    // under it and never fights the meetup list for the same pixels.
+    bottom: `${(1 - EXPOSED_FRACTION) * 100}%`,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
   filterRail: { position: "absolute", left: 0, right: 0 },
   filterRow: {
     paddingHorizontal: spacing.page,
