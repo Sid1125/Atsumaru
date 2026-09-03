@@ -35,6 +35,11 @@ import type { OnboardingStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<OnboardingStackParamList, "AIChat">;
 
+// The server validates the full transcript on every turn and caps it at 30 messages
+// (chatSchema in modules/onboarding/routes.ts). Past that the API 400s every send, so
+// the client keeps the transcript inside the same limit.
+const MAX_TRANSCRIPT = 30;
+
 /**
  * Conversational onboarding. Bubbles enter from the side they belong to, which
  * is what makes a transcript read as a conversation rather than a list
@@ -63,7 +68,14 @@ export function AIChatScreen() {
   async function postTurn(content: string) {
     if (!content.trim() || sending) return;
 
-    const next = [...turns, { role: "user" as const, content: content.trim() }];
+    // The transcript before this send — a failed request must roll back to it, or the
+    // unacknowledged bubble would be re-sent (and rejected) on every later attempt.
+    const before = turns;
+    const appended = [...before, { role: "user" as const, content: content.trim() }];
+    const next =
+      appended.length > MAX_TRANSCRIPT
+        ? appended.slice(appended.length - MAX_TRANSCRIPT)
+        : appended;
     setTurns(next);
     setSending(true);
     setError(null);
@@ -95,6 +107,11 @@ export function AIChatScreen() {
         navigation.navigate("ProfileConfirm");
       }
     } catch (e) {
+      // The server rejected the payload (or it never got through): drop the turn we
+      // optimistically added so the transcript only holds acknowledged messages, and
+      // put the text back in the composer for a one-tap retry.
+      setTurns(before);
+      setDraft(content.trim());
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setSending(false);

@@ -77,6 +77,12 @@ onboardingRouter.post(
     const parsed = chatSchema.safeParse(req.body);
 
     if (!parsed.success) {
+      // Log the specific rule that failed (the client replays the whole transcript each
+      // turn, so a single oversized turn bricks every later send with this 400).
+      console.error(
+        "Onboarding chat payload rejected:",
+        JSON.stringify(parsed.error.issues)
+      );
       throw new HttpError(400, "INVALID_BODY", "Invalid chat payload.");
     }
 

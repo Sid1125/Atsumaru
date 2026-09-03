@@ -1,0 +1,51 @@
+# Render Blueprint for the Atsumaru API (server/) — https://render.com/docs/blueprint-spec
+#
+# The API is a long-running Node process (Express 5 + Socket.io + an in-process
+# 5-minute post-meetup sweep), so it must be an always-on web service — not a
+# serverless function (Vercel/AWS Lambda cannot hold WebSockets or a timer).
+#
+# To deploy:
+#   1. Push this repo to GitHub, then on Render: New → Blueprint → pick this repo.
+#      The blueprint below provisions the service; the build runs `npm ci && npm run
+#      build` inside server/ and starts `npm start` (node dist/index.js).
+#   2. Add the secrets in the Render dashboard under Environment (never in git —
+#      copy values from your local server/.env):
+#        SUPABASE_URL
+#        SUPABASE_SERVICE_ROLE_KEY
+#        SUPABASE_ANON_KEY
+#        GROQ_API_KEY
+#        HUGGINGFACE_API_KEY
+#        AUTH_STATE_SECRET      (generate fresh: openssl rand -hex 32)
+#      NODE_ENV=production below refuses to boot while AUTH_STATE_SECRET is the
+#      development default, so the service stays red until you set a real one.
+#   3. Instance plan: choose "Starter" ($7/mo) so the process is always on. The Free
+#      plan sleeps after ~15 min idle — that closes every open WebSocket and pauses
+#      the 5-minute sweeper, so it is only good for a quick trial.
+#   4. Open https://<your-service>.onrender.com/health — expect {"success":true,...}.
+#
+# Notes:
+#   - TRUST_PROXY is on so the IP-keyed rate limiters see the real client IP behind
+#     Render's proxy instead of a forged X-Forwarded-For.
+#   - REDIS_URL is optional: set it later to move the sweep onto BullMQ (the two
+#     drivers run the same body; without it the in-process interval runs).
+#   - OAuth (LINE/Google), Turnstile and push keys are optional today — add them as
+#     environment variables when those providers are configured.
+services:
+  - type: web
+    name: atsumaru-api
+    runtime: node
+    # The repo root package.json only proxies into server/ for local dev (`tsx
+    # watch`) — this service must build and run the compiled server, never that
+    # dev script. rootDir keeps npm ci/install inside server/, where the lockfile
+    # and dependencies actually live.
+    rootDir: server
+    # --include=dev: typescript (used by `npm run build`) is a devDependency and
+    # NODE_ENV=production would otherwise make npm omit it during the build.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
