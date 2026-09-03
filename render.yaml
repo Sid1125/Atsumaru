@@ -49,3 +49,11 @@ services:
         value: production
       - key: TRUST_PROXY
         value: "true"
+      # Production refuses to boot on CORS_ORIGIN='*' (config/env.ts). The clients
+      # are native apps, which send no Origin header, so CORS only ever matters for
+      # a browser — and there is none today. Name the service's own origin: it
+      # satisfies the guard, allows same-origin browser calls, and blocks every
+      # third-party origin. Change this if the public URL ever differs (Render
+      # assigns a fresh suffix when a service is recreated).
+      - key: CORS_ORIGIN
+        value: https://atsumaru-6i3n.onrender.com
