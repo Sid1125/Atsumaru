@@ -82,7 +82,9 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   in SQL it is `SRID=4326;POINT(lng lat)`.
 - PostGIS/pgvector and anything needing a transaction go in `schema.sql` as a
   function called through `rpc()` (`events_nearby`, `event_detail`,
-  `events_for_user`, `join_event` — joining is atomic, never read-then-insert).
+  `events_for_user`, `join_event`, `create_event` — joining and hosting are both
+  atomic, never read-then-insert, and hosting writes the event plus the host's
+  membership together).
   `event_status()` derives `ongoing`/`completed` from `start_time`; never recompute a
   meetup's status in TypeScript.
 - Vectors are pgvector `vector(384)` (MiniLM); round-trip with `parseVector` /
@@ -366,10 +368,12 @@ credentials in a dev build. No LINE or Google credentials exist yet; `seed --tok
 mints real Supabase sessions, which is how the authenticated routes were verified.
 
 Backend: **verified against the live project** as of 2026-08-30 — see `TRACKER.md` §1 for
-the assertion list and §1b for the eight defects that only a real run could surface. Still
-open there: the sweep stamps its idempotency columns after the side effect rather than
-atomically, so a second driver (BullMQ, or a second instance) can double-notify. Fix that
-before setting `REDIS_URL`.
+the assertion list and §1b for the eight defects that only a real run could surface. The
+sweep now **claims** each idempotency stamp with a conditional update *before* the side
+effect, so two drivers cannot double-notify or double-dock (`jobs/sweep.ts`); the
+`REDIS_URL` prerequisite that blocked on is cleared, though BullMQ itself is still
+unexercised. Handoff codes and the rate limiter remain in process memory, so more than one
+instance still needs Redis for both.
 
 ## Codex Review
 

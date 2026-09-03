@@ -11,12 +11,16 @@ import { dbError, HttpError, ok } from "../../utils/response.js";
 import { param } from "../../utils/request.js";
 import {
   authorizeUrl,
+  bindingCookie,
+  bindingMatches,
   callbackWithState,
   claimVerifier,
+  clearedBindingCookie,
   identityFromCode,
   isProvider,
   pkcePair,
   providerConfigured,
+  readBinding,
   signState,
   stashVerifier,
   supabaseAuthorizeUrl,
@@ -148,6 +152,16 @@ authRouter.get(
     if (!code || !state) {
       throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
     }
+
+    // A signature only proves this server minted the state. The cookie proves the browser
+    // presenting it is the one that started the flow, which is what stops an attacker's
+    // code being redeemed in a victim's browser.
+    if (!bindingMatches(state, readBinding(req.headers.cookie))) {
+      throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
+    }
+
+    // Single use, whichever way this response ends.
+    res.setHeader("Set-Cookie", clearedBindingCookie());
 
     if (!providerConfigured(state.provider)) {
       throw new HttpError(
@@ -343,7 +357,11 @@ authRouter.get(
       );
     }
 
-    const { state, nonce } = signState(provider, req.query.redirect_to === "app");
+    const { state, nonce, binding } = signState(provider, req.query.redirect_to === "app");
+
+    // The browser keeps the binding value; only its digest travels inside `state`, so a
+    // state blob lifted off the wire is useless in any other client.
+    res.setHeader("Set-Cookie", bindingCookie(binding));
 
     if (provider === "google") {
       const { verifier, challenge } = pkcePair();

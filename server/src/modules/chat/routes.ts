@@ -6,7 +6,7 @@ import { asyncRoute } from "../../middleware/errorHandler.js";
 import { insertMessage, listMessages, requireMembership } from "../../db/queries.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { HttpError, ok } from "../../utils/response.js";
-import { pageParams, param } from "../../utils/request.js";
+import { pageParams, uuidParam } from "../../utils/request.js";
 import { enforceReadLimit } from "../../utils/readLimit.js";
 
 const bodySchema = z.object({ message: z.string().min(1).max(2000) });
@@ -23,11 +23,11 @@ chatRouter.get(
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
     enforceReadLimit(req, res);
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);
 
-    return ok(res, await listMessages("event_id", param(req, "id"), page, limit));
+    return ok(res, await listMessages("event_id", uuidParam(req, "id"), page, limit));
   })
 );
 
@@ -35,7 +35,7 @@ chatRouter.post(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    await requireMembership(param(req, "id"), req.userId!);
+    await requireMembership(uuidParam(req, "id"), req.userId!);
 
     if (!sendLimiter.take(req.userId!)) {
       res.setHeader("Retry-After", sendLimiter.retryAfter(req.userId!));
@@ -50,7 +50,7 @@ chatRouter.post(
 
     const message = await insertMessage(
       "event_id",
-      param(req, "id"),
+      uuidParam(req, "id"),
       req.userId!,
       parsed.data.message
     );

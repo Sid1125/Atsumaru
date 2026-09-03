@@ -204,7 +204,11 @@ export async function listMessages(
       count: "exact",
     })
     .eq(scope, id)
+    // `created_at` alone is not a total order: a batch insert gives several rows the same
+    // timestamp, which left their order arbitrary and let `range()` paging skip or repeat
+    // one. `id` is unique, so adding it settles every tie the same way on every read.
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .range(from, from + limit - 1);
 
   if (error) throw dbError(error);

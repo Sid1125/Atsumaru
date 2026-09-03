@@ -15,7 +15,7 @@ import { matchScore } from "../matching/score.js";
 import { matchReasons } from "../matching/reasons.js";
 import type { Language } from "../../types.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
-import { param } from "../../utils/request.js";
+import { uuidParam } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { parseVector } from "../../utils/vector.js";
 import { enforceReadLimit } from "../../utils/readLimit.js";
@@ -35,7 +35,17 @@ const createSchema = z.object({
   description: z.string().max(500).optional(),
   venue_name: z.string().min(1).max(80),
   location: coordsSchema,
-  start_time: z.string().datetime(),
+  /**
+   * Future only. A past `start_time` produced a meetup that `event_status()` already
+   * reported as `completed` — joinable by nobody, and immediately eligible for the
+   * sweep's ghost penalty against a group that never met.
+   */
+  start_time: z
+    .string()
+    .datetime()
+    .refine((value) => Date.parse(value) > Date.now(), {
+      message: "start_time must be in the future.",
+    }),
   max_size: z.number().int().min(4).max(6),
 });
 
@@ -115,31 +125,28 @@ eventsRouter.post(
 
     const body = parsed.data;
 
-    const { data, error } = await db()
-      .from("events")
-      .insert({
-        host_id: req.userId!,
-        title: body.title,
-        category: body.category,
-        description: body.description ?? "",
-        venue_name: body.venue_name,
-        location: `SRID=4326;POINT(${body.location.lng} ${body.location.lat})`,
-        start_time: body.start_time,
-        max_size: body.max_size,
-      })
-      .select("id")
-      .single<{ id: string }>();
+    // One statement, one transaction: the event row and the host's group_members row are
+    // written together by create_event, because a failure between two separate inserts
+    // left a group with no members at all. Same reason join_event is an RPC.
+    const { data, error } = await db().rpc("create_event", {
+      p_host_id: req.userId!,
+      p_title: body.title,
+      p_category: body.category,
+      p_description: body.description ?? "",
+      p_venue_name: body.venue_name,
+      p_lat: body.location.lat,
+      p_lng: body.location.lng,
+      p_start_time: body.start_time,
+      p_max_size: body.max_size,
+    });
 
     if (error) throw dbError(error);
 
-    // The host is the first member, so the group is never empty.
-    const { error: memberError } = await db()
-      .from("group_members")
-      .insert({ event_id: data.id, user_id: req.userId! });
+    if (typeof data !== "string" || data.length === 0) {
+      throw dbError({ message: "create_event returned no event id." });
+    }
 
-    if (memberError) throw dbError(memberError);
-
-    return ok(res, { event: toApiEvent(await findEvent(data.id)) }, 201);
+    return ok(res, { event: toApiEvent(await findEvent(data)) }, 201);
   })
 );
 
@@ -149,11 +156,11 @@ eventsRouter.get(
   asyncRoute(async (req, res) => {
     enforceReadLimit(req, res);
 
-    const event = await findEvent(param(req, "id"));
+    const event = await findEvent(uuidParam(req, "id"));
 
     return ok(res, {
       event: toApiEvent(event),
-      members: await findMembers(param(req, "id")),
+      members: await findMembers(uuidParam(req, "id")),
     });
   })
 );
@@ -169,7 +176,7 @@ eventsRouter.post(
   "/:id/join",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const eventId = param(req, "id");
+    const eventId = uuidParam(req, "id");
 
     // Seat counting and the status flip happen inside one locked transaction so two
     // people racing for the last seat cannot both win it.
@@ -195,10 +202,21 @@ eventsRouter.post(
   "/:id/leave",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    const event = await findEvent(param(req, "id"));
+    const event = await findEvent(uuidParam(req, "id"));
 
     if (event.host_id === req.userId) {
       throw new HttpError(403, "HOST_CANNOT_LEAVE", "The host cannot leave their own meetup.");
+    }
+
+    // Leaving is for a group that has not met yet. Without this a member could walk out
+    // of an ongoing or finished meetup and drop their group_members row before the
+    // sweep's settle() pass reads it, escaping the ghost penalty for skipping feedback.
+    if (event.status === "ongoing" || event.status === "completed") {
+      throw new HttpError(
+        409,
+        "MEETUP_ALREADY_STARTED",
+        "You cannot leave a meetup that has already started."
+      );
     }
 
     const { error } = await db()
@@ -230,7 +248,7 @@ eventsRouter.get(
   requireAuth,
   asyncRoute(async (req, res) => {
     enforceReadLimit(req, res);
-    return ok(res, { members: await findMembers(param(req, "id")) });
+    return ok(res, { members: await findMembers(uuidParam(req, "id")) });
   })
 );
 
@@ -270,7 +288,7 @@ eventsRouter.get(
   asyncRoute(async (req: AuthedRequest, res) => {
     enforceReadLimit(req, res);
 
-    const event = await findEvent(param(req, "id"));
+    const event = await findEvent(uuidParam(req, "id"));
     const members = await findMembers(event.id);
 
     const [userVector, profiles] = await Promise.all([

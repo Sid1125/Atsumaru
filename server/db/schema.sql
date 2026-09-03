@@ -41,6 +41,8 @@ alter table events add column if not exists reputation_settled_at timestamptz;
 
 create index if not exists events_location_idx on events using gist (location);
 create index if not exists events_start_time_idx on events (start_time);
+-- The sweep selects on (start_time, status) together.
+create index if not exists events_start_status_idx on events (start_time, status);
 
 create table if not exists group_members (
   id uuid primary key default gen_random_uuid(),
@@ -49,6 +51,8 @@ create table if not exists group_members (
   joined_at timestamptz not null default now(),
   unique (event_id, user_id)
 );
+
+create index if not exists group_members_user_idx on group_members (user_id);
 
 create table if not exists messages (
   id uuid primary key default gen_random_uuid(),
@@ -60,8 +64,10 @@ create table if not exists messages (
   check ((event_id is null) <> (connection_id is null))
 );
 
-create index if not exists messages_event_idx on messages (event_id, created_at);
-create index if not exists messages_connection_idx on messages (connection_id, created_at);
+-- `id` closes the ordering: equal created_at values (a batch insert shares a timestamp)
+-- would otherwise come back in an arbitrary order and let paging skip or repeat a row.
+create index if not exists messages_event_idx on messages (event_id, created_at, id);
+create index if not exists messages_connection_idx on messages (connection_id, created_at, id);
 
 -- One rating per (event, rater, ratee). Private: only the server reads these.
 create table if not exists feedback (
@@ -77,6 +83,10 @@ create table if not exists feedback (
   check (from_user <> to_user)
 );
 
+create index if not exists feedback_event_idx on feedback (event_id);
+create index if not exists feedback_from_user_idx on feedback (from_user);
+create index if not exists feedback_to_user_idx on feedback (to_user);
+
 -- user_a < user_b keeps a pair unique regardless of who submitted first.
 create table if not exists connections (
   id uuid primary key default gen_random_uuid(),
@@ -90,6 +100,18 @@ create table if not exists connections (
   check (user_a < user_b)
 );
 
+create index if not exists connections_user_a_idx on connections (user_a);
+create index if not exists connections_user_b_idx on connections (user_b);
+
+-- messages.connection_id could not be declared inline: connections is defined after
+-- messages. Without the FK a bad connection_id is silently storable and deleting a
+-- connection orphans its DM history.
+alter table messages
+  drop constraint if exists messages_connection_id_fkey;
+alter table messages
+  add constraint messages_connection_id_fkey
+  foreign key (connection_id) references connections (id) on delete cascade;
+
 -- OAuth bridge (docs/TRD.md §5). LINE is not a native Supabase provider, so the API
 -- exchanges the code itself and maps the provider subject to a Supabase auth user.
 create table if not exists oauth_identities (
@@ -101,13 +123,27 @@ create table if not exists oauth_identities (
 );
 
 -- Expo push targets for meetup/feedback notifications (docs/TRD.md §14).
+-- (user_id, token) is the natural key: one row per device per user.
 create table if not exists push_tokens (
   user_id uuid not null references users (id) on delete cascade,
   token text not null,
   platform text,
   created_at timestamptz not null default now(),
-  unique (user_id, token)
+  primary key (user_id, token)
 );
+
+create index if not exists push_tokens_user_idx on push_tokens (user_id);
+
+-- Expo delivery is two-phase: a send returns a ticket, and the real outcome only shows
+-- up on a receipt minutes later. Tickets park here so a later sweep pass can collect
+-- them and retire tokens the device no longer holds (docs/TRD.md §14).
+create table if not exists push_receipts (
+  ticket_id text primary key,
+  token text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists push_receipts_created_idx on push_receipts (created_at);
 
 -- Hardware-backed device identities (Android Keystore/StrongBox). Each device uploads the
 -- SPKI certificate of a non-exportable key it generated inside the TEE, then proves
@@ -126,6 +162,7 @@ create table if not exists device_keys (
   challenge_expires_at timestamptz,
   primary key (user_id, device_id)
 );
+
 
 -- One cached vibe recap per member per finished meetup (docs/AI.md §6a).
 -- Keyed by user, not just event: the text is derived from the caller's own ratings, so
@@ -157,7 +194,11 @@ create table if not exists usage_quotas (
 );
 
 -- current_size for the API's Event model.
-create or replace view event_sizes as
+--
+-- security_invoker so the caller's permissions apply: a view runs as its owner by
+-- default, which would hand every event id and group size to the anon key straight
+-- past the deny-all RLS at the bottom of this file.
+create or replace view event_sizes with (security_invoker = true) as
   select e.id as event_id, count(gm.id) as current_size
   from events e
   left join group_members gm on gm.event_id = e.id
@@ -166,10 +207,15 @@ create or replace view event_sizes as
 -- A meetup becomes 'ongoing' at its start time and 'completed' two hours later. The
 -- API never recomputes this: reads go through the functions below, and the sweep in
 -- src/jobs writes the same transition back to events.status.
+--
+-- Every function here pins `search_path`. They are security invoker and run under the
+-- service-role key, but pinning it anyway stops a schema-shadowing object from changing
+-- what st_dwithin or event_status resolves to. PostGIS and pgvector live in `extensions`.
 create or replace function event_status(p_stored text, p_start timestamptz)
 returns text
 language sql
 stable
+set search_path = public, extensions
 as $$
   select case
     when p_stored = 'completed' then 'completed'
@@ -204,6 +250,7 @@ returns table (
 )
 language sql
 stable
+set search_path = public, extensions
 as $$
   select
     e.id,
@@ -245,6 +292,7 @@ returns table (
 )
 language sql
 stable
+set search_path = public, extensions
 as $$
   select
     e.id,
@@ -282,6 +330,7 @@ returns table (
 )
 language sql
 stable
+set search_path = public, extensions
 as $$
   select d.*
   from events e
@@ -299,6 +348,7 @@ $$;
 create or replace function join_event(p_event_id uuid, p_user_id uuid)
 returns table (status text, current_size bigint)
 language plpgsql
+set search_path = public, extensions
 as $$
 declare
   v_max int;
@@ -316,13 +366,19 @@ begin
 
   select count(*) into v_size from group_members gm where gm.event_id = p_event_id;
 
-  -- Already a member: report the current state instead of failing.
+  -- Already a member: report the current state instead of failing. 'matched' means the
+  -- group filled while it was still forming, so it is withheld once the meetup has
+  -- started or finished — reporting it there would contradict event_status().
   if exists (
     select 1 from group_members gm
     where gm.event_id = p_event_id and gm.user_id = p_user_id
   ) then
     return query
-      select case when v_size >= v_max then 'matched' else 'joined' end, v_size;
+      select case
+        when v_size >= v_max and event_status(v_status, v_start) in ('open', 'full')
+          then 'matched'
+        else 'joined'
+      end, v_size;
     return;
   end if;
 
@@ -350,6 +406,79 @@ begin
 end;
 $$;
 
+-- Hosting writes two rows — the event and the host's membership — and a failure between
+-- them would leave a group with no members at all. One transaction, for the same reason
+-- join_event is one.
+create or replace function create_event(
+  p_host_id uuid,
+  p_title text,
+  p_category text,
+  p_description text,
+  p_venue_name text,
+  p_lat double precision,
+  p_lng double precision,
+  p_start_time timestamptz,
+  p_max_size int
+)
+returns uuid
+language plpgsql
+set search_path = public, extensions
+as $$
+declare
+  v_event_id uuid;
+begin
+  insert into events (
+    host_id, title, category, description, venue_name, location, start_time, max_size
+  )
+  values (
+    p_host_id,
+    p_title,
+    p_category,
+    p_description,
+    p_venue_name,
+    st_setsrid(st_point(p_lng, p_lat), 4326)::geography,
+    p_start_time,
+    p_max_size
+  )
+  returning id into v_event_id;
+
+  -- The host is the first member, so the group is never empty.
+  insert into group_members (event_id, user_id) values (v_event_id, p_host_id);
+
+  return v_event_id;
+end;
+$$;
+
+-- Keepalive for the Supabase free tier: a project pauses after ~7 days idle and has to
+-- be restored by hand, which would silently break every demo.
+-- .github/workflows/keepalive.yml calls this once a day with the anon key. Deliberately
+-- touches no product table, so the ping can never be confused with real traffic.
+create table if not exists keepalive (
+  id boolean primary key default true,
+  last_ping timestamptz not null default now(),
+  ping_count bigint not null default 0,
+  constraint keepalive_single_row check (id)
+);
+
+insert into keepalive (id) values (true) on conflict (id) do nothing;
+
+-- security definer so the anon key can run it with no policy on the table itself.
+create or replace function ping_keepalive()
+returns table (last_ping timestamptz, ping_count bigint)
+language sql
+security definer
+set search_path = public
+as $$
+  update keepalive
+     set last_ping = now(),
+         ping_count = keepalive.ping_count + 1
+   where id
+  returning keepalive.last_ping, keepalive.ping_count;
+$$;
+
+-- The anon key is all the scheduled job needs; the service-role key stays out of CI.
+grant execute on function ping_keepalive() to anon;
+
 -- The API uses the service-role key and enforces access in code; RLS stays on so
 -- anon/authenticated keys cannot read these tables directly.
 alter table users enable row level security;
@@ -361,8 +490,12 @@ alter table connections enable row level security;
 alter table oauth_identities enable row level security;
 alter table push_tokens enable row level security;
 alter table device_keys enable row level security;
+alter table push_receipts enable row level security;
 alter table meetup_recaps enable row level security;
 alter table usage_quotas enable row level security;
+alter table keepalive enable row level security;
+
+revoke all on table keepalive from anon, authenticated;
 
 -- Atomic increment-if-under-cap for usage quotas (docs/ATSUMARU_SECURITY_COMPLETE §19.1).
 -- The API calls this via rpc(). Remember to `notify pgrst, 'reload schema'` after applying.

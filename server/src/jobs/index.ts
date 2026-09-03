@@ -13,10 +13,15 @@ async function sweepOnce() {
   try {
     const result = await runSweep();
 
-    if (result.completed || result.remindersSent || result.eventsSettled) {
+    if (
+      result.completed ||
+      result.remindersSent ||
+      result.eventsSettled ||
+      result.receiptsChecked
+    ) {
       console.log(
         `Sweep: ${result.completed} completed, ${result.remindersSent} reminders, ` +
-          `${result.eventsSettled} settled.`
+          `${result.eventsSettled} settled, ${result.receiptsChecked} receipts.`
       );
     }
   } catch (error) {

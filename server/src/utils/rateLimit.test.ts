@@ -28,3 +28,20 @@ test("callers are counted separately and expired counters are pruned", () => {
 
   assert.equal(limiter.take("a", NOW + 2000), true);
 });
+
+test("the counter map does not grow once its callers' windows have passed", () => {
+  const limiter = createRateLimiter({ limit: 1, windowMs: 1000 });
+
+  // Well past the internal prune threshold, so `take` has to be the thing that clears
+  // them: nothing else ever calls prune in the running server.
+  for (let i = 0; i < 2000; i += 1) {
+    limiter.take(`caller-${i}`, NOW);
+  }
+
+  assert.equal(limiter.size() > 0, true);
+
+  // Every window above has expired by now, so the next call should walk them out.
+  limiter.take("late", NOW + 5000);
+
+  assert.equal(limiter.size(), 1);
+});
