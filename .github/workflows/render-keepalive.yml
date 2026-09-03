@@ -36,7 +36,7 @@ jobs:
 
           # Default matches the render.yaml blueprint; set the repository variable
           # RENDER_HEALTH_URL if Render assigned a suffixed URL instead.
-          url="${RENDER_HEALTH_URL:-https://atsumaru-api.onrender.com/health}"
+          url="${RENDER_HEALTH_URL:-https://atsumaru-6i3n.onrender.com/health}"
           echo "Pinging ${url}"
 
           # A cold free-tier boot can take 30-60s+, so the first attempt can time
