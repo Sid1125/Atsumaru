@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { Language, User } from "../types/api";
 import {
   clearAccessToken,
-  setAccessToken,
+  setSession,
 } from "../services/storage/session";
 
 interface AuthState {
@@ -19,8 +19,16 @@ interface AuthState {
   setUser: (user: User | null) => void;
   setAuthenticated: (value: boolean) => void;
   setBootstrapped: (value: boolean) => void;
-  /** `user` is null for a brand-new account that has not onboarded yet. */
-  signIn: (token: string, user: User | null) => Promise<void>;
+  /**
+   * `user` is null for a brand-new account that has not onboarded yet. The refresh token
+   * is kept beside the access token so an expired session can recover itself instead of
+   * dead-ending every request (see services/api/client.ts).
+   */
+  signIn: (
+    token: string,
+    user: User | null,
+    refreshToken?: string | null
+  ) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -31,8 +39,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user }),
   setAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
   setBootstrapped: (isBootstrapped) => set({ isBootstrapped }),
-  signIn: async (token, user) => {
-    await setAccessToken(token);
+  signIn: async (token, user, refreshToken) => {
+    await setSession(token, refreshToken);
     set({ user, isAuthenticated: true });
   },
   signOut: async () => {

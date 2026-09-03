@@ -27,6 +27,7 @@ import {
 import {
   claimSession,
   sessionForIdentity,
+  sessionFromRefreshToken,
   sessionFromSupabaseCode,
   stashSession,
   type AuthSession,
@@ -116,7 +117,7 @@ authRouter.get(
       if (state.provider === "google") {
         // Single-use: the verifier is consumed here, so a replayed callback cannot
         // redeem the code twice.
-        const verifier = claimVerifier(rawState);
+        const verifier = await claimVerifier(rawState);
 
         if (!verifier) {
           throw new HttpError(400, "INVALID_STATE", "Expired or invalid sign-in attempt.");
@@ -139,7 +140,7 @@ authRouter.get(
 
     // Tokens never travel in a URL: the app trades this code for them.
     const handoff = new URL(env.APP_AUTH_REDIRECT);
-    handoff.searchParams.set("code", stashSession(session));
+    handoff.searchParams.set("code", await stashSession(session));
 
     return res.redirect(handoff.toString());
   })
@@ -157,13 +158,36 @@ authRouter.post(
       throw new HttpError(400, "INVALID_BODY", "code is required.");
     }
 
-    const session = claimSession(parsed.data.code);
+    const session = await claimSession(parsed.data.code);
 
     if (!session) {
       throw new HttpError(400, "INVALID_CODE", "That sign-in code is no longer valid.");
     }
 
     return ok(res, session);
+  })
+);
+
+const refreshSchema = z.object({ refresh_token: z.string().min(1).max(2048) });
+
+/**
+ * Not in docs/API_STRUCTURE.md, like `/auth/session` and `/users/me/push-token`: the
+ * contract describes the session but not how a client keeps one alive. Supabase access
+ * tokens expire, so without this the app dead-ends on the first 401 with no way back.
+ *
+ * Unauthenticated on purpose — the expired access token is exactly what the caller cannot
+ * present. The refresh token is the credential, and Supabase rotates it on every use.
+ */
+authRouter.post(
+  "/refresh",
+  asyncRoute(async (req, res) => {
+    const parsed = refreshSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new HttpError(400, "INVALID_BODY", "refresh_token is required.");
+    }
+
+    return ok(res, await sessionFromRefreshToken(parsed.data.refresh_token));
   })
 );
 
@@ -197,7 +221,7 @@ authRouter.get(
 
     if (provider === "google") {
       const { verifier, challenge } = pkcePair();
-      stashVerifier(state, verifier);
+      await stashVerifier(state, verifier);
 
       return res.redirect(
         supabaseAuthorizeUrl(provider, callbackWithState(state), challenge)

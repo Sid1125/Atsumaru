@@ -47,7 +47,7 @@ export function useOAuthLogin() {
 
       try {
         const session = await authApi.session(code);
-        await signIn(session.access_token, session.user);
+        await signIn(session.access_token, session.user, session.refresh_token);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Sign-in failed.");
@@ -80,7 +80,7 @@ export function useOAuthLogin() {
       if (DEMO_MODE) {
         try {
           const session = await authApi.session("demo");
-          await signIn(session.access_token, session.user);
+          await signIn(session.access_token, session.user, session.refresh_token);
           await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
         } catch (e) {
           setError(e instanceof Error ? e.message : "Sign-in failed.");

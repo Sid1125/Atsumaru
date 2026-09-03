@@ -29,6 +29,10 @@ connectionsRouter.get(
       .from("connections")
       .select(CONNECTION_COLUMNS)
       .eq("mutual", true)
+      // `.or()` takes a raw PostgREST filter string rather than a bound parameter, which
+      // makes this the one interpolated value in the codebase. `requireAuth` asserts the
+      // uuid shape of `userId` before any route sees it, so there is nothing here a filter
+      // separator could ride in on.
       .or(`user_a.eq.${userId},user_b.eq.${userId}`)
       .order("unlocked_at", { ascending: false });
 

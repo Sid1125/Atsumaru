@@ -12,6 +12,10 @@ export function param(req: Request, name: string): string {
 /** The shape Postgres itself accepts; version and variant bits are not our business. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /**
  * Every id in a path goes straight into a query, and Postgres answers an unparseable
  * uuid with an error — which `dbError` correctly swallows into `500 DB_ERROR`. Nothing
@@ -20,7 +24,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function uuidParam(req: Request, name: string): string {
   const value = param(req, name);
 
-  if (!UUID_RE.test(value)) {
+  if (!isUuid(value)) {
     throw new HttpError(400, "INVALID_ID", `${name} must be a UUID.`);
   }
 

@@ -42,7 +42,10 @@ export const recapRouter = Router();
  * meetups could otherwise walk them all in one burst. Reads from cache do not count
  * against this — only calls that would reach Groq.
  */
-const recapLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const recapLimiter = createRateLimiter(
+  { limit: 10, windowMs: 60 * 60 * 1000 },
+  "vibe-recap"
+);
 
 interface OwnFeedbackRow {
   to_user: string;
@@ -186,7 +189,7 @@ recapRouter.get(
     // `cooled` traits in that state is why an all-meh rater once received a compliment for
     // exactly the members they disliked (TRACKER.md §5).
     const generated =
-      summary.liked.length > 0 && recapLimiter.take(userId)
+      summary.liked.length > 0 && (await recapLimiter.take(userId)).allowed
         ? await vibeRecap(recapPrompt(language, event.category, summary))
         : null;
 
