@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { memoryStore } from "../../services/ephemeral.js";
 import { claimSession, isEmailTaken, stashSession, type AuthSession } from "./session.js";
 
 const NOW = Date.UTC(2026, 7, 28, 12, 0, 0);
@@ -12,22 +13,27 @@ const session: AuthSession = {
   is_new: true,
 };
 
-test("a handoff code works once", () => {
-  const code = stashSession(session, NOW);
+test("a handoff code works once", async () => {
+  const store = memoryStore(() => NOW);
+  const code = await stashSession(session, store);
 
-  assert.equal(claimSession(code, NOW)?.access_token, "access");
+  assert.equal((await claimSession(code, store))?.access_token, "access");
   // Replaying the code must not hand out the tokens again.
-  assert.equal(claimSession(code, NOW), null);
+  assert.equal(await claimSession(code, store), null);
 });
 
-test("a handoff code expires after a minute", () => {
-  const code = stashSession(session, NOW);
+test("a handoff code expires after a minute", async () => {
+  let now = NOW;
+  const store = memoryStore(() => now);
+  const code = await stashSession(session, store);
 
-  assert.equal(claimSession(code, NOW + 61_000), null);
+  now = NOW + 61_000;
+
+  assert.equal(await claimSession(code, store), null);
 });
 
-test("an unknown code is rejected", () => {
-  assert.equal(claimSession("made-up", NOW), null);
+test("an unknown code is rejected", async () => {
+  assert.equal(await claimSession("made-up", memoryStore(() => NOW)), null);
 });
 
 test("a taken address is recognised so a second provider links instead of twinning", () => {

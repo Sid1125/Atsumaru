@@ -880,9 +880,11 @@ Not wired yet:
 - Mobile DM/connections screens, push-token registration, create-event UI, and settings
 - Real Mapbox rendering is wired but unexercised: it needs a token and a native dev build, and neither has been run yet
 
-Two endpoints go beyond `docs/API_STRUCTURE.md`, both needed by the documented flows:
-`POST /api/auth/session` (deep-link handoff) and `POST /api/users/me/push-token`
-(device registration for the feedback reminder).
+Three endpoints go beyond `docs/API_STRUCTURE.md`, all needed by the documented flows:
+`POST /api/auth/session` (deep-link handoff), `POST /api/users/me/push-token`
+(device registration for the feedback reminder), and `POST /api/auth/refresh` (trades a
+refresh token for a fresh session; unauthenticated, because the expired access token is
+exactly what the caller cannot present).
 
 Data routes answer `503 DB_UNAVAILABLE` until `server/.env` has Supabase keys,
 onboarding chat answers `503 AI_UNAVAILABLE` without `GROQ_API_KEY`, and login answers

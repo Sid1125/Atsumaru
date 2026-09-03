@@ -130,7 +130,13 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   `match:unlocked`, sent through `emitToUser`).
 - Post-meetup work lives in one idempotent `runSweep()` (`jobs/sweep.ts`); `jobs/index.ts`
   drives it with BullMQ when `REDIS_URL` is set and a timer otherwise. Both drivers run
-  the same body — if Redis is unreachable the API logs it and degrades to the timer.
+  the same body — if Redis is unreachable the API logs it and degrades to the timer. Each
+  side effect **claims** its idempotency stamp (`claim()`) before running, so two drivers
+  cannot double-notify; never stamp after the effect.
+- Anything short-lived and keyed goes through `services/ephemeral.ts` — OAuth handoff codes,
+  PKCE verifiers, rate-limit counters. Same two-backend shape as the sweep: process memory
+  by default, Redis when `REDIS_URL` is set, degrading to memory on a Redis error. Never add
+  a new module-level `Map` for this kind of state; that is what kept the API to one instance.
 - Every integration degrades to a 503 instead of crashing: no Supabase →
   `DB_UNAVAILABLE`, no `GROQ_API_KEY` → `AI_UNAVAILABLE`, no `HUGGINGFACE_API_KEY` →
   `EMBEDDING_UNAVAILABLE`, no provider credentials → `AUTH_PROVIDER_UNAVAILABLE`. Keep
@@ -339,7 +345,9 @@ with `apps/mobile`. It is brand surface, so its copy must match the product posi
 Two endpoints are not in `docs/API_STRUCTURE.md` but are required by flows it
 describes: `POST /api/auth/session` (one-time code handoff, so OAuth tokens never sit in
 a redirect URL) and `POST /api/users/me/push-token` (device registration for the
-feedback reminder). Keep both documented in README when they change.
+feedback reminder). A third, `POST /api/auth/refresh`, trades a refresh token for a fresh
+session — unauthenticated by necessity, since the expired access token is exactly what the
+caller cannot present. Keep all three documented in README when they change.
 
 `docs/API_STRUCTURE.md` §5–6 still reference the old OTP screens; `TRD.md` §17 declares
 OAuth canonical and the code follows TRD. Do not implement phone OTP.
@@ -367,13 +375,13 @@ provider redirect and `atsumaru://auth` handoff still need a real run against co
 credentials in a dev build. No LINE or Google credentials exist yet; `seed --tokens`
 mints real Supabase sessions, which is how the authenticated routes were verified.
 
-Backend: **verified against the live project** as of 2026-08-30 — see `TRACKER.md` §1 for
-the assertion list and §1b for the eight defects that only a real run could surface. The
-sweep now **claims** each idempotency stamp with a conditional update *before* the side
-effect, so two drivers cannot double-notify or double-dock (`jobs/sweep.ts`); the
-`REDIS_URL` prerequisite that blocked on is cleared, though BullMQ itself is still
-unexercised. Handoff codes and the rate limiter remain in process memory, so more than one
-instance still needs Redis for both.
+Backend: **verified against the live project** as of 2026-09-03 — see `TRACKER.md` §1 for
+the original assertion list, §1b for the eight defects only a real run could surface, and
+§1f for the hardening pass and the ten assertions that proved it live. The sweep **claims**
+each idempotency stamp before the side effect, so two drivers cannot double-notify, and the
+handoff codes, PKCE verifiers and rate limits live in `services/ephemeral.ts` rather than
+process-local Maps. Both Redis paths — the BullMQ driver and the ephemeral store's — are
+written but have never run, because `REDIS_URL` is still empty.
 
 ## Codex Review
 

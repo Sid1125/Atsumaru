@@ -6,7 +6,7 @@ Legend: `[x]` done and verified · `[~]` code complete, not verified against a l
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 87/87 passing, and **the backend proven against a live Supabase project**
+`npm test` 88/88 passing, and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -396,32 +396,51 @@ New defects this run surfaced:
       (2026-09-03). It read `matched` off group size alone, so re-joining a **completed**
       meetup answered `matched`; `matched` is now withheld once the meetup has started or
       finished, which is what §3.5 means by it — the group filled while still forming
-- [ ] Left behind in the live project by this run: one `"env smoke test"` message and one
+- [x] Left behind in the live project by this run: one `"env smoke test"` message and one
       `"socket smoke test"` message on Morning Trail Run, plus an
-      `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. `npm run seed -- --reset`
-      clears them along with all demo data — which is why it has not been run
-      unprompted: it is a destructive write to the live project, not a local cleanup
+      `ExponentPushToken[env-smoke-test]` row for `@trailbrew`. **Deleted 2026-09-03** by id
+      and exact token — 2 messages + 1 push token, confirmed by a select first. Deliberately
+      not `seed -- --reset`, which would have taken every demo row with them. Older
+      `"E2E group chat check"` / `"shape probe"` messages from the E2E run are still on that
+      meetup; they were never on this list, so they were left alone
 - [x] `verifyOtp` / `authDb()` path in `modules/auth/session.ts` — exercised live by the
       Google OAuth callback (2026-08-30): provider identity created, session link generated,
       `oauth_identities` row written (Supabase logs + live user). LINE would reuse the same path
 
 ### 1f. Backend hardening pass, 2026-09-03 — `fix-backend-hardening`
 
-Worked the whole §5 / §1e backend list in one branch. Twelve items closed; typecheck clean
-both packages, `npm test` 53/53 (four new: uuid params, limiter growth, state binding, the
-binding cookie). Each fix is marked in place above and in §5 rather than repeated here.
+Worked the whole §5 / §1e backend list in one branch: **16 items closed**, nothing from that
+list left open. Typecheck clean both packages, `npm test` 54/54 (five new: uuid params,
+limiter growth, limiter namespacing, state binding, the binding cookie). Each fix is marked
+in place above and in §5 rather than repeated here.
 
-- **Not yet applied to the live project.** `server/db/migrations/005_backend_hardening.sql`
-  carries the `join_event` status fix, the new `create_event` RPC, `push_receipts`, and the
-  widened message indexes. Run it with `node scripts/sql.mjs -f
-  server/db/migrations/005_backend_hardening.sql`. Until then `POST /events` answers
-  `PGRST202` on the live project, because `create_event` does not exist there yet — the
-  migration ends with `notify pgrst, 'reload schema'` for the same reason
-- Everything here is verified by typecheck, unit tests and reading, **not** by a live run.
-  §1/§1e are what a live run proved; this pass has not been re-driven against Supabase
-- Deliberately left open: handoff codes and the rate limiter still live in process memory
-  (needs Redis, not a code change), and the smoke-test rows §1e left in the live project are
-  still there, because clearing them means a destructive write to live data
+`migrations/005_backend_hardening.sql` is **applied to the live project** — `create_event`
+exists with the expected signature, `join_event` is replaced, `push_receipts` is created with
+RLS on, and the two message indexes are rebuilt on `(…, created_at, id)`. PostgREST's schema
+cache was reloaded by the migration's trailing `notify`, so `create_event` is visible.
+
+Driven live against `:4000` and the real Supabase project after the migration:
+
+| Assertion | Result |
+|---|---|
+| `POST /events` with a future `start_time` | `201`, `current_size: 1` — the host row is written in the same transaction |
+| `POST /events` with a past `start_time` | `400 INVALID_BODY`, "start_time must be in the future." |
+| `GET /events/not-a-uuid` | `400 INVALID_ID` (was `500 DB_ERROR`) |
+| `POST /events/:id/leave` on a completed meetup | `409 MEETUP_ALREADY_STARTED` |
+| Re-join a completed **full** meetup | `joined`, not `matched` — no longer contradicts `event_status()` |
+| `POST /auth/refresh` with a junk token | `401 REFRESH_REJECTED` |
+| `GET /auth/google` | `302` + `Set-Cookie: atsumaru_oauth=…; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=600`, and the state payload carries `bind` |
+| Callback replayed **without** the cookie | `400 INVALID_STATE` — login CSRF refused at the binding |
+| Same callback **with** the cookie | `502 AUTH_PROVIDER_ERROR` from the PKCE exchange, i.e. it got past the binding, which is the proof the check is the thing rejecting the first case |
+| `GET /events/:id/messages` twice | Identical, ascending `created_at` both times |
+
+Test rows created by this run (two `"Hardening check"` events) were deleted afterwards;
+`events` is back to 13.
+
+Still unexercised, and not from the §5 list: the **Redis** path of `services/ephemeral.ts`
+and the BullMQ sweep driver, both because `REDIS_URL` is empty; and Expo receipt collection,
+because `sendPush` has never delivered a notification (no EAS project id).
+
 
 ### 2. Mobile — close the demo loop (docs/FRONTEND.md §13)
 
@@ -555,10 +574,15 @@ JWT-shaped literals anywhere.
 - [x] `CORS_ORIGIN` defaulting to `*` is now a production boot failure (2026-09-03),
       alongside the state secret. Auth is a Bearer header rather than a cookie, so the
       exposure was low, but it is pinned now rather than trusted
-- [ ] Mobile drops the `refresh_token`: `services/api/auth.ts` types it,
-      `storage/session.ts` stores only the access token, and there is no 401 handling
-      outside the demo layer. When the Supabase access token expires the app dead-ends
-      into silent failures with no re-auth path
+- [x] **The app keeps its `refresh_token` and recovers from a 401** (2026-09-03). It was
+      typed by `services/api/auth.ts` and then dropped, with no 401 handling outside the
+      demo layer, so an expired access token dead-ended every screen with no way back.
+      `storage/session.ts` now keeps it in SecureStore beside the access token (never
+      AsyncStorage, per docs/RULES.md), `client.ts` refreshes once on a 401 and replays the
+      original request, and `POST /api/auth/refresh` does the Supabase exchange server-side
+      so no Supabase credential reaches the client. One refresh at a time — Supabase rotates
+      the refresh token, so four concurrent queries firing four refreshes would spend it
+      three times and kill the session. A failed refresh signs out rather than looping
 - [x] `utils/rateLimit.ts` exported `prune()` and nothing ever called it, so the onboarding
       limiter held one counter per caller for the process lifetime. `take()` now prunes
       itself — but at most once per window, since walking the map is O(n) and doing it on
@@ -577,10 +601,14 @@ JWT-shaped literals anywhere.
 - [ ] Accessibility pass: emoji ratings need text equivalents, touch targets, no colour-only state (docs/DESIGN.md §10)
 - [x] Index on `events (start_time, status)` — added in `migrations/001` along with the
       other 7 unindexed filter columns
-- [ ] Move OAuth handoff codes out of memory if the API ever runs more than one instance.
-      Still open, and still the one thing between this API and horizontal scaling — the
-      PKCE verifiers and the rate limiter live in the same process memory. Needs Redis,
-      not a code change
+- [x] **Handoff codes, PKCE verifiers and rate limits are out of process memory**
+      (2026-09-03) — `services/ephemeral.ts` is one keyed store with two backends, the same
+      one-body-two-drivers shape as the sweep: in-process Maps by default, Redis when
+      `REDIS_URL` is set. Every operation degrades to the in-memory store on a Redis error
+      rather than failing the request, so a dead Redis costs per-instance limiting and one
+      re-login instead of a 500. Limiters are namespaced now that they share a store, and
+      `take()` returns `{ allowed, retryAfterSeconds }` in one round trip. **The Redis path
+      has never run** — `REDIS_URL` is still empty
 - [x] `POST /events` writes the event and the host's `group_members` row in one
       transaction (2026-09-03) — `create_event` in `schema.sql`, called through `rpc()`
       exactly like `join_event`. Two separate inserts could leave a group with no members
@@ -964,7 +992,7 @@ premium tier.
 | Identity linking trust | Linking a second provider to an existing address trusts the provider's email claim. LINE only releases verified addresses, and Google is now verified by Supabase itself, but the `email_verified` gap in §5 is what keeps this honest — do not extend linking to a provider that does not verify |
 | Push receipts | **Collected since 2026-09-03.** Accepted tickets land in `push_receipts`, and `collectPushReceipts()` reads them back on a later sweep pass (Expo needs ~15 minutes to produce one), retiring a `DeviceNotRegistered` token and discarding a ticket Expo never answers within 24h. Isolated from the rest of the sweep, so a receipt problem cannot fail the stamped work. Unexercised for the same reason as the row below |
 | Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
-| Single instance | Handoff codes and the rate limiter live in process memory; horizontal scaling needs Redis for both — and the sweep atomicity fix in §5 first |
+| Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers and rate-limit counters moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |

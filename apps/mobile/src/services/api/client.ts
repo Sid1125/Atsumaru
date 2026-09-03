@@ -1,7 +1,12 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 
 import { API_URL, DEMO_MODE } from "../../config/env";
-import { getAccessToken } from "../storage/session";
+import { useAuthStore } from "../../store";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setSession,
+} from "../storage/session";
 import { getCachedDeviceId } from "../deviceIdentity/deviceIdentity";
 import { ApiError } from "./errors";
 import { demoRequest } from "./demo";
@@ -28,9 +33,64 @@ axiosInstance.interceptors.request.use(async (config) => {
   return config;
 });
 
+const REFRESH_PATH = "/auth/refresh";
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Recovers an expired session. Supabase access tokens are short-lived, and the app used to
+ * keep only the access token with no 401 handling at all, so the first expiry turned every
+ * screen into a silent failure with no way back (TRACKER.md §5).
+ *
+ * One refresh at a time. A screen with four queries in flight would otherwise fire four
+ * refreshes, and because Supabase *rotates* the refresh token on use, three of them would
+ * be redeeming an already-spent token and would take the session down with them.
+ */
+async function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    try {
+      const refreshToken = await getRefreshToken();
+
+      // Nothing to refresh with: a session minted before refresh tokens were stored, or a
+      // genuinely signed-out app.
+      if (!refreshToken) return false;
+
+      const session = await request<{
+        access_token: string;
+        refresh_token: string;
+      }>(
+        { method: "POST", url: REFRESH_PATH, data: { refresh_token: refreshToken } },
+        false
+      );
+
+      await setSession(session.access_token, session.refresh_token);
+
+      return true;
+    } catch {
+      // Expired, revoked, or already rotated. The tokens are worthless either way, so they
+      // go rather than being retried on every later request, and the app is told to route
+      // back to login instead of showing errors on every screen.
+      await useAuthStore.getState().signOut();
+
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  // Read into a local first: the `finally` above clears the field, and a second caller
+  // arriving after that must start its own refresh rather than await `null`.
+  const inFlight = refreshInFlight;
+
+  return inFlight ?? false;
+}
+
 // Single place that unwraps the { success, data } contract (docs/API_STRUCTURE.md §1).
 // Screens never call fetch/axios directly (docs/RULES.md §5).
-async function request<T>(config: AxiosRequestConfig): Promise<T> {
+async function request<T>(
+  config: AxiosRequestConfig,
+  allowRefresh = true
+): Promise<T> {
   // Demo mode swaps the transport, not the contract: everything above this line —
   // query keys, hooks, screens — is identical in both modes (see demo/index.ts).
   if (DEMO_MODE) {
@@ -55,25 +115,43 @@ async function request<T>(config: AxiosRequestConfig): Promise<T> {
 
     return body.data;
   } catch (error) {
-    if (error instanceof ApiError) throw error;
+    const apiError = asApiError(error);
 
-    const axiosError = error as AxiosError<Envelope<unknown>>;
-    const payload = axiosError.response?.data;
-
-    if (payload && typeof payload === "object" && payload.success === false) {
-      throw new ApiError(
-        payload.error.code,
-        payload.error.message,
-        axiosError.response?.status
-      );
+    // A 401 is the one error worth retrying, and only once: refresh, then replay the
+    // original request with the new token. The refresh call itself is excluded, or a
+    // rejected refresh would recurse.
+    if (
+      apiError.status === 401 &&
+      allowRefresh &&
+      config.url !== REFRESH_PATH &&
+      (await refreshSession())
+    ) {
+      return request<T>(config, false);
     }
 
-    throw new ApiError(
-      axiosError.code ?? "NETWORK_ERROR",
-      axiosError.message || "Network request failed.",
+    throw apiError;
+  }
+}
+
+function asApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error;
+
+  const axiosError = error as AxiosError<Envelope<unknown>>;
+  const payload = axiosError.response?.data;
+
+  if (payload && typeof payload === "object" && payload.success === false) {
+    return new ApiError(
+      payload.error.code,
+      payload.error.message,
       axiosError.response?.status
     );
   }
+
+  return new ApiError(
+    axiosError.code ?? "NETWORK_ERROR",
+    axiosError.message || "Network request failed.",
+    axiosError.response?.status
+  );
 }
 
 export const api = {

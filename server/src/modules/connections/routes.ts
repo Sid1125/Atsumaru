@@ -20,14 +20,17 @@ const bodySchema = z.object({ message: z.string().min(1).max(2000) });
 
 export const connectionsRouter = Router();
 
-const dmSendLimiter = createRateLimiter({ limit: 120, windowMs: 60 * 60 * 1000 });
+const dmSendLimiter = createRateLimiter(
+  { limit: 120, windowMs: 60 * 60 * 1000 },
+  "dm-send"
+);
 
 // Only mutual unlocks are visible, and only to the two participants.
 connectionsRouter.get(
   "/",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
 
     const userId = req.userId!;
 
@@ -35,6 +38,10 @@ connectionsRouter.get(
       .from("connections")
       .select(CONNECTION_COLUMNS)
       .eq("mutual", true)
+      // `.or()` takes a raw PostgREST filter string rather than a bound parameter, which
+      // makes this the one interpolated value in the codebase. `requireAuth` asserts the
+      // uuid shape of `userId` before any route sees it, so there is nothing here a filter
+      // separator could ride in on.
       .or(`user_a.eq.${userId},user_b.eq.${userId}`)
       .order("unlocked_at", { ascending: false });
 
@@ -48,7 +55,7 @@ connectionsRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
     await requireConnection(uuidParam(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);
@@ -63,8 +70,10 @@ connectionsRouter.post(
   asyncRoute(async (req: AuthedRequest, res) => {
     await requireConnection(uuidParam(req, "id"), req.userId!);
 
-    if (!dmSendLimiter.take(req.userId!)) {
-      res.setHeader("Retry-After", dmSendLimiter.retryAfter(req.userId!));
+    const budget = await dmSendLimiter.take(req.userId!);
+
+    if (!budget.allowed) {
+      res.setHeader("Retry-After", budget.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
     }
 

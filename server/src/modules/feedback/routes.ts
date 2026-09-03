@@ -46,7 +46,10 @@ export const feedbackRouter = Router();
 // Feedback is a §19.1 "Very strict" surface: resubmissions re-run connection-unlock
 // processing and hit the DB on every call, and it is how reputation moves. Authenticated,
 // so budget by user (an IP-only cap would catch a whole shared-network classroom).
-const feedbackLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const feedbackLimiter = createRateLimiter(
+  { limit: 10, windowMs: 60 * 60 * 1000 },
+  "feedback-submit"
+);
 
 // Ratings and connection picks stay private: only mutual pairs may be revealed,
 // and the response must never say who did not pick the caller (docs/RULES.md §8-9).
@@ -118,8 +121,10 @@ feedbackRouter.post(
 
     await requireMembership(eventId, userId);
 
-    if (!feedbackLimiter.take(userId)) {
-      res.setHeader("Retry-After", feedbackLimiter.retryAfter(userId));
+    const budget = await feedbackLimiter.take(userId);
+
+    if (!budget.allowed) {
+      res.setHeader("Retry-After", budget.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many submissions. Try again later.");
     }
 

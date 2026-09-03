@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import { supabase } from "../db/supabase.js";
+import { isUuid } from "../utils/request.js";
 import { HttpError } from "../utils/response.js";
 
 export interface AuthedRequest extends Request {
@@ -34,6 +35,14 @@ export async function requireAuth(
     return next(new HttpError(401, "UNAUTHORIZED", "Invalid or expired token."));
   }
 
+  // GoTrue only ever issues uuid subjects, so this is belt and braces — but `userId` is
+  // interpolated into a PostgREST `.or()` filter in connections/routes.ts, which takes a
+  // raw filter string rather than a bound parameter. Asserting the shape here means no
+  // route has to trust it, and a change upstream cannot turn that into an injection point.
+  if (!isUuid(data.user.id)) {
+    return next(new HttpError(401, "UNAUTHORIZED", "Malformed token subject."));
+  }
+
   req.userId = data.user.id;
   return next();
 }
@@ -47,6 +56,7 @@ export async function verifySocketToken(token?: string): Promise<string> {
   const { data, error } = await client.auth.getUser(token);
 
   if (error || !data.user) throw new Error("unauthorized");
+  if (!isUuid(data.user.id)) throw new Error("unauthorized");
 
   return data.user.id;
 }

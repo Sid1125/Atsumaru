@@ -11,6 +11,7 @@ import { usersRouter } from "./modules/users/routes.js";
 import { eventsRouter } from "./modules/events/routes.js";
 import { connectionsRouter } from "./modules/connections/routes.js";
 import { startJobs } from "./jobs/index.js";
+import { initEphemeral } from "./services/ephemeral.js";
 import { attachSocket } from "./socket/index.js";
 import { ok, HttpError } from "./utils/response.js";
 
@@ -47,6 +48,10 @@ httpServer.listen(env.PORT, () => {
   if (!hasSupabase) console.warn("Supabase not configured — data routes will 503.");
   if (!hasGroq) console.warn("Groq not configured — onboarding chat will 503.");
   if (!hasLine && !hasGoogle) console.warn("No OAuth provider configured — login will 503.");
+
+  // Handoff codes, PKCE verifiers and rate limits move to Redis when REDIS_URL is set,
+  // which is what lets a second instance serve the same login. Stays in memory otherwise.
+  void initEphemeral();
 
   // Post-meetup work runs on a timer (docs/TRD.md §14).
   void startJobs();

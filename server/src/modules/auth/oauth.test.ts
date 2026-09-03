@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 
+import { memoryStore } from "../../services/ephemeral.js";
 import {
   bindingCookie,
   bindingMatches,
@@ -105,22 +106,27 @@ test("the callback carries the signed state, so Supabase can hand it back", () =
   assert.equal(verifyState(url.searchParams.get("st")!, NOW)?.provider, "google");
 });
 
-test("a stashed verifier is returned once, then never again", () => {
+test("a stashed verifier is returned once, then never again", async () => {
+  const store = memoryStore(() => NOW);
   const { state } = signState("google", true, NOW);
 
-  stashVerifier(state, "verifier-1", NOW);
+  await stashVerifier(state, "verifier-1", store);
 
-  assert.equal(claimVerifier(state, NOW), "verifier-1");
+  assert.equal(await claimVerifier(state, store), "verifier-1");
   // Replayed callback: the code cannot be redeemed a second time.
-  assert.equal(claimVerifier(state, NOW), null);
+  assert.equal(await claimVerifier(state, store), null);
 });
 
-test("a verifier expires with its state window", () => {
+test("a verifier expires with its state window", async () => {
+  let now = NOW;
+  const store = memoryStore(() => now);
   const { state } = signState("google", true, NOW);
 
-  stashVerifier(state, "verifier-2", NOW);
+  await stashVerifier(state, "verifier-2", store);
 
-  assert.equal(claimVerifier(state, NOW + 601_000), null);
+  now = NOW + 601_000;
+
+  assert.equal(await claimVerifier(state, store), null);
 });
 
 test("state only verifies in the browser it was issued to", () => {

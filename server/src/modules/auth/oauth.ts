@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { env, hasLine, hasSupabase } from "../../config/env.js";
+import { ephemeral, type EphemeralStore } from "../../services/ephemeral.js";
 
 /** OAuth only — LINE and Google, no phone OTP (docs/TRD.md §5). */
 export const PROVIDERS = ["line", "google"] as const;
@@ -245,32 +246,28 @@ export function callbackWithState(state: string): string {
 
 const VERIFIER_TTL_MS = STATE_TTL_SECONDS * 1000;
 
-// ponytail: in-memory, keyed by the signed state, same single-instance caveat as the
-// handoff codes in session.ts. A restart mid-login costs one retry.
-const verifiers = new Map<string, { verifier: string; expiresAt: number }>();
-
-export function stashVerifier(state: string, verifier: string, now = Date.now()): void {
-  pruneVerifiers(now);
-  verifiers.set(state, { verifier, expiresAt: now + VERIFIER_TTL_MS });
+/**
+ * Verifiers live in the shared ephemeral store, keyed by a digest of the signed state
+ * rather than the state itself — the state carries its own payload, and there is no reason
+ * to write that into a Redis key. Moving them out of a Map is half of what let this API run
+ * more than one instance (TRACKER.md §5); the handoff codes in session.ts are the other.
+ *
+ * `store` is injectable so a test can drive its own clock.
+ */
+export async function stashVerifier(
+  state: string,
+  verifier: string,
+  store: EphemeralStore = ephemeral
+): Promise<void> {
+  await store.put(`pkce:${digest(state)}`, verifier, VERIFIER_TTL_MS);
 }
 
 /** Single use: a replayed callback must not be able to exchange a second time. */
-export function claimVerifier(state: string, now = Date.now()): string | null {
-  pruneVerifiers(now);
-
-  const entry = verifiers.get(state);
-
-  if (!entry) return null;
-
-  verifiers.delete(state);
-
-  return entry.expiresAt >= now ? entry.verifier : null;
-}
-
-function pruneVerifiers(now: number) {
-  for (const [state, entry] of verifiers) {
-    if (entry.expiresAt < now) verifiers.delete(state);
-  }
+export async function claimVerifier(
+  state: string,
+  store: EphemeralStore = ephemeral
+): Promise<string | null> {
+  return store.take(`pkce:${digest(state)}`);
 }
 
 export interface Identity {

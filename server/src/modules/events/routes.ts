@@ -54,7 +54,10 @@ const MAX_RADIUS_M = 50_000;
 
 // Event creation is a write that spawns a group; a per-user daily budget stops the map
 // being filled with noise (§19.1 event-creation is "Medium").
-const createLimiter = createRateLimiter({ limit: 30, windowMs: 60 * 60 * 24 * 1000 });
+const createLimiter = createRateLimiter(
+  { limit: 30, windowMs: 60 * 60 * 24 * 1000 },
+  "event-create"
+);
 
 export const eventsRouter = Router();
 
@@ -62,7 +65,7 @@ eventsRouter.get(
   "/nearby",
   requireAuth,
   asyncRoute(async (req, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
 
     const coords = coordsSchema.safeParse({
       lat: Number(req.query.lat),
@@ -94,7 +97,7 @@ eventsRouter.get(
   "/mine",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
 
     const { data, error } = await db().rpc("events_for_user", {
       p_user_id: req.userId!,
@@ -110,8 +113,10 @@ eventsRouter.post(
   "/",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    if (!createLimiter.take(req.userId!)) {
-      res.setHeader("Retry-After", createLimiter.retryAfter(req.userId!));
+    const budget = await createLimiter.take(req.userId!);
+
+    if (!budget.allowed) {
+      res.setHeader("Retry-After", budget.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many meetups created. Try again later.");
     }
 
@@ -154,7 +159,7 @@ eventsRouter.get(
   "/:id",
   requireAuth,
   asyncRoute(async (req, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
 
     const event = await findEvent(uuidParam(req, "id"));
 
@@ -247,7 +252,7 @@ eventsRouter.get(
   "/:id/members",
   requireAuth,
   asyncRoute(async (req, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
     return ok(res, { members: await findMembers(uuidParam(req, "id")) });
   })
 );
@@ -286,7 +291,7 @@ eventsRouter.get(
   "/:id/match-preview",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
 
     const event = await findEvent(uuidParam(req, "id"));
     const members = await findMembers(event.id);

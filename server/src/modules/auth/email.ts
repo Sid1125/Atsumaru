@@ -132,7 +132,7 @@ export async function logIn(
 
   const profile = await profileOrNull(session.user.id);
 
-  const code = stashSession({
+  const code = await stashSession({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     user: profile,

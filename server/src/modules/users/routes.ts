@@ -210,7 +210,7 @@ usersRouter.get(
   "/:id",
   requireAuth,
   asyncRoute(async (req, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
     return ok(res, { user: await publicUser(uuidParam(req, "id")) });
   })
 );

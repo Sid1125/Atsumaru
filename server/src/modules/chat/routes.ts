@@ -15,14 +15,17 @@ export const chatRouter = Router();
 
 // Per-user send budget; keyed by user (not IP) so a shared network cannot be throttled
 // together, and high enough that a real conversation never trips it (§19.1 chat).
-const sendLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 60 * 1000 });
+const sendLimiter = createRateLimiter(
+  { limit: 300, windowMs: 60 * 60 * 1000 },
+  "chat-send"
+);
 
 // REST fallback for group chat; realtime path is socket/index.ts.
 chatRouter.get(
   "/:id/messages",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
     await requireMembership(uuidParam(req, "id"), req.userId!);
 
     const { page, limit } = pageParams(req.query);
@@ -37,8 +40,10 @@ chatRouter.post(
   asyncRoute(async (req: AuthedRequest, res) => {
     await requireMembership(uuidParam(req, "id"), req.userId!);
 
-    if (!sendLimiter.take(req.userId!)) {
-      res.setHeader("Retry-After", sendLimiter.retryAfter(req.userId!));
+    const budget = await sendLimiter.take(req.userId!);
+
+    if (!budget.allowed) {
+      res.setHeader("Retry-After", budget.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many messages. Try again later.");
     }
 

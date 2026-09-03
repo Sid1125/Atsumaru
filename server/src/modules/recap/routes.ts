@@ -44,7 +44,10 @@ export const recapRouter = Router();
  * meetups could otherwise walk them all in one burst. Reads from cache do not count
  * against this — only calls that would reach Groq.
  */
-const recapLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
+const recapLimiter = createRateLimiter(
+  { limit: 10, windowMs: 60 * 60 * 1000 },
+  "vibe-recap"
+);
 
 interface OwnFeedbackRow {
   to_user: string;
@@ -108,7 +111,7 @@ recapRouter.get(
   "/:id/recap",
   requireAuth,
   asyncRoute(async (req: AuthedRequest, res) => {
-    enforceReadLimit(req, res);
+    await enforceReadLimit(req, res);
     const eventId = uuidParam(req, "id");
     const userId = req.userId!;
 
@@ -190,7 +193,7 @@ recapRouter.get(
     // exactly the members they disliked (TRACKER.md §5).
     const generated =
       summary.liked.length > 0 &&
-      recapLimiter.take(userId) &&
+      (await recapLimiter.take(userId)).allowed &&
       (await tryQuota(userId, "groq_turns", 500))
         ? await vibeRecap(recapPrompt(language, event.category, summary))
         : null;

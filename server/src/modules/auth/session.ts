@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { env } from "../../config/env.js";
 import { authDb, db, publicUser, type PublicUser } from "../../db/queries.js";
+import { ephemeral, type EphemeralStore } from "../../services/ephemeral.js";
 import { HttpError, dbError } from "../../utils/response.js";
 import { emailForIdentity, isSyntheticEmail, type Identity } from "./oauth.js";
 
@@ -52,14 +53,24 @@ export async function sessionFromSupabaseCode(
     user?: { id?: string };
   };
 
+  return sessionFromTokenPayload(payload);
+}
+
+/**
+ * Shared tail of both GoTrue token grants. Supabase owns the provider→user mapping, so
+ * "new" here means "no public profile row yet" — exactly what the app routes on.
+ */
+async function sessionFromTokenPayload(payload: {
+  access_token?: string;
+  refresh_token?: string;
+  user?: { id?: string };
+}): Promise<AuthSession> {
   const userId = payload.user?.id;
 
   if (!payload.access_token || !payload.refresh_token || !userId) {
     throw new HttpError(502, "AUTH_PROVIDER_ERROR", "Could not start a session.");
   }
 
-  // Supabase owns the provider→user mapping for Google (auth.identities), so "new" here
-  // means "no public profile row yet", which is exactly what the app routes on.
   const profile = await profileOrNull(userId);
 
   return {
@@ -68,6 +79,55 @@ export async function sessionFromSupabaseCode(
     user: profile,
     is_new: profile === null,
   };
+}
+
+/**
+ * Keeps a signed-in app signed in. Supabase access tokens are short-lived, and the client
+ * used to keep only the access token with no 401 path at all, so an expired one dead-ended
+ * every request with no way back (TRACKER.md §5).
+ *
+ * Supabase rotates the refresh token on use, so the response carries a *new* one and the
+ * caller must replace what it holds. Redeeming the same token twice fails by design.
+ */
+export async function sessionFromRefreshToken(
+  refreshToken: string
+): Promise<AuthSession> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    throw new HttpError(
+      503,
+      "AUTH_PROVIDER_UNAVAILABLE",
+      "Supabase Auth is not configured on this server."
+    );
+  }
+
+  const response = await fetch(
+    `${env.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: env.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${env.SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }
+  );
+
+  if (!response.ok) {
+    // Expired, revoked, or already rotated. Nothing upstream is broken and retrying will
+    // not help, so this is a 401 the app answers by signing out — not a 502.
+    console.error("Supabase refresh rejected:", response.status);
+
+    throw new HttpError(401, "REFRESH_REJECTED", "That session could not be refreshed.");
+  }
+
+  const payload = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    user?: { id?: string };
+  };
+
+  return sessionFromTokenPayload(payload);
 }
 
 /**
@@ -213,42 +273,42 @@ async function profileOrNull(userId: string): Promise<PublicUser | null> {
   }
 }
 
-interface PendingSession {
-  session: AuthSession;
-  expiresAt: number;
-}
-
 const PENDING_TTL_MS = 60_000;
 
-// ponytail: in-memory handoff codes, move to Redis if the API ever runs more than one
-// instance. They live for a minute and are consumed once, so a restart costs a re-login.
-const pending = new Map<string, PendingSession>();
-
-/** Hands the app a code instead of putting tokens in a redirect URL. */
-export function stashSession(session: AuthSession, now = Date.now()): string {
-  prune(now);
-
+/**
+ * Hands the app a code instead of putting tokens in a redirect URL.
+ *
+ * Codes live in the shared ephemeral store, not a Map, so the instance that redeems one
+ * does not have to be the instance that issued it — which is what kept this API to a single
+ * process (TRACKER.md §5). `store` is injectable so a test can drive its own clock.
+ */
+export async function stashSession(
+  session: AuthSession,
+  store: EphemeralStore = ephemeral
+): Promise<string> {
   const code = randomBytes(32).toString("base64url");
-  pending.set(code, { session, expiresAt: now + PENDING_TTL_MS });
+
+  await store.put(`handoff:${code}`, JSON.stringify(session), PENDING_TTL_MS);
 
   return code;
 }
 
-export function claimSession(code: string, now = Date.now()): AuthSession | null {
-  prune(now);
+/** Single use: `take` reads and deletes, so a replay gets nothing. */
+export async function claimSession(
+  code: string,
+  store: EphemeralStore = ephemeral
+): Promise<AuthSession | null> {
+  const raw = await store.take(`handoff:${code}`);
 
-  const entry = pending.get(code);
+  if (!raw) return null;
 
-  if (!entry) return null;
+  try {
+    return JSON.parse(raw) as AuthSession;
+  } catch {
+    // Only this module ever writes these values, so a parse failure means a corrupted
+    // store rather than a client problem. Treated as "no such code".
+    console.error("Discarded an unreadable handoff session.");
 
-  // Single use: a replayed code must not return the same tokens twice.
-  pending.delete(code);
-
-  return entry.expiresAt >= now ? entry.session : null;
-}
-
-function prune(now: number) {
-  for (const [code, entry] of pending) {
-    if (entry.expiresAt < now) pending.delete(code);
+    return null;
   }
 }
