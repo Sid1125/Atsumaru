@@ -1,22 +1,44 @@
-# Supabase free-tier projects pause after ~7 days of inactivity, and a paused project
-# has to be restored by hand before the API works again. One request a day keeps it
-# awake — that is all this does.
+# Two free-tier services sleep unless something pokes them, and both are poked
+# from this one workflow:
 #
-# Uses the anon key, which can call ping_keepalive() and nothing else: the function is
-# security definer and the table itself is revoked from anon (see
-# server/db/migrations/003_keepalive.sql). The service-role key deliberately stays out
-# of CI.
+#   - Render free web services sleep after ~15 min idle — closed WebSockets and a
+#     paused post-meetup sweep — so GET /health every 5 minutes.
+#   - Supabase free projects pause after ~7 days idle; one RPC a day is all it
+#     takes (ping_keepalive() is security definer, anon key only — the
+#     service-role key deliberately stays out of CI).
 #
-# Setup: repo Settings -> Secrets and variables -> Actions -> New repository secret
-#   SUPABASE_URL       https://<ref>.supabase.co
-#   SUPABASE_ANON_KEY  the anon / publishable key (safe here; RLS is deny-all)
+# Both cadences live in one `schedule` block, but GitHub does not fire each cron
+# independently: the workflow runs when ANY listed cron ticks, and a job cannot
+# tell which one did. Every */5 tick would therefore also run the Supabase call,
+# so that step is time-guarded to a daily window (~03:15-03:25 UTC) and exits
+# quietly the other 287 times a day. The explicit daily cron entry is kept anyway:
+# GitHub is dependable at daily cadence, and a */5 tick inside the window
+# backstops the daily one if it is delayed or dropped.
+#
+# Known caveat: GitHub Actions routinely drops 5-minute schedule ticks on free
+# public repos (observed ~1 in 80 firing for this exact */5 job). So this file is
+# best-effort for Render; the dependable keepalive is an external 5-minute uptime
+# monitor (e.g. UptimeRobot) pointed at the /health URL. This job stays as cheap
+# redundancy, and it is what keeps Supabase alive.
+#
+# Setup (repo Settings -> Secrets and variables -> Actions):
+#   Secrets:
+#     SUPABASE_URL       https://<ref>.supabase.co
+#     SUPABASE_ANON_KEY  the anon / publishable key (safe here; RLS is deny-all)
+#   Variable:
+#     RENDER_HEALTH_URL  https://<service>.onrender.com/health (defaults to the
+#                        render.yaml blueprint name if unset)
 
-name: Keep Supabase awake
+name: Keep services awake
 
 on:
   schedule:
-    # 03:17 UTC daily. Off the hour on purpose — the top of the hour is when every
-    # other scheduled job on GitHub fires, and busy minutes get delayed or dropped.
+    # Render: 15-minute idle timeout, so a 5-minute cadence leaves margin even when
+    # a run is delayed.
+    - cron: "*/5 * * * *"
+    # Supabase: 7-day pause. 03:17 UTC daily, off the hour on purpose — the top of
+    # the hour is when every other scheduled job on GitHub fires, and busy minutes
+    # get delayed or dropped.
     - cron: "17 3 * * *"
   workflow_dispatch:
 
@@ -27,23 +49,63 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
 
     steps:
-      - name: Ping the database
+      - name: Ping Render /health
+        env:
+          RENDER_HEALTH_URL: ${{ vars.RENDER_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+
+          # Default matches the render.yaml blueprint; set the repository variable
+          # RENDER_HEALTH_URL if Render assigned a suffixed URL instead.
+          url="${RENDER_HEALTH_URL:-https://atsumaru-6i3n.onrender.com/health}"
+          echo "Pinging ${url}"
+
+          # A cold free-tier boot can take 30-60s+, so the first attempt can time
+          # out even though the service is fine — retry before declaring it dead.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o response.json -w "%{http_code}" \
+              --max-time 90 "$url" || echo "000")
+
+            if [ "$code" = "200" ]; then
+              echo "Render service is awake: $(cat response.json)"
+              exit 0
+            fi
+
+            echo "Attempt ${attempt} returned HTTP ${code}: $(cat response.json 2>/dev/null || echo no body)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 10))
+          done
+
+          echo "::error::Render service did not respond after 3 attempts — it may be paused or the URL is wrong."
+          exit 1
+
+      - name: Ping Supabase (daily window only)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
 
+          # This step runs on every */5 tick too. Exit quietly unless we are inside
+          # the daily slot — 03:15-03:25 UTC — so the DB gets ~1-3 pings a day,
+          # never 288. (03:17 slot, windowed to absorb queueing delay.)
+          h=$(date -u +%H)
+          m=$(date -u +%M)
+          slot=$(( 10#$h * 60 + 10#$m ))
+          if [ "$slot" -lt 195 ] || [ "$slot" -gt 205 ]; then
+            echo "Outside the Supabase window (03:15-03:25 UTC); skipping."
+            exit 0
+          fi
+
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
             echo "::error::SUPABASE_URL and SUPABASE_ANON_KEY must be set as repository secrets."
             exit 1
           fi
 
-          # Three attempts with backoff: a cold project can take a few seconds to answer,
-          # and a single failed curl would otherwise look like a dead database.
+          # Three attempts with backoff: a cold project can take a few seconds to
+          # answer, and a single failed curl would otherwise look like a dead database.
           for attempt in 1 2 3; do
             code=$(curl -sS -o response.json -w "%{http_code}" \
               --max-time 30 \
