@@ -13,7 +13,7 @@ import { useConnections } from "../../features/connections/hooks/useConnections"
 import { useMyEvents } from "../../features/events/hooks/useEvents";
 import { disconnectSocket } from "../../services/socket";
 import { useAuthStore, useUiStore } from "../../store";
-import { colors, spacing, type } from "../../theme";
+import { colors, radius, sectionHeader, spacing, type } from "../../theme";
 import type { Language } from "../../types/api";
 
 const LANGUAGES: { code: Language; label: string }[] = [
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.xs,
   },
-  heroKicker: { ...type.kicker, color: colors.neon, fontSize: 9, lineHeight: 12 },
+  heroKicker: { ...type.overline, color: colors.neon },
   handle: { ...type.display, color: colors.nightText, marginTop: spacing.sm },
   name: { ...type.callout, color: colors.nightMuted },
 
@@ -226,10 +226,10 @@ const styles = StyleSheet.create({
   statRule: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   statValue: { ...type.title2, color: colors.text, fontWeight: "700" },
   statValueAccent: { color: colors.primary },
-  statLabel: { ...type.overline, color: colors.textMuted, fontSize: 8, lineHeight: 10 },
+  statLabel: { ...type.overline, color: colors.textMuted },
 
   block: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  groupLabel: { ...type.kicker, color: colors.textMuted, fontSize: 9, lineHeight: 12 },
+  groupLabel: { ...sectionHeader, color: colors.textMuted },
 
   interestRow: {
     flexDirection: "row",
@@ -259,13 +259,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  languageIndex: { ...type.overline, fontSize: 9 },
+  languageIndex: { ...type.overline },
   languageLabel: { ...type.body, color: colors.textSecondary },
   languageSelected: { color: colors.primary, fontWeight: "700" },
   languageDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radius.pill,
     backgroundColor: colors.primary,
     marginLeft: "auto",
   },
@@ -281,7 +281,6 @@ const styles = StyleSheet.create({
   privacy: {
     ...type.overline,
     color: colors.textMuted,
-    fontSize: 9,
     textAlign: "center",
     paddingHorizontal: spacing.lg,
   },

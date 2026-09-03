@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
+import { IconChevronRight } from "../../components/ui/Icons";
 import { PressableScale } from "../../components/ui/PressableScale";
 import { useConnections } from "../../features/connections/hooks/useConnections";
 import { usersApi } from "../../services/api/users";
@@ -59,7 +60,7 @@ function ConnectionRow({
         </Text>
       </View>
       <View style={styles.chevronWrap}>
-        <Text style={styles.chevron}>›</Text>
+        <IconChevronRight size={16} color={colors.textMuted} />
       </View>
     </PressableScale>
   );
@@ -134,5 +135,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  chevron: { ...type.headline, color: colors.textMuted },
 });

@@ -1,12 +1,23 @@
-import { type ReactNode, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
+import {
+  type ReactNode,
+  createContext,
+  forwardRef,
+  useCallback,
+  useContext,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+} from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import type { SharedValue } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
 import {
@@ -25,6 +36,29 @@ export type SheetDetent = "peek" | "half" | "full";
 
 export interface BottomSheetHandle {
   snapTo: (detent: SheetDetent) => void;
+}
+
+/**
+ * Gesture seam for a scrollable child. A sheet that contains a scrollable list must
+ * share its native scroll gesture and live offset with the sheet, or the sheet's pan
+ * swallows every drag and the list can never scroll. Grab this via
+ * `useBottomSheetScrollable` and attach it to the child `ScrollView` (wrap it in a
+ * `GestureDetector` and drive its `onScroll`).
+ */
+export interface BottomSheetScrollable {
+  nativeGesture: ReturnType<typeof Gesture.Native>;
+  scrollHandler: ReturnType<typeof useAnimatedScrollHandler>;
+}
+
+const BottomSheetScrollCtx = createContext<BottomSheetScrollable | null>(null);
+
+/** Inside a `<BottomSheet>`, returns the gesture wiring a child scrollable must adopt. */
+export function useBottomSheetScrollable(): BottomSheetScrollable {
+  const ctx = useContext(BottomSheetScrollCtx);
+  if (!ctx) {
+    throw new Error("useBottomSheetScrollable must be used inside <BottomSheet>");
+  }
+  return ctx;
 }
 
 interface BottomSheetProps {
@@ -67,6 +101,20 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
     const y = useSharedValue(detents[initial]);
     const startY = useSharedValue(0);
     const current = useSharedValue<SheetDetent>(initial);
+
+    // Shared with any scrollable child so the sheet can tell when the list has moved
+    // and yield to it, and the child scrolls on the UI thread without a JS round-trip.
+    const scrollOffset = useSharedValue(0);
+    const sheetNativeGesture = useMemo(() => Gesture.Native(), []);
+    const scrollHandler = useAnimatedScrollHandler({
+      onScroll: (event) => {
+        scrollOffset.value = event.contentOffset.y;
+      },
+    });
+    const sheetScrollable = useMemo(
+      () => ({ nativeGesture: sheetNativeGesture, scrollHandler }),
+      [sheetNativeGesture, scrollHandler]
+    );
 
     const notify = useCallback(
       (detent: SheetDetent) => {
@@ -117,12 +165,24 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
 
     const pan = Gesture.Pan()
       .minDistance(4)
+      // Run alongside the child scrollable's native gesture instead of cancelling it,
+      // so the list is free to scroll; the onUpdate gate below decides which one wins.
+      .simultaneousWithExternalGesture(sheetNativeGesture)
       .onStart(() => {
         // Live value, so a re-grab mid-spring continues rather than snapping.
         startY.value = y.value;
       })
       .onUpdate((event) => {
         const next = startY.value + event.translationY;
+        const draggingUp = event.translationY < 0;
+        const atTopDetent = y.value <= detents.full;
+        const listScrolled = scrollOffset.value > 0;
+
+        // A drag up scrolls the list instead of the sheet when there is content to
+        // reveal: the list is already scrolled down, or the sheet is flush at the top
+        // detent. Otherwise (drag down, or an up-drag that has run out of list) the
+        // sheet moves.
+        if (draggingUp && (listScrolled || atTopDetent)) return;
 
         // Resist above the top detent; below the bottom one it simply follows,
         // because dragging a sheet down toward dismissal should feel free.
@@ -150,13 +210,15 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
     const grabberColor = dark ? "rgba(250,247,242,0.18)" : "rgba(26,22,19,0.18)";
 
     const content = (
-      <Animated.View style={[styles.sheet, { height, backgroundColor: bgColor }, sheetStyle]}>
-        <View style={styles.grabberRow}>
-          <View style={[styles.grabber, { backgroundColor: grabberColor }]} />
-        </View>
-        {header}
-        <View style={styles.body}>{children}</View>
-      </Animated.View>
+      <BottomSheetScrollCtx.Provider value={sheetScrollable}>
+        <Animated.View style={[styles.sheet, { height, backgroundColor: bgColor }, sheetStyle]}>
+          <View style={styles.grabberRow}>
+            <View style={[styles.grabber, { backgroundColor: grabberColor }]} />
+          </View>
+          {header}
+          <View style={styles.body}>{children}</View>
+        </Animated.View>
+      </BottomSheetScrollCtx.Provider>
     );
 
     // Reduced motion keeps the sheet, drops the throwable physics.

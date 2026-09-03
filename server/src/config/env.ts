@@ -52,6 +52,13 @@ const schema = z.object({
    */
   TURNSTILE_SITE_KEY: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
+  /** Env-flag (never a literal key in code): always-pass test mode. Set true alongside
+   *  the Cloudflare testing keys so the gate is exercised but never blocks when the client
+   *  widget cannot render (no dev build → no token). Leave unset in production. */
+  TURNSTILE_ALWAYS_PASS: z
+    .enum(["true", "1"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
 
   /** Set to run the sweep through BullMQ instead of the in-process interval. */
   REDIS_URL: z.string().optional(),

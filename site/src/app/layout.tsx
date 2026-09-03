@@ -6,6 +6,7 @@ import { Preloader } from "@/components/Preloader";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { WaitlistModal } from "@/components/WaitlistModal";
+import { SITE } from "@/lib/constants";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -21,14 +22,18 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE.url),
   title: "Atsumaru — Meet People Around What You Love",
   description:
     "Atsumaru brings people together in small groups around shared interests, real activities, and low-pressure connections. Not a dating app — friendship first.",
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title: "Atsumaru — Meet People Around What You Love",
     description:
       "Small groups. Shared interests. Real activities. Low-pressure connections.",
-    url: "https://atsumaru.app",
+    url: SITE.url,
     siteName: "Atsumaru",
     locale: "en_US",
     type: "website",
@@ -58,6 +63,30 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${notoSansJP.variable} antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  name: SITE.name,
+                  url: SITE.url,
+                  description: SITE.description,
+                  inLanguage: "en",
+                },
+                {
+                  "@type": "Organization",
+                  name: SITE.name,
+                  url: SITE.url,
+                },
+              ],
+            }),
+          }}
+        />
+      </head>
       {/* Browser extensions (Grammarly and friends) add attributes to <body> before
           React hydrates, which otherwise logs a hydration mismatch we cannot fix. */}
       <body

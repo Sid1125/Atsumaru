@@ -83,6 +83,9 @@ export const colors = {
   dangerLight: "#FF8A7A",
   warning: "#C98A2E",
 
+  /** LINE's brand green — used only for the LINE sign-in button and mark. */
+  brandLine: "#06C755",
+
   // Night surfaces — the site's dark sections (site/globals.css `bg-dark` /
   // `bg-warm`), warmed toward the ink family: near-black `#09090B` became
   // `#171717` so dark chrome reads as warm Japanese ink, not cold black.

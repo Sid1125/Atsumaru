@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { useVibeRecap } from "../../features/events/hooks/useEvents";
-import { colors, radius, spacing, type, useReducedMotion } from "../../theme";
+import { colors, radius, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
 
 interface VibeRecapCardProps {
   eventId: string;
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
-  kicker: { ...type.kicker, color: colors.neon },
+  kicker: { ...sectionHeader, color: colors.neon },
   recap: { ...type.title3, color: colors.nightText },
   traits: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   trait: {

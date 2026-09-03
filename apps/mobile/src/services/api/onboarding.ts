@@ -16,7 +16,9 @@ export const onboardingApi = {
     }),
 
   checkHandle: (handle: string) =>
-    api.get<{ available: boolean }>("/onboarding/check-handle", { handle }),
+    api.get<{ available: boolean; suggestions: string[] }>("/onboarding/check-handle", {
+      handle,
+    }),
 
   complete: (payload: {
     handle: string;

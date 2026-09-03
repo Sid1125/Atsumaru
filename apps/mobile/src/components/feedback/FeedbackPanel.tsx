@@ -3,13 +3,14 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../common/Button";
+import { Card } from "../ui/Card";
 import { Chip } from "../common/Chip";
 import { IconSparkle } from "../ui/Icons";
 import { ScreenState } from "../common/ScreenState";
 import { useFeedbackForm } from "../../features/feedback/hooks/useFeedbackForm";
 import { useVibeRecap } from "../../features/events/hooks/useEvents";
 import { feedbackApi } from "../../services/api/feedback";
-import { colors, elevation, radius, sectionHeader, spacing, type } from "../../theme";
+import { colors, sectionHeader, spacing, type } from "../../theme";
 import type { Connection, Rating } from "../../types/api";
 
 const RATINGS: { value: Rating; emoji: string }[] = [
@@ -113,7 +114,7 @@ export function FeedbackPanel({
   const members = query.data.members;
 
   return (
-    <View style={styles.card}>
+    <Card style={styles.card}>
       <Text style={styles.kicker}>{t("feedback.title")}</Text>
 
       {members.map((member) => (
@@ -175,20 +176,12 @@ export function FeedbackPanel({
         loading={submitting}
         disabled={Object.keys(ratings).length === 0}
       />
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.md,
-    ...elevation.low,
-  },
+  card: { gap: spacing.md },
   celebration: {
     backgroundColor: colors.night,
     borderWidth: 2,
@@ -202,8 +195,8 @@ const styles = StyleSheet.create({
     color: colors.nightText,
     textAlign: "center",
   },
-  kicker: { ...type.overline, color: colors.primary },
-  title: { ...type.title2, color: colors.text },
+  kicker: { ...sectionHeader, color: colors.primary },
+
   sectionLabel: { ...type.footnote, color: colors.textMuted, marginTop: spacing.xs },
   row: { gap: spacing.sm },
   handle: { ...type.bodyEmphasized, color: colors.text },

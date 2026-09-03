@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,10 +8,12 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/common/Button";
+import { Card } from "../../components/ui/Card";
 import { Chip } from "../../components/common/Chip";
+import { TextField } from "../../components/common/TextField";
 import { CATEGORY_ORDER, categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
-import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
+import { colors, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "CreateEvent">;
@@ -67,8 +69,6 @@ export function CreateEventScreen() {
     }
   }
 
-  const sticker = categorySticker(category);
-
   return (
     <ScrollView
       style={styles.container}
@@ -81,50 +81,39 @@ export function CreateEventScreen() {
         <Text style={styles.kickerHint}>{t("createEvent.hostHint")}</Text>
 
         {/* Details card */}
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.cardKicker}>{t("createEvent.detailsKicker")}</Text>
-          <TextInput
+          <TextField
             accessibilityLabel={t("createEvent.name")}
             value={title}
             onChangeText={setTitle}
             placeholder={t("createEvent.namePlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
           />
-          <TextInput
+          <TextField
             accessibilityLabel={t("createEvent.venue")}
             value={venue}
             onChangeText={setVenue}
             placeholder={t("createEvent.venuePlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
           />
-          <TextInput
+          <TextField
             accessibilityLabel={t("createEvent.description")}
             value={description}
             onChangeText={setDescription}
             placeholder={t("createEvent.descriptionPlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, styles.multiline]}
             multiline
+            style={{ minHeight: 88 }}
           />
-        </View>
+        </Card>
 
         {/* Category card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardKicker}>{t("createEvent.category")}</Text>
-            <Text style={[styles.cardSticker, { color: sticker.bg }]}>
-              {categorySticker(category).bg === sticker.bg ? "●" : ""}
-            </Text>
-          </View>
+        <Card style={styles.card}>
+          <Text style={styles.cardKicker}>{t("createEvent.category")}</Text>
           <View style={styles.chips}>
             {CATEGORY_ORDER.map((key) => {
               const s = categorySticker(key);
               return (
                 <Chip
                   key={key}
-                  icon={categorySticker(key).bg === sticker.bg ? "●" : undefined}
                   label={t(`discover.categories.${key}`)}
                   selected={category === key}
                   onPress={() => setCategory(key)}
@@ -133,10 +122,10 @@ export function CreateEventScreen() {
               );
             })}
           </View>
-        </View>
+        </Card>
 
         {/* Group size + timing card */}
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.cardKicker}>{t("createEvent.groupKicker")}</Text>
           <Text style={styles.fieldLabel}>{t("createEvent.size")}</Text>
           <View style={styles.chips}>
@@ -150,14 +139,13 @@ export function CreateEventScreen() {
             ))}
           </View>
           <Text style={styles.fieldLabel}>{t("createEvent.startsIn")}</Text>
-          <TextInput
+          <TextField
             accessibilityLabel={t("createEvent.startsIn")}
             value={hoursAhead}
             onChangeText={setHoursAhead}
             keyboardType="number-pad"
-            style={styles.input}
           />
-        </View>
+        </Card>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -179,34 +167,9 @@ const styles = StyleSheet.create({
   kicker: { ...type.overline, color: colors.primary },
   kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
 
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
-    ...elevation.low,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  cardKicker: { ...type.kicker, color: colors.textMuted },
-  cardSticker: { fontSize: 10 },
+  card: { gap: spacing.sm },
+  cardKicker: { ...sectionHeader, color: colors.textMuted },
   fieldLabel: { ...type.footnote, color: colors.textMuted },
-  input: {
-    minHeight: 48,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    color: colors.text,
-    ...type.callout,
-  },
-  multiline: { minHeight: 88, paddingTop: spacing.sm, textAlignVertical: "top" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   error: { ...type.footnote, color: colors.danger },
   cta: { marginTop: spacing.sm },

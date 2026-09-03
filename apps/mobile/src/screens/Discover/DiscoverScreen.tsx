@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
+import Animated from "react-native-reanimated";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 
@@ -17,10 +19,11 @@ import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
 import { MapSurface } from "../../components/map/MapSurface";
-import { IconConnections } from "../../components/ui/Icons";
+import { IconChevronRight, IconConnections } from "../../components/ui/Icons";
 import {
   BottomSheet,
   type BottomSheetHandle,
+  useBottomSheetScrollable,
 } from "../../components/ui/BottomSheet";
 import { PressableScale } from "../../components/ui/PressableScale";
 import {
@@ -32,6 +35,7 @@ import { useAuthStore, useUiStore } from "../../store";
 import {
   colors,
   radius,
+  sectionHeader,
   spacing,
   type,
 } from "../../theme";
@@ -291,68 +295,119 @@ export function DiscoverScreen() {
           </View>
         }
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.sheetBody,
-            { paddingBottom: insets.bottom + spacing.xxl },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          {permissionDenied ? (
-            <PressableScale
-              accessibilityLabel={t("discover.allowLocation")}
-              onPress={requestLocation}
-              style={styles.locationRow}
-              scaleTo={0.98}
-            >
-              <View style={styles.locationDot} />
-              <View style={styles.feedbackBody}>
-                <Text style={styles.locationTitle}>
-                  {t("discover.locationDenied")}
-                </Text>
-                <Text style={styles.locationHint}>
-                  {t("discover.allowLocation")}
-                </Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </PressableScale>
-          ) : null}
-
-          {needsFeedback.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionKicker}>
-                {t("discover.yourMeetups")}
-              </Text>
-              {needsFeedback.map((event) => (
-                <FeedbackRow key={event.id} event={event} onPress={() => open(event.id)} />
-              ))}
-            </View>
-          ) : null}
-
-          {query.isPending ? (
-            <ScreenState status="loading" dark />
-          ) : query.isError ? (
-            <ScreenState status="error" onRetry={() => query.refetch()} dark />
-          ) : events.length === 0 ? (
-            <ScreenState status="empty" dark />
-          ) : (
-            <View style={styles.section}>
-              {events.map((event, index) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  matchScore={scoreFor(index)}
-                  selected={event.id === selectedId}
-                  onPress={() => selectFromList(event.id)}
-                  onOpen={() => open(event.id)}
-                  dark
-                />
-              ))}
-            </View>
-          )}
-        </ScrollView>
+        <SheetBody
+          permissionDenied={permissionDenied}
+          requestLocation={requestLocation}
+          needsFeedback={needsFeedback}
+          open={open}
+          query={query}
+          events={events}
+          scoreFor={scoreFor}
+          selectedId={selectedId}
+          selectFromList={selectFromList}
+          insetsBottom={insets.bottom}
+        />
       </BottomSheet>
     </View>
+  );
+}
+
+/**
+ * The sheet's scrollable body. Rendered as a child of `<BottomSheet>`, so it sits inside
+ * the scroll-gesture provider: it adopts the sheet's shared native gesture and scroll
+ * offset, letting the list scroll freely while the sheet only drags when it should.
+ */
+function SheetBody({
+  permissionDenied,
+  requestLocation,
+  needsFeedback,
+  open,
+  query,
+  events,
+  scoreFor,
+  selectedId,
+  selectFromList,
+  insetsBottom,
+}: {
+  permissionDenied: boolean;
+  requestLocation: () => void;
+  needsFeedback: MeetupEvent[];
+  open: (eventId: string) => void;
+  query: UseQueryResult<{ events: MeetupEvent[] }>;
+  events: MeetupEvent[];
+  scoreFor: (index: number) => number | undefined;
+  selectedId: string | null;
+  selectFromList: (eventId: string) => void;
+  insetsBottom: number;
+}) {
+  const { t } = useTranslation();
+  const { nativeGesture, scrollHandler } = useBottomSheetScrollable();
+
+  return (
+    <GestureDetector gesture={nativeGesture}>
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        contentContainerStyle={[
+          styles.sheetBody,
+          { paddingBottom: insetsBottom + spacing.xxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {permissionDenied ? (
+          <PressableScale
+            accessibilityLabel={t("discover.allowLocation")}
+            onPress={requestLocation}
+            style={styles.locationRow}
+            scaleTo={0.98}
+          >
+            <View style={styles.locationDot} />
+            <View style={styles.feedbackBody}>
+              <Text style={styles.locationTitle}>
+                {t("discover.locationDenied")}
+              </Text>
+            <Text style={styles.locationHint}>
+              {t("discover.allowLocation")}
+            </Text>
+          </View>
+          <IconChevronRight size={18} color={colors.nightMuted} />
+        </PressableScale>
+        ) : null}
+
+        {needsFeedback.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionKicker}>
+              {t("discover.yourMeetups")}
+            </Text>
+            {needsFeedback.map((event) => (
+              <FeedbackRow key={event.id} event={event} onPress={() => open(event.id)} />
+            ))}
+          </View>
+        ) : null}
+
+        {query.isPending ? (
+          <ScreenState status="loading" dark />
+        ) : query.isError ? (
+          <ScreenState status="error" onRetry={() => query.refetch()} dark />
+        ) : events.length === 0 ? (
+          <ScreenState status="empty" dark />
+        ) : (
+          <View style={styles.section}>
+            {events.map((event, index) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                matchScore={scoreFor(index)}
+                selected={event.id === selectedId}
+                onPress={() => selectFromList(event.id)}
+                onOpen={() => open(event.id)}
+                dark
+              />
+            ))}
+          </View>
+        )}
+      </Animated.ScrollView>
+    </GestureDetector>
   );
 }
 
@@ -379,7 +434,7 @@ function FeedbackRow({
         </Text>
         <Text style={styles.feedbackMeta}>{t("discover.leaveFeedback")}</Text>
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <IconChevronRight size={18} color={colors.nightMuted} />
     </PressableScale>
   );
 }
@@ -405,7 +460,7 @@ const styles = StyleSheet.create({
   circleButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     backgroundColor: colors.nightRaised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.nightSeparator,
@@ -444,7 +499,7 @@ const styles = StyleSheet.create({
 
   sheetBody: { paddingHorizontal: spacing.md, gap: spacing.md },
   section: { gap: spacing.sm },
-  sectionKicker: { ...type.kicker, color: colors.nightMuted, marginBottom: spacing.xxs },
+  sectionKicker: { ...sectionHeader, color: colors.nightMuted, marginBottom: spacing.xxs },
 
   feedbackRow: {
     flexDirection: "row",
@@ -466,7 +521,6 @@ const styles = StyleSheet.create({
   feedbackBody: { flex: 1, gap: spacing.xxs },
   feedbackTitle: { ...type.bodyEmphasized, color: colors.nightText },
   feedbackMeta: { ...type.caption, color: colors.neon, fontWeight: "600" },
-  chevron: { ...type.title3, color: colors.nightMuted },
 
   locationRow: {
     flexDirection: "row",

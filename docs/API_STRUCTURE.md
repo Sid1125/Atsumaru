@@ -120,12 +120,18 @@
 |--------|------|------|---------|
 | POST | `/onboarding/chat` | `{ messages: [{role, content}], language? }` | `{ reply, done, extracted? }` |
 | GET | `/onboarding/suggest-handles` | `?interests=hiking,coffee` | `{ handles: string[] }` |
-| GET | `/onboarding/check-handle` | `?handle=trailbrew` | `{ available: boolean }` |
+| GET | `/onboarding/check-handle` | `?handle=trailbrew` | `{ available: boolean, suggestions: string[] }` |
 | POST | `/onboarding/complete` | `{ handle, display_name, language, interests[], personality[] }` | `{ user }` |
 
 > Multi-turn chat: the AI auto-detects and replies in the user's language (`ja` / `en` / `zh`).
 > When `done: true`, `extracted` = `{ interests[], personality[] }`.
-> `suggest-handles` returns AI-generated `@handle` ideas from interests; validate the chosen one with `check-handle`.
+> `suggest-handles` returns AI-generated `@handle` ideas from interests.
+> `check-handle` is intended for **live checking while the user types**: it returns whether the exact
+> handle is free **and** up to 4 alphanumeric variants of what was typed (e.g. `drivinggames` →
+> `drivinggames_chtau`), each `{base}_{5 alnum}` inside `HANDLE_RE` (`/^[a-z0-9_]{3,20}$/`). The server
+> answers from a **bloom filter** over taken handles (fast negative, zero DB queries for a fresh
+> suffixed handle) with a DB confirm on a filter "maybe" — the `users.handle` unique constraint is
+> always the source of truth, so a stale bloom can never admit a duplicate.
 > `complete` saves the profile, builds the preference vector, and needs a unique `handle`.
 
 ### 3.3 Profile

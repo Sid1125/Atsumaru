@@ -1,9 +1,12 @@
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+
+import { colors } from "../../theme";
 
 /**
  * LINE and Google brand logos as inline SVGs. These are simplified mark-only
  * versions — no wordmarks — sized to sit inside a 20×20 frame next to the
- * button label. Colour is inherited from the parent via props.
+ * button label. Colour is inherited from the parent via props; the LINE green
+ * is the single brand token so the button and the mark cannot drift.
  */
 
 export function LineLogo({ size = 20 }: { size?: number }) {
@@ -12,7 +15,7 @@ export function LineLogo({ size = 20 }: { size?: number }) {
       {/* LINE's speech-bubble mark */}
       <Path
         d="M12 2C6.48 2 2 5.82 2 10.5c0 3.67 3.12 6.77 7.35 7.85-.1.85-.37 2.65-.42 3.06-.08.63.23.62.48.45.19-.13 2.7-1.84 3.8-2.59.57.08 1.16.13 1.79.13 5.52 0 10-3.82 10-8.5S17.52 2 12 2Z"
-        fill="#06C755"
+        fill={colors.brandLine}
       />
       <Path
         d="M8.5 9.5h-.5a.5.5 0 0 0 0 1H9v3.5a.5.5 0 0 0 1 0V10.5h.5a.5.5 0 0 0 0-1h-.5v-.5H9v.5h-.5ZM12 9.5h-.5a.5.5 0 0 0 0 1H12v3.5a.5.5 0 0 0 1 0V10.5h.5a.5.5 0 0 0 0-1h-.5v-.5H12v.5h-.5ZM15 9.5h-1v.5h1v1h-1v1h1v1.5a.5.5 0 0 0 1 0V10a.5.5 0 0 0-.5-.5H15v.5h.5v.5H15V9.5Z"

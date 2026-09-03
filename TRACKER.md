@@ -411,9 +411,36 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 - [x] Create-event screen (FR-13) — posts a fixed Shibuya point; a venue picker is still to do
 - [x] **Profile page (2026-09-01)** replaces the old Settings screen: hero (avatar/kicker/handle/name), stats row (rep/connections/meetups), numbered interests index, language override → `PATCH /users/me`, sign out. Editorial grammar (whitespace + hairline rules, no rounded settings cards). Old `SettingsScreen`/`Settings` route removed → `Profile`
 - [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
-- [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `BottomSheet`, `LoadingSkeleton` (docs/DESIGN.md §7)
+- [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `LoadingSkeleton` (docs/DESIGN.md §7)
 - [ ] Infinite scroll on message history now that the paging envelope is returned
 - [~] Mapbox **wired, never run** — `components/map/MapSurface.tsx` picks `MapboxMap` when `hasMapbox()`, else the vector city. Still needs a `pk.*` token *and* a dev build: no token has been issued, and Expo Go has no native module. Bundle builds and typechecks clean; the tiles, `MarkerView` anchoring and camera padding have not been seen on a screen
+
+### 3b. Alphanumeric handle suggestions + bloom filter + Discover sheet scroll (2026-09-03)
+
+- [x] **Handle suggestions, Instagram-style (server + mobile + demo).** `check-handle` now returns
+  `{ available, suggestions }` live per keystroke; `suggestions` are up to 4 alphanumeric variants of
+  the typed base (`drivinggames` → `drivinggames_chtau`), format `{base}_{5 alnum}` inside the existing
+  `HANDLE_RE` (`/^[a-z0-9_]{3,20}$/`) — no DB/seed/regex change needed (user picked `_` over `-`).
+  Generator is a pure unit: `server/src/modules/onboarding/suggest.ts` (`handleVariants`/`sanitizeBase`).
+  Client: live chips under the field in `ProfileConfirmScreen`, replacing the interest chips once the
+  user edits the handle; demo mirror returns the same shape (Set-based).
+- [x] **Bloom filter over taken handles** (`server/src/utils/bloom.ts`, dependency-free sha256
+  double-hash, pure + unit-tested). Loaded lazily from the `users` table; `takenHandles` uses it as a
+  fast **negative** (a fresh suffixed handle usually misses → zero DB queries), with a DB confirm on a
+  "maybe" — the `users.handle` unique constraint is always the source of truth, so a stale bloom can
+  never admit a duplicate; `complete` inserts into it. DB-down degrades to the pure-DB path, matching
+  the integration `has*` degrade convention.
+- [x] **Discover sheet: draggable *and* scrollable.** `BottomSheet`'s single `Gesture.Pan()` swallowed
+  every drag, so the list could never scroll. Now the sheet shares a `Gesture.Native()` + scroll offset
+  through `useBottomSheetScrollable()` (context + `simultaneousWithExternalGesture`); the pan gate
+  yields to the list on drag-up whenever it's scrolled or flush at the top detent
+  (`BottomSheet.tsx:175`). Scrollable body extracted to a `SheetBody` child so the hook runs inside the
+  provider (fixes the "useBottomSheetScrollable must be used inside <BottomSheet>" render error); also
+  removes `BottomSheet` from the shared-component TODO above.
+- Verification: `npm run typecheck` clean (server + mobile), `npm test` 75 pass / 1 skip / 0 fail (up
+  from 68 → +8: 4 bloom + 4 suggest). Server boots clean; live `check-handle?handle=drivinggames` →
+  `{ available: true, suggestions: [drivinggames_chtau, …4] }` against the restarted `:4000` API.
+  Gesture feel + suggestion tap need a device/emulator confirmation (not exercised here).
 
 ### 4. Marketing site (`site/`)
 
@@ -693,6 +720,45 @@ user decision):
       reset-complete surface is unexercised (same dev-build/linking constraint as OAuth;
       `completePasswordReset` API + hook exist); confirm/SMTP/redirect must be configured in the
       Supabase dashboard (see `server/.env.example`)
+
+### 5d. Mobile UI standardisation pass (2026-09-03)
+
+Full visual audit of `apps/mobile` against the token/type/component systems built in
+§5b. The primitives were sound; the drift was in the screens that restated them. All
+changes app-only (`site/` untouched), `tsc --noEmit` clean.
+
+- [x] **`components/ui/Card.tsx` (new)** — the grouped-card chrome (white paper, hairline
+      border, `radius.lg`, `elevation.low`, `padding md`) restated in 4 components with
+      drifting details; now one surface. Used by Meetup group card, CreateEvent's three
+      cards, FeedbackPanel
+- [x] **`components/common/TextField.tsx` (new)** — the form-input surface restated 5+
+      times with drifting height (46/48/52), border width (1 vs hairline), radius (md/lg)
+      and background (surface vs background); now one 48pt/hairline/`radius.md` field with
+      an optional `@` prefix. Used by EmailAuth, ProfileConfirm (handle + display name),
+      CreateEvent. Chat composers deliberately stay their own rounder register — they
+      already matched each other
+- [x] **Typography roles enforced** — killed the per-screen `fontSize`/`lineHeight`/
+      `letterSpacing` overrides on the mono labels that made kicker/overline/sectionHeader
+      interchangeable. Roles are now: screen kicker = `type.overline`, section/group/card
+      label = `sectionHeader`, tiny data labels (category kickers, status tape, stat
+      labels) = `type.overline`. Touched Discover, Meetup, Profile, EventCard,
+      FeedbackPanel, VibeRecapCard, CreateEvent
+- [x] **Chevrons standardised on `IconChevronRight`** — text `›` (Discover rows,
+      Connections) and `→` (EventCard) replaced with the SVG icon the Profile screen
+      already used; dead glyph styles stripped
+- [x] **Tokens over raw values** — LINE `#06C755` now `colors.brandLine` (login button +
+      `BrandLogos` share it); `borderRadius: 22`/`4`/`999` → `radius.pill` (Discover
+      circle buttons, Profile language dot, login floaters); chat timestamp
+      `rgba(255,255,255,0.7)` → `colors.nightMuted`
+- [x] **Group chat sender labels are handles, not raw ids** — `ChatThread` takes a
+      `members` (user_id → handle) map; MeetupScreen passes it, so bubbles read
+      `@handle` instead of an 8-char UUID fragment (id fragment kept only as the
+      no-data fallback)
+- [x] **Form padding unified** — EmailAuth was the only form screen on `spacing.lg`
+      horizontal; now `spacing.md` like ProfileConfirm/CreateEvent. Its in-content title
+      bumped `title2` → `title1` to match the other editorial headers
+- [x] **Dead code removed** — CreateEvent's always-true `●` marker row (`cardSticker`),
+      unused `sticker` const, FeedbackPanel's unused `title` style
 
 ### 6. Out of scope for the appathon (docs/IDEA.md §10)
 

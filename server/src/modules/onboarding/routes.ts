@@ -11,9 +11,37 @@ import { hasGroq } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { serializeVector } from "../../utils/vector.js";
+import { BloomFilter } from "../../utils/bloom.js";
+import { handleVariants } from "./suggest.js";
 import { LANGUAGES } from "../../types.js";
 
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
+
+// A bloom filter over taken handles, loaded lazily from the DB. It is a fast negative
+// pre-check, never the source of truth: the `users.handle` unique constraint is. A
+// fresh suffixed handle usually misses the filter, so the common keystroke check runs
+// with zero DB queries; a filter hit ("maybe") falls through to a DB confirm.
+let handleBloom: BloomFilter | null = null;
+let handleBloomLoaded = false;
+
+/** Load all live handles into the filter once. Best-effort: on any failure leave it
+ *  unloaded (a pure-DB path is still correct) and retry on the next check. */
+async function loadHandleBloom(): Promise<BloomFilter | null> {
+  if (handleBloomLoaded) return handleBloom;
+  try {
+    const { data, error } = await db().from("users").select("handle");
+    if (error) throw dbError(error);
+    const bloom = new BloomFilter();
+    for (const row of data ?? []) {
+      if (row.handle) bloom.add(row.handle as string);
+    }
+    handleBloom = bloom;
+    handleBloomLoaded = true;
+  } catch (error) {
+    console.warn("Handle bloom filter unavailable, falling back to DB-only checks:", error);
+  }
+  return handleBloom;
+}
 
 const chatSchema = z.object({
   messages: z
@@ -74,14 +102,29 @@ onboardingRouter.post(
 async function takenHandles(candidates: string[]): Promise<Set<string>> {
   if (candidates.length === 0) return new Set();
 
+  // Bloom fast-negative: a candidate that is definitely free skips the DB entirely.
+  // Only "maybe" candidates (a bloom miss is impossible here; a hit means maybe) are
+  // confirmed against the table, so the DB query shrinks to the likely-taken few.
+  const bloom = await loadHandleBloom();
+  const maybe = bloom ? candidates.filter((c) => bloom.maybePresent(c)) : candidates;
+  if (maybe.length === 0) return new Set();
+
   const { data, error } = await db()
     .from("users")
     .select("handle")
-    .in("handle", candidates);
+    .in("handle", maybe);
 
   if (error) throw dbError(error);
 
   return new Set((data ?? []).map((row) => row.handle as string));
+}
+
+/** Alphanumeric variants of what the user typed, minus ones already taken or invalid. */
+async function availableSuggestions(rawBase: string): Promise<string[]> {
+  const variants = handleVariants(rawBase);
+  if (variants.length === 0) return [];
+  const taken = await takenHandles(variants);
+  return variants.filter((variant) => !taken.has(variant));
 }
 
 function handleIdeas(interests: string[]): string[] {
@@ -132,14 +175,19 @@ onboardingRouter.get(
   requireAuth,
   asyncRoute(async (req, res) => {
     enforceReadLimit(req, res);
-    const handle = String(req.query.handle ?? "").toLowerCase();
+    const raw = String(req.query.handle ?? "");
+    const handle = raw.toLowerCase();
 
-    if (!HANDLE_RE.test(handle)) {
-      return ok(res, { available: false });
-    }
+    // Valid only if the exact typed text is a well-formed handle; while the user is
+    // mid-word (e.g. "drivi") the field is not yet usable, but suggestions still flow.
+    const available =
+      HANDLE_RE.test(handle) && !(await takenHandles([handle])).has(handle);
 
-    const taken = await takenHandles([handle]);
-    return ok(res, { available: !taken.has(handle) });
+    // Alphanumeric variants of what the user typed, e.g. "drivinggames_x4k92",
+    // surface live so a taken or invalid handle has a one-tap fix.
+    const suggestions = await availableSuggestions(raw);
+
+    return ok(res, { available, suggestions });
   })
 );
 
@@ -187,6 +235,9 @@ onboardingRouter.post(
       }
       throw dbError(error);
     }
+
+    // Reflect the new handle in the filter so a later duplicate check is caught fast.
+    handleBloom?.add(profile.handle);
 
     return ok(res, { user: await publicUser(req.userId!) });
   })

@@ -16,6 +16,12 @@ interface ChatThreadProps {
   title?: string;
   /** The other participant's handle, used for the DM composer placeholder. */
   handle?: string;
+  /**
+   * user_id → handle, for group threads. Sender labels are pseudonymous
+   * handles, never raw ids — the pre-handles fallback (an id fragment) exists
+   * only for callers that have not supplied the map yet.
+   */
+  members?: Record<string, string>;
   /** DMs own the whole screen; group chat sits inside the meetup scroll view. */
   fill?: boolean;
 }
@@ -24,10 +30,12 @@ function Bubble({
   message,
   currentUserId,
   showSender,
+  senderHandle,
 }: {
   message: Message;
   currentUserId?: string;
   showSender?: boolean;
+  senderHandle?: string;
 }) {
   const mine = message.sender_id === currentUserId;
 
@@ -35,7 +43,9 @@ function Bubble({
     <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
       <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
         {showSender && !mine ? (
-          <Text style={styles.sender}>{message.sender_id.slice(0, 8)}</Text>
+          <Text style={styles.sender}>
+            {senderHandle ? `@${senderHandle}` : message.sender_id.slice(0, 8)}
+          </Text>
         ) : null}
         <Text style={[styles.text, mine && styles.mineText]}>
           {message.message}
@@ -61,6 +71,7 @@ export function ChatThread({
   currentUserId,
   title,
   handle,
+  members,
   fill = false,
 }: ChatThreadProps) {
   const { t } = useTranslation();
@@ -114,6 +125,9 @@ export function ChatThread({
               message={item}
               currentUserId={currentUserId}
               showSender={scope === "group"}
+              senderHandle={
+                scope === "group" ? members?.[item.sender_id] : undefined
+              }
             />
           )}
         />
@@ -131,6 +145,9 @@ export function ChatThread({
               message={item}
               currentUserId={currentUserId}
               showSender={scope === "group"}
+              senderHandle={
+                scope === "group" ? members?.[item.sender_id] : undefined
+              }
             />
           ))}
         </View>
@@ -213,7 +230,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
     alignSelf: "flex-end",
   },
-  mineTime: { color: "rgba(255,255,255,0.7)" },
+  mineTime: { color: colors.nightMuted },
   composer: {
     flexDirection: "row",
     gap: spacing.sm,

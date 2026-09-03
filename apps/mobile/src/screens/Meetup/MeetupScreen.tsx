@@ -11,6 +11,7 @@ import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { Button } from "../../components/common/Button";
 import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
+import { Card } from "../../components/ui/Card";
 import { Sticker } from "../../components/ui/Sticker";
 import { IconSparkle } from "../../components/ui/Icons";
 import { categoryGlyph, categorySticker } from "../../categoryMeta";
@@ -29,6 +30,7 @@ import {
   colors,
   elevation,
   radius,
+  sectionHeader,
   spacing,
   springs,
   type,
@@ -205,7 +207,7 @@ export function MeetupScreen() {
       ) : null}
 
       {/* Group */}
-      <View style={styles.groupCard}>
+      <Card style={styles.groupCard}>
         <Text style={styles.groupKicker}>
           {t("meetup.yourGroup")} ·{" "}
           {t("discover.size", {
@@ -218,7 +220,7 @@ export function MeetupScreen() {
             <MemberAvatar key={member.id} member={member} />
           ))}
         </View>
-      </View>
+      </Card>
 
       {joinError ? (
         <Text style={styles.error} accessibilityLiveRegion="polite">
@@ -264,6 +266,9 @@ export function MeetupScreen() {
             scope="group"
             id={eventId}
             currentUserId={currentUser?.id}
+            members={Object.fromEntries(
+              members.map((m) => [m.user_id, m.user.handle])
+            )}
           />
         </Animated.View>
       ) : null}
@@ -312,15 +317,13 @@ const styles = StyleSheet.create({
   },
   statusTape: { marginTop: spacing.xxs },
   statusTapeText: {
-    ...type.kicker,
-    fontSize: 10,
-    lineHeight: 12,
-    letterSpacing: 2,
+    ...type.overline,
     color: colors.nightMuted,
     paddingHorizontal: spacing.sm,
   },
   heroGlyphText: { fontSize: 30 },
-  categoryKicker: { ...type.kicker, fontSize: 10, lineHeight: 13, letterSpacing: 2.2 },
+  categoryKicker: { ...type.overline },
+
   title: { ...type.display, color: colors.nightText },
   meta: { ...type.subhead, color: colors.nightMuted },
   description: { ...type.body, color: colors.textSecondary, marginTop: -spacing.sm },
@@ -340,16 +343,8 @@ const styles = StyleSheet.create({
   reasonText: { ...type.footnote, color: colors.textSecondary, flex: 1 },
 
   section: { gap: spacing.sm },
-  groupCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
-    ...elevation.low,
-  },
-  groupKicker: { ...type.kicker, color: colors.textMuted },
+  groupCard: { gap: spacing.sm },
+  groupKicker: { ...sectionHeader, color: colors.textMuted },
   members: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   member: { alignItems: "center", gap: spacing.xs, width: 62 },
   memberHandle: { ...type.caption, color: colors.textMuted },

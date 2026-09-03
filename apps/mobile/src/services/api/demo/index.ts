@@ -512,10 +512,30 @@ export async function demoRequest<T>(
   }
 
   if (path === "/onboarding/check-handle" && method === "GET") {
-    const handle = String(body.handle ?? "").toLowerCase();
+    const raw = String(body.handle ?? "");
+    const handle = raw.toLowerCase();
     const taken = new Set([...world.users.values()].map((u) => u.handle));
+
+    // Mirror of the server: available only for a well-formed exact handle, plus
+    // live alphanumeric variants of the typed base (e.g. "drivinggames_x4k92").
+    const base = handle.replace(/[^a-z0-9_]/g, "").replace(/^_+|_+$/g, "").slice(0, 14);
+    const variants: string[] = [];
+    if (base && /^[a-z0-9_]+$/.test(base)) {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let salt = 0;
+      while (variants.length < 4 && salt < 64) {
+        const suffix = Array.from({ length: 5 }, () =>
+          chars[(salt + variants.length * 7 + Math.floor(Math.random() * chars.length)) % chars.length]
+        ).join("");
+        const variant = `${base}_${suffix}`;
+        if (!taken.has(variant) && !variants.includes(variant)) variants.push(variant);
+        salt++;
+      }
+    }
+
     return settle({
       available: /^[a-z0-9_]{3,20}$/.test(handle) && !taken.has(handle),
+      suggestions: variants,
     } as T);
   }
 

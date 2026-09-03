@@ -5,15 +5,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/common/Button";
+import { TextField } from "../../components/common/TextField";
 import { useEmailAuth, type EmailAuthMode } from "../../features/auth/hooks/useEmailAuth";
-import { colors, radius, spacing, type } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 
 type Mode = EmailAuthMode;
 
@@ -66,32 +66,30 @@ export function EmailAuthScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>{t("auth.emailLabel")}</Text>
-          <TextInput
+          <TextField
+            accessibilityLabel={t("auth.emailLabel")}
             value={email}
             onChangeText={setEmail}
             placeholder={t("auth.emailPlaceholder")}
-            placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
             textContentType="emailAddress"
             autoComplete="email"
             editable={!submitting}
-            style={styles.input}
           />
         </View>
 
         {mode !== "reset" ? (
           <View style={styles.field}>
             <Text style={styles.label}>{t("auth.passwordLabel")}</Text>
-            <TextInput
+            <TextField
+              accessibilityLabel={t("auth.passwordLabel")}
               value={password}
               onChangeText={setPassword}
               placeholder={t("auth.passwordPlaceholder")}
-              placeholderTextColor={colors.textMuted}
               secureTextEntry
               editable={!submitting}
-              style={styles.input}
             />
           </View>
         ) : null}
@@ -155,9 +153,9 @@ export function EmailAuthScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.lg, gap: spacing.md },
+  content: { paddingHorizontal: spacing.md, gap: spacing.md },
   title: {
-    ...type.title2,
+    ...type.title1,
     color: colors.text,
     marginBottom: spacing.sm,
   },
@@ -165,16 +163,6 @@ const styles = StyleSheet.create({
   label: {
     ...type.caption,
     color: colors.textMuted,
-  },
-  input: {
-    ...type.body,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
   },
   info: {
     ...type.footnote,

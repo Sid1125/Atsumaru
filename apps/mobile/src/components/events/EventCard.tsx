@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { PressableScale } from "../ui/PressableScale";
+import { IconChevronRight } from "../ui/Icons";
 import { Sticker } from "../ui/Sticker";
 import {
   categoryGlyph,
@@ -123,8 +124,11 @@ export function EventCard({
         </View>
       </View>
 
-      {/* Trailing open affordance — an editorial arrow, not a button */}
-      <Text style={[styles.openMark, dark && styles.openMarkDark]}>→</Text>
+      {/* Trailing open affordance — a chevron, not a button */}
+      <IconChevronRight
+        size={18}
+        color={dark ? colors.nightMuted : colors.textMuted}
+      />
     </PressableScale>
   );
 }
@@ -160,7 +164,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  categoryKicker: { ...type.kicker, fontSize: 9, lineHeight: 12, letterSpacing: 1.8 },
+  categoryKicker: { ...type.overline },
   title: { ...type.bodyEmphasized },
   meta: { ...type.footnote, color: colors.textMuted },
   metaDark: { color: colors.nightMuted },
@@ -185,6 +189,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  openMark: { ...type.headline, color: colors.textMuted, paddingLeft: spacing.xs },
-  openMarkDark: { color: colors.nightMuted },
 });

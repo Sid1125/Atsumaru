@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
+import { TextField } from "../../components/common/TextField";
 import { onboardingApi } from "../../services/api/onboarding";
 import { useAuthStore, useOnboardingDraft, useUiStore } from "../../store";
 import {
   colors,
-  radius,
   sectionHeader,
   spacing,
   type,
@@ -31,6 +31,7 @@ export function ProfileConfirmScreen() {
   const reducedMotion = useReducedMotion();
 
   const [handles, setHandles] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -46,16 +47,22 @@ export function ProfileConfirmScreen() {
   useEffect(() => {
     if (!draft.handle) {
       setAvailable(null);
+      setSuggestions([]);
       return;
     }
 
     setChecking(true);
 
-    // Debounced so a handle is not checked on every keystroke.
+    // Debounced so a handle is not checked on every keystroke. The server answers
+    // are "live": the availability judgement *and* alphanumeric variants of what was
+    // typed, so a taken or mid-word handle has a one-tap suggestion to fall back to.
     const timer = setTimeout(() => {
       onboardingApi
         .checkHandle(draft.handle)
-        .then((r) => setAvailable(r.available))
+        .then((r) => {
+          setAvailable(r.available);
+          setSuggestions(r.suggestions.filter((h) => h !== draft.handle));
+        })
         .catch(() => setAvailable(null))
         .finally(() => setChecking(false));
     }, 400);
@@ -117,56 +124,67 @@ export function ProfileConfirmScreen() {
 
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.handle")}</Text>
-        <View style={styles.chips}>
-          {handles.map((handle) => (
-            <Chip
-              key={handle}
-              label={`@${handle}`}
-              selected={draft.handle === handle}
-              onPress={() => draft.setHandle(handle)}
-            />
-          ))}
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.prefix}>@</Text>
-          <TextInput
-            accessibilityLabel={t("onboarding.handle")}
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={draft.handle}
-            onChangeText={draft.setHandle}
-            placeholder={t("onboarding.handle")}
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
-          {/* Availability is stated in words, not signalled by colour alone
-              (docs/DESIGN.md §10). */}
-          {draft.handle && !checking && available != null ? (
-            <Text
-              style={available ? styles.ok : styles.taken}
-              accessibilityLiveRegion="polite"
-            >
-              {available
-                ? `✓ ${t("onboarding.handleAvailable")}`
-                : `✕ ${t("onboarding.handleTaken")}`}
-            </Text>
-          ) : null}
-        </View>
+        {/* Interest-derived suggestions are the starting point; once the user edits the
+            handle they are replaced by alphanumeric variants of what was typed. */}
+        {!draft.handle ? (
+          <View style={styles.chips}>
+            {handles.map((handle) => (
+              <Chip
+                key={handle}
+                label={`@${handle}`}
+                selected={draft.handle === handle}
+                onPress={() => draft.setHandle(handle)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        <TextField
+          accessibilityLabel={t("onboarding.handle")}
+          prefix="@"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={draft.handle}
+          onChangeText={draft.setHandle}
+          placeholder={t("onboarding.handle")}
+        />
+        {/* Availability is stated in words, not signalled by colour alone
+            (docs/DESIGN.md §10). */}
+        {draft.handle && !checking && available != null ? (
+          <Text
+            style={available ? styles.ok : styles.taken}
+            accessibilityLiveRegion="polite"
+          >
+            {available
+              ? `✓ ${t("onboarding.handleAvailable")}`
+              : `✕ ${t("onboarding.handleTaken")}`}
+          </Text>
+        ) : null}
+
+        {/* Live, alphanumeric variants of the typed base — tap to claim a free one. */}
+        {draft.handle && suggestions.length > 0 ? (
+          <View style={styles.chips}>
+            {suggestions.map((handle) => (
+              <Chip
+                key={handle}
+                label={`@${handle}`}
+                selected={draft.handle === handle}
+                onPress={() => draft.setHandle(handle)}
+              />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.displayName")}</Text>
-        <View style={styles.field}>
-          <TextInput
-            accessibilityLabel={t("onboarding.displayName")}
-            value={draft.displayName}
-            onChangeText={draft.setDisplayName}
-            placeholder={t("onboarding.displayNamePlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
-        </View>
+        <TextField
+          accessibilityLabel={t("onboarding.displayName")}
+          value={draft.displayName}
+          onChangeText={draft.setDisplayName}
+          placeholder={t("onboarding.displayNamePlaceholder")}
+        />
         <Text style={styles.hint}>{t("onboarding.privacyHint")}</Text>
       </View>
 
@@ -198,19 +216,6 @@ const styles = StyleSheet.create({
   group: { gap: spacing.sm },
   groupLabel: { ...sectionHeader, color: colors.textMuted },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    minHeight: 52,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-  },
-  prefix: { ...type.body, color: colors.textMuted },
-  input: { flex: 1, ...type.body, color: colors.text, paddingVertical: spacing.sm },
   ok: { ...type.caption, color: colors.accent, fontWeight: "600" },
   taken: { ...type.caption, color: colors.danger, fontWeight: "600" },
   hint: { ...type.caption, color: colors.textMuted },

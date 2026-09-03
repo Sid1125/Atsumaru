@@ -1135,3 +1135,58 @@ auth, cost-controls **skipped** (user decision — rate limits + quotas already 
 
 
 
+
+## 18. Session log — alphanumeric handle suggestions + bloom filter + Discover sheet scroll (2026-09-03, DONE)
+
+### The ask
+"Update the handle selection to be more real world, like how Insta suggests alphanumeric
+usernames. A bloom filter is needed. If the user types the handle manually, update availability
+live and suggest similar alphanumeric usernames (drivinggames-a128df style)."
+
+### Decisions locked (with the user)
+- **Separator = `_`, not `-`** (user picked `_` over `-`). Keeps everything inside the existing
+  `HANDLE_RE = /^[a-z0-9_]{3,20}$/` — **zero** DB/seed/mobile-regex changes. Example from the
+  question: `drivinggames_a128df`.
+- **UX = live suggestions under the field** (replaces the static interest chips once the user edits
+  the handle), one round-trip via the existing debounced `check-handle`.
+
+### What was built
+- **`server/src/utils/bloom.ts`** — dependency-free `BloomFilter` (sha256 double-hash → two 32-bit
+  indices, `m=10_000`/`k=2`). Pure, unit-tested (`bloom.test.ts`, 4 tests). The DB unique constraint
+  is always the source of truth: `maybePresent` false = definitely free (no DB), true = "maybe" →
+  DB confirm. Never admits a duplicate even if stale.
+- **`server/src/modules/onboarding/suggest.ts`** — pure `handleVariants`/`sanitizeBase`. `base` is
+  sanitised to `[a-z0-9_]`, capped at 14 chars, then `_{5 alnum}` appended (≤20 total). Unit-tested
+  (`suggest.test.ts`, 4 tests).
+- **`server/src/modules/onboarding/routes.ts`** — bloom loaded **lazily** from `users` (best-effort,
+  DB-down → pure-DB path, matching the has* degrade convention). `takenHandles` uses bloom as a fast
+  negative (fresh suffixed handle → zero DB queries); `complete` inserts into it. `check-handle` now
+  returns `{ available, suggestions }`, computed for the raw typed text so it works mid-word.
+- **`apps/mobile/.../services/api/onboarding.ts`** — `checkHandle` type → `{ available, suggestions }`.
+- **`apps/mobile/.../screens/Onboarding/ProfileConfirmScreen.tsx`** — interest chips shown only while
+  the field is empty; once typing, live alphanumeric suggestion chips render under the field
+  (`@{handle}`), tap to claim.
+- **`apps/mobile/.../services/api/demo/index.ts`** — mirrors the `{ available, suggestions }` shape
+  (Set-based, no bloom — demo is a mock).
+- **Discover sheet scroll fix** (`components/ui/BottomSheet.tsx` + `DiscoverScreen.tsx`): the sheet's
+  single `Gesture.Pan()` swallowed all drags (draggable but never scrollable). Sheet now shares a
+  `Gesture.Native()` + scroll offset via `useBottomSheetScrollable()` (context) +
+  `simultaneousWithExternalGesture`; the pan `onUpdate` gate yields to the list on drag-up when it's
+  scrolled or flush at the top detent. Scrollable body extracted to a `SheetBody` child so the hook
+  runs inside the provider (fixed the `useBottomSheetScrollable must be used inside <BottomSheet>`
+  render error).
+
+### Verified
+- `npm run typecheck` clean (server + mobile).
+- `npm test` **75 pass / 1 skip / 0 fail** (was 68 → +8: 4 bloom + 4 suggest). The 1 skip is the
+  Turnstile degrade test (skipped because `.env` configures keys — made cwd-independent).
+- Fresh server boot clean (`:4000`, PID 18112). Live auth'd:
+  `check-handle?handle=drivinggames` → `{ available: true, suggestions: [drivinggames_chtau,
+  drivinggames_36atj, drivinggames_pahy4, drivinggames_1pjdz] }`.
+
+### Open / next
+- **Gesture feel + suggestion-tap need a device/emulator pass** — the sheet drag-vs-scroll gate and
+  the chip-tap-to-claim UX were types/babel/live-API verified, not gesture-walked.
+- Turnstile always-pass env flag (`TURNSTILE_ALWAYS_PASS=true` in `server/.env`, flag in `env.ts`)
+  was wired earlier this session and verified live (sign-in passes the gate → INVALID_CODE, not
+  CAPTCHA_FAILED); the client Turnstile widget still needs a dev build to actually run.

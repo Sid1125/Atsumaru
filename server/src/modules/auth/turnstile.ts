@@ -18,6 +18,11 @@ export async function verifyTurnstile(
 ): Promise<boolean> {
   if (!hasTurnstile) return true;
 
+  // Test config via env flag (never keys in source): the widget cannot render without a
+  // dev build / client token, so "verify" always passes rather than killing every sign-in
+  // behind a token that is never produced. Real deployments leave this unset → strict.
+  if (env.TURNSTILE_ALWAYS_PASS === true) return true;
+
   if (!token) return false;
 
   try {

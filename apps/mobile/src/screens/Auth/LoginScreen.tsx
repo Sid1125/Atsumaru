@@ -120,7 +120,7 @@ export function LoginScreen() {
           <Button
             label={t("auth.continueWithLine")}
             variant="neon"
-            style={{ backgroundColor: "#06C755" }}
+            style={{ backgroundColor: colors.brandLine }}
             onPress={() => start("line")}
             loading={pending === "line"}
             disabled={pending !== null}
@@ -228,7 +228,7 @@ function Floater({
     >
       <Sticker
         color={color}
-        borderRadius={999}
+        borderRadius={radius.pill}
         rotate={spin}
         offset={6}
         style={[styles.floaterSticker, { width: size, height: size, overflow: "hidden" }]}
