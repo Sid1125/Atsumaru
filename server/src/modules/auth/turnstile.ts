@@ -141,10 +141,16 @@ export function turnstilePageHtml(siteKey: string): string {
     // Managed-mode widget: runs automatically once rendered (spinner, then auto-pass or a
     // checkbox if Cloudflare wants interaction). No explicit execute() — that is only for
     // Invisible-mode widgets, which are exactly the mode that cannot mint here.
+    //
+    // render() takes a CSS selector ("#id") or an element, NOT a bare id string — passing
+    // 'container' made api.js look for a <container> tag and throw "Unable to find a
+    // container", silently killing every mint attempt since the first version of this page.
+    var container = document.getElementById('container');
+    if (!container) { setStatus('Widget container missing — page error.'); return; }
     try {
-      widgetId = turnstile.render('container', {
+      widgetId = turnstile.render(container, {
         sitekey: '${siteKey}',
-        appearance: 'light',
+        theme: 'light',
         callback: function (token) { setStatus('Verified'); post({ type: 'token', token: token }); },
         'expired-callback': function () { setStatus('Verification expired — re-running…'); post({ type: 'expired' }); refresh(); },
         'timeout-callback': function () { setStatus('Verification timed out — re-running…'); post({ type: 'timeout' }); refresh(); },

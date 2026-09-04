@@ -417,6 +417,29 @@ be the API's bare FQDN (`atsumaru-6i3n.onrender.com`), and the site key/secret p
 while the widget keeps its current keys. Pending: user to deploy the new page, rebuild the APK,
 and confirm the browser self-test shows "Verified" before testing in-app.
 
+### 5p. THE actual root cause — render() got a bare id, not a selector (2026-09-04)
+
+§5o's invisible-mode theory was WRONG. The on-page instrumentation added there surfaced the real
+error at last: `Widget failed to start: [Cloudflare Turnstile] Unable to find a container for
+"container"`. Per the official client-side-rendering docs, `turnstile.render()` takes a **CSS
+selector** (`"#container"`) or an **element** — passing the bare id `'container'` makes api.js
+look for a `<container>` **tag** and throw. The page had called `render('container', …)` since the
+FIRST version (§5k), with no try/catch, so the throw was silent: `widgetId` stayed null, no token
+was ever minted, and the retry loops burned out quietly. Every earlier theory (about:blank
+hostname §5n, Invisible-can't-challenge §5o) was never actually exercised — the widget never
+rendered anywhere to reach those checks. §5l's `domStorageEnabled` was a genuine requirement and
+§5o's Managed-mode dashboard change + visible widget are genuine prerequisites for what comes
+next, but the mint-blocking bug was this one line, all along.
+
+- `render(container, …)` now passes the element from `getElementById('container')` (null-checked).
+- Also corrected a second param bug found against the docs: `appearance: 'light'` is invalid
+  (appearance ∈ always/execute/interaction-only, and controls *when* the widget is visible);
+  the theme option is `theme: 'light'`.
+
+**Server-only fix** — the app fetches the widget page by URL, so no APK rebuild is needed: deploy
+and the WebView gets the corrected page. Pending: confirm the browser self-test and an in-app
+email login now mint + pass siteverify.
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere
