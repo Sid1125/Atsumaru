@@ -98,7 +98,8 @@
       "full": "満員",
       "ongoing": "開催中",
       "completed": "終了"
-    }
+    },
+    "recenter": "現在地に戻る"
   },
   "meetup": {
     "yourGroup": "あなたのグループ",
@@ -207,6 +208,11 @@
     "hostKicker": "HOST A MEETUP",
     "hostHint": "詳細を入力してボードに投稿してください。",
     "detailsKicker": "DETAILS",
-    "groupKicker": "GROUP"
+    "groupKicker": "GROUP",
+    "venueSearchPlaceholder": "場所を検索",
+    "venueSearching": "検索中…",
+    "venueNoResults": "見つかりませんでした。名前を直接入力できます。",
+    "venuePicked": "位置を設定しました",
+    "venueSearchUnavailable": "場所検索は無効です。渋谷中心部にピンが立ちます。"
   }
 }

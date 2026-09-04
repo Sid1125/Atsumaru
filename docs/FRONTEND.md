@@ -221,6 +221,25 @@ camera settles
 → request nearby events
 ```
 
+Only *gesture-driven* moves count. Framing the pins when results arrive is a programmatic
+move, and treating it as a settle would let framing feed itself a fetch.
+
+### Chrome over the map
+
+Controls float over the map rather than occupying a bar, and they stay inside the visible
+band — between the filter rail and the sheet's resting edge. Keep the bottom-left corner
+free: on the Mapbox surface that is where the attribution and wordmark live, and they are a
+licence condition.
+
+A control that moves the camera should also reset whatever the map was last panned to, or the
+view and the list end up describing different places.
+
+### Drawing distance
+
+The search radius is drawn in real coordinates so it scales with the map, and it is generated
+once rather than per frame. It is only worth drawing where the surface can actually show it —
+see TRD §12.2 for why the vector city cannot.
+
 ## 10. Chat Strategy
 
 Initial load:

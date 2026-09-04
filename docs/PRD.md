@@ -176,6 +176,9 @@ Secondary states such as feedback, connection unlocked, and chat can be presente
 | FR-17 | Nudge when a meetup opens near the member's last known area | P2 |
 | FR-18 | Re-engagement nudge naming a co-member of a group they are in | P2 |
 | FR-19 | Per-type notification opt-out, JST quiet hours, daily caps | P1 |
+| FR-20 | Host picks the meetup venue from a place search | P1 |
+| FR-21 | Map shows the search radius around the member | P2 |
+| FR-22 | Map control returns the view to the member's location | P2 |
 
 FR-18 states only what the data proves — who is in a group the recipient is also in. It
 never claims anyone is waiting for, missing, or asking after them, and the name is drawn

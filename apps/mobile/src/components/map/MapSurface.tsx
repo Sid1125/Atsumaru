@@ -1,3 +1,5 @@
+import { forwardRef } from "react";
+
 import { InteractiveMap } from "./InteractiveMap";
 import { MapboxMap } from "./MapboxMap";
 import { hasMapbox } from "./mapbox";
@@ -15,6 +17,24 @@ export interface MapSurfaceProps {
    * anywhere new to query.
    */
   onRegionSettled?: (center: Coords) => void;
+  /**
+   * The member's own position, once a fix has been taken. Used to draw the search radius;
+   * neither surface moves the camera on its own because of it.
+   */
+  userLocation?: Coords | null;
+  /** Radius of that ring, in kilometres — the same distance the nearby query uses. */
+  radiusKm?: number;
+}
+
+/**
+ * What a caller can ask the map to do after it has mounted.
+ *
+ * Kept to the one verb that cannot be expressed as a prop: "put this coordinate back in
+ * view". Everything else about both surfaces is driven declaratively, and should stay that
+ * way — an imperative handle is the exception, not a second API.
+ */
+export interface MapSurfaceHandle {
+  recenter: (coords: Coords) => void;
 }
 
 /**
@@ -30,15 +50,29 @@ export interface MapSurfaceProps {
  * where Mapbox's native module does not exist at all. Configuring a token in a dev
  * build promotes the ground to real tiles; nothing else about the screen moves.
  */
-export function MapSurface(props: MapSurfaceProps) {
-  if (hasMapbox()) return <MapboxMap {...props} />;
+export const MapSurface = forwardRef<MapSurfaceHandle, MapSurfaceProps>(
+  function MapSurface(props, ref) {
+    if (hasMapbox()) return <MapboxMap ref={ref} {...props} />;
 
-  return (
-    <InteractiveMap
-      events={props.events}
-      selectedId={props.selectedId}
-      onSelect={props.onSelect}
-      onOpen={props.onOpen}
-    />
-  );
-}
+    /**
+     * No radius ring on the vector city, and this is a measurement rather than an
+     * oversight: it models a 3.35 x 3.33 km slice of Shibuya, so a 5 km *radius* wants
+     * 10 km across — three times the entire modelled world. Its minimum zoom shows the
+     * whole 1400-unit world and no further, so the ring's edge is unreachable at every
+     * zoom and all that would render is a flat tint over everything, which reads as a bug
+     * rather than a radius.
+     *
+     * The renderers already differ where the medium demands it (`counterScale` on the pins,
+     * `onRegionSettled` only from Mapbox). This is the same kind of difference.
+     */
+    return (
+      <InteractiveMap
+        ref={ref}
+        events={props.events}
+        selectedId={props.selectedId}
+        onSelect={props.onSelect}
+        onOpen={props.onOpen}
+      />
+    );
+  }
+);
