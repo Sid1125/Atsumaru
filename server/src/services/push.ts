@@ -28,7 +28,30 @@ export interface PushMessage {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /**
+   * Deep link for the tap. `data` alone is not enough: React Navigation's linking only
+   * ever reads URLs, so a payload that carries only `{ type, event_id }` lands the user
+   * on whatever screen they last had open. The app feeds this to `getInitialURL` /
+   * `subscribe` (apps/mobile/src/app/navigation/linking.ts), which is what makes cold
+   * start, warm start and background behave the same.
+   *
+   * `data` is kept alongside it — it is the older convention and still the cheaper thing
+   * to read for analytics.
+   */
+  url?: string;
 }
+
+/**
+ * The one place notification deep links are built, so a path cannot drift from
+ * `linking.ts`'s `config.screens`. Group chat has no route of its own — it lives inside
+ * the meetup screen — so a chat notification points at `meetup/:id`.
+ */
+export const deepLink = {
+  meetup: (eventId: string) => `atsumaru://meetup/${eventId}`,
+  dm: (connectionId: string) => `atsumaru://dm/${connectionId}`,
+  discover: () => "atsumaru://discover",
+} as const;
+
 
 export function chunk<T>(items: T[], size = PUSH_CHUNK_SIZE): T[][] {
   const chunks: T[][] = [];
@@ -60,6 +83,7 @@ export function feedbackMessage(
     body: copy.body,
     // The app deep-links to the feedback screen from this payload.
     data: { type: "feedback", event_id: eventId },
+    url: deepLink.meetup(eventId),
   };
 }
 
@@ -69,6 +93,196 @@ interface ExpoTicket {
   id?: string;
   message?: string;
   details?: { error?: string };
+}
+
+/** Keeps a title or preview inside what a notification tray will actually show. */
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+const MEETUP_SOON: Record<Language, { title: string; body: (t: string) => string }> = {
+  en: { title: "Starting soon", body: (t) => `${t} — heading out?` },
+  ja: { title: "まもなく開始", body: (t) => `${t} — そろそろ出発しましょう` },
+  zh: { title: "即将开始", body: (t) => `${t} — 准备出发了吗？` },
+};
+
+/**
+ * The ~15-minutes-before nudge. Deliberately says "soon" rather than a number: the sweep
+ * runs every 5 minutes, so this actually lands 15–20 minutes ahead and a precise claim
+ * would sometimes be wrong.
+ */
+export function meetupSoonMessage(
+  token: string,
+  eventId: string,
+  eventTitle: string,
+  language: Language
+): PushMessage {
+  const copy = MEETUP_SOON[language] ?? MEETUP_SOON.en;
+
+  return {
+    to: token,
+    title: copy.title,
+    body: copy.body(truncate(eventTitle, 60)),
+    data: { type: "meetup_soon", event_id: eventId },
+    url: deepLink.meetup(eventId),
+  };
+}
+
+/**
+ * Group-chat title line. Naming the sender is safe here and everywhere else in this file
+ * that does it: sender and recipient share a `group_members` row, so they are already in
+ * the same chat. `display_name` only — `real_name` never leaves the server
+ * (docs/RULES.md).
+ */
+const CHAT_GROUP: Record<Language, (count: number, where: string) => string> = {
+  en: (count, where) =>
+    count === 1 ? `New message in ${where}` : `${count} new messages in ${where}`,
+  ja: (count, where) => (count === 1 ? `「${where}」に新着` : `「${where}」に新着${count}件`),
+  zh: (count, where) =>
+    count === 1 ? `「${where}」有新消息` : `「${where}」有 ${count} 条新消息`,
+};
+
+/** A group message the recipient was not connected to receive live. */
+export function groupChatMessage(
+  token: string,
+  eventId: string,
+  eventTitle: string,
+  senderName: string,
+  preview: string,
+  count: number,
+  language: Language
+): PushMessage {
+  const title = (CHAT_GROUP[language] ?? CHAT_GROUP.en)(
+    count,
+    truncate(eventTitle, 40)
+  );
+
+  return {
+    to: token,
+    title,
+    body: `${truncate(senderName, 20)}: ${truncate(preview, 120)}`,
+    data: { type: "chat", event_id: eventId },
+    // Group chat has no route of its own; it lives inside the meetup screen.
+    url: deepLink.meetup(eventId),
+  };
+}
+
+/** A DM the recipient was not connected to receive live. */
+export function dmChatMessage(
+  token: string,
+  connectionId: string,
+  senderName: string,
+  preview: string,
+  count: number,
+  language: Language
+): PushMessage {
+  const suffix =
+    count === 1
+      ? ""
+      : language === "ja"
+        ? `（${count}件）`
+        : language === "zh"
+          ? `（${count} 条）`
+          : ` (${count})`;
+
+  return {
+    to: token,
+    title: `${truncate(senderName, 24)}${suffix}`,
+    body: truncate(preview, 120),
+    data: { type: "chat", connection_id: connectionId },
+    url: deepLink.dm(connectionId),
+  };
+}
+
+const NEARBY: Record<
+  Language,
+  { title: string; body: (title: string, venue: string) => string }
+> = {
+  en: { title: "A meetup near you", body: (t, v) => `${t} · ${v}` },
+  ja: { title: "近くでミートアップ", body: (t, v) => `${t}・${v}` },
+  zh: { title: "附近有聚会", body: (t, v) => `${t}・${v}` },
+};
+
+/**
+ * A newly opened meetup within range of the member's stored one-shot location. Says
+ * nothing about distance: the stored point can be up to a week old, so "500m away" would
+ * be a claim this cannot stand behind.
+ */
+export function nearbyMessage(
+  token: string,
+  eventId: string,
+  eventTitle: string,
+  venueName: string,
+  language: Language
+): PushMessage {
+  const copy = NEARBY[language] ?? NEARBY.en;
+
+  return {
+    to: token,
+    title: copy.title,
+    body: copy.body(truncate(eventTitle, 44), truncate(venueName, 30)),
+    data: { type: "nearby", event_id: eventId },
+    url: deepLink.meetup(eventId),
+  };
+}
+
+const REENGAGE: Record<
+  Language,
+  { title: string; body: (name: string, others: number, where: string) => string }
+> = {
+  en: {
+    title: "Your group is still there",
+    body: (name, others, where) =>
+      others > 0
+        ? `${name} and ${others} others are in ${where}`
+        : `${name} is in ${where}`,
+  },
+  ja: {
+    title: "グループはそのままです",
+    body: (name, others, where) =>
+      others > 0
+        ? `${name}さんほか${others}人が「${where}」にいます`
+        : `${name}さんが「${where}」にいます`,
+  },
+  zh: {
+    title: "你的小组还在",
+    body: (name, others, where) =>
+      others > 0
+        ? `${name} 和其他 ${others} 人还在「${where}」`
+        : `${name} 还在「${where}」`,
+  },
+};
+
+/**
+ * Re-engagement nudge for someone who has not opened the app in a while.
+ *
+ * Every clause is a fact: `name` and `others` come from `group_members` rows the recipient
+ * also belongs to, so this states who is in a group they are already in. It is drawn from
+ * membership *only* — never from `feedback` or `connections`, which would leak who rated
+ * or picked whom (docs/RULES.md) — and it never claims anyone is waiting for, missing, or
+ * asking after the recipient, because none of that is known.
+ */
+export function reengagementMessage(
+  token: string,
+  eventId: string,
+  memberName: string,
+  otherCount: number,
+  eventTitle: string,
+  language: Language
+): PushMessage {
+  const copy = REENGAGE[language] ?? REENGAGE.en;
+
+  return {
+    to: token,
+    title: copy.title,
+    body: copy.body(
+      truncate(memberName, 20),
+      otherCount,
+      truncate(eventTitle, 40)
+    ),
+    data: { type: "reengagement", event_id: eventId },
+    url: deepLink.meetup(eventId),
+  };
 }
 
 /**

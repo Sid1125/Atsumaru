@@ -20,6 +20,7 @@ import type {
   Language,
   MeetupEvent,
   Message,
+  NotificationPrefs,
   Rating,
   User,
   VibeRecap,
@@ -284,6 +285,8 @@ interface WorldState {
   /** Set at demo sign-in; the profile row appears only after onboarding. */
   authenticated: boolean;
   pushToken: string | null;
+  /** Per-type push opt-outs, so the settings toggles are real state here too. */
+  notificationPrefs: NotificationPrefs;
 }
 
 /**
@@ -333,6 +336,13 @@ export function resetWorld() {
     currentUserId: null,
     authenticated: false,
     pushToken: null,
+    notificationPrefs: {
+      feedback: true,
+      meetup_soon: true,
+      chat: true,
+      nearby: true,
+      reengagement: true,
+    },
   };
 }
 

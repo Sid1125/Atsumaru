@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { insertMessage, listMessages, requireMembership } from "../../db/queries.js";
+import { notifyGroupMessage } from "../../services/chatNotice.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { HttpError, ok } from "../../utils/response.js";
 import { pageParams, uuidParam } from "../../utils/request.js";
@@ -59,6 +60,16 @@ chatRouter.post(
       req.userId!,
       parsed.data.message
     );
+
+    // Same notice as the socket path, so a message sent over REST is not silently quieter
+    // than one sent live. Not awaited: the send is already durable.
+    void notifyGroupMessage(
+      uuidParam(req, "id"),
+      req.userId!,
+      parsed.data.message
+    ).catch((error: unknown) => {
+      console.error("Group chat notice failed:", (error as Error).message);
+    });
 
     return ok(res, { message }, 201);
   })

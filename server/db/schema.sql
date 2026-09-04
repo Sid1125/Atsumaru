@@ -17,8 +17,20 @@ create table if not exists users (
   reputation_score numeric not null default 50 check (reputation_score between 0 and 100),
   preference_vector vector(384),
   location geography(point, 4326),
+  -- One-shot fix, for nearby discovery only (docs/RULES.md). `location_updated_at` records
+  -- when it was taken so a stale point can be refused rather than acted on.
+  location_updated_at timestamptz,
+  -- Touched on authenticated requests, throttled. Null means "not seen since this column
+  -- existed" and is never treated as inactive, so the re-engagement nudge cannot fire at
+  -- everyone the moment it ships.
+  last_active_at timestamptz,
+  -- When the re-engagement nudge last went out. The daily quota stops a burst; this
+  -- enforces the long gap between nudges.
+  last_reengaged_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+create index if not exists users_location_idx on users using gist (location);
 
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
@@ -35,14 +47,20 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
--- Added after the first release; the sweep in src/jobs stamps both.
+-- Added after the first release; the sweep in src/jobs stamps all three.
 alter table events add column if not exists feedback_reminder_sent_at timestamptz;
 alter table events add column if not exists reputation_settled_at timestamptz;
+-- The ~15-minutes-before reminder. Claimed before the send, same ordering as above.
+alter table events add column if not exists start_reminder_sent_at timestamptz;
 
 create index if not exists events_location_idx on events using gist (location);
 create index if not exists events_start_time_idx on events (start_time);
 -- The sweep selects on (start_time, status) together.
 create index if not exists events_start_status_idx on events (start_time, status);
+-- Only ever scanned for meetups about to start that have not been reminded yet.
+create index if not exists events_start_reminder_idx
+  on events (start_time)
+  where start_reminder_sent_at is null;
 
 create table if not exists group_members (
   id uuid primary key default gen_random_uuid(),
@@ -186,11 +204,32 @@ create table if not exists meetup_recaps (
 create table if not exists usage_quotas (
   user_id uuid not null references users (id) on delete cascade,
   resource text not null check (
-    resource in ('events_created', 'feedback_submitted', 'groq_turns')
+    resource in (
+      'events_created',
+      'feedback_submitted',
+      'groq_turns',
+      -- Unsolicited notification types. `meetup_soon` is absent on purpose: it is bounded
+      -- by its own per-event stamp and cannot repeat.
+      'notif_chat',
+      'notif_nearby',
+      'notif_reengagement'
+    )
   ),
   day date not null default current_date,
   usage integer not null default 0 check (usage >= 0),
   primary key (user_id, resource, day)
+);
+
+-- Per-type notification opt-out. An absent row means enabled, so a member keeps receiving
+-- the feedback reminder they already get unless they turn it off.
+create table if not exists notification_prefs (
+  user_id uuid not null references users (id) on delete cascade,
+  type text not null check (
+    type in ('feedback', 'meetup_soon', 'chat', 'nearby', 'reengagement')
+  ),
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, type)
 );
 
 -- current_size for the API's Event model.
@@ -272,6 +311,122 @@ as $$
     and (p_category is null or e.category = p_category)
     and event_status(e.status, e.start_time) in ('open', 'full', 'ongoing')
   order by distance_m asc
+$$;
+
+-- The inverse of events_nearby: given a meetup, who is close enough to be told about it.
+-- Driven per created event rather than per user, so a new meetup costs one query instead
+-- of a radius scan per user on every sweep pass.
+--
+-- Returns only people who could actually still join — not the host, not already a member,
+-- and only while the meetup is open and in the future. A location that was never set, or
+-- set longer ago than p_max_age_days, is not used at all.
+create or replace function events_nearby_users(
+  p_event_id uuid,
+  p_radius double precision default 5000,
+  p_max_age_days integer default 7,
+  p_limit integer default 200
+)
+returns table (user_id uuid, distance_m double precision)
+language sql
+stable
+as $$
+  select
+    u.id as user_id,
+    st_distance(u.location, e.location) as distance_m
+  from users u
+  cross join events e
+  where e.id = p_event_id
+    and u.id <> e.host_id
+    and u.location is not null
+    and u.location_updated_at is not null
+    and u.location_updated_at > now() - make_interval(days => p_max_age_days)
+    and st_dwithin(u.location, e.location, p_radius)
+    and not exists (
+      select 1
+      from group_members gm
+      where gm.event_id = e.id and gm.user_id = u.id
+    )
+    and e.start_time > now()
+    and event_status(e.status, e.start_time) = 'open'
+  order by distance_m asc
+  limit p_limit
+$$;
+
+-- ── Who to re-engage, and with what ───────────────────────────────────────────
+-- One statement rather than a candidate query plus a lookup per member.
+--
+-- Reads `group_members` and `display_name` only. It deliberately cannot see `feedback` or
+-- `connections`: naming someone the member rated, or who picked them, would leak exactly
+-- what docs/RULES.md keeps private. Co-membership is already mutual knowledge — the two
+-- shared a group chat — so naming a co-member reveals nothing new.
+--
+-- `member_name` is picked alphabetically rather than by join order, so the copy is stable
+-- across runs and the choice says nothing about who joined when.
+create or replace function reengagement_candidates(
+  p_inactive_days integer default 7,
+  p_gap_days integer default 14,
+  p_limit integer default 50
+)
+returns table (
+  user_id uuid,
+  language text,
+  event_id uuid,
+  event_title text,
+  member_name text,
+  other_count bigint
+)
+language sql
+stable
+as $$
+  with dormant as (
+    select u.id, u.language
+    from users u
+    -- Null means "not seen since the column existed", which is not evidence of absence.
+    where u.last_active_at is not null
+      and u.last_active_at < now() - make_interval(days => p_inactive_days)
+      and (
+        u.last_reengaged_at is null
+        or u.last_reengaged_at < now() - make_interval(days => p_gap_days)
+      )
+    limit p_limit
+  ),
+  -- The most recent group each dormant member is in that has somebody else in it.
+  latest as (
+    select distinct on (d.id)
+      d.id as user_id,
+      d.language,
+      e.id as event_id,
+      e.title as event_title
+    from dormant d
+    join group_members gm on gm.user_id = d.id
+    join events e on e.id = gm.event_id
+    where exists (
+      select 1
+      from group_members other
+      where other.event_id = e.id and other.user_id <> d.id
+    )
+    order by d.id, e.start_time desc
+  )
+  select
+    l.user_id,
+    l.language,
+    l.event_id,
+    l.event_title,
+    (
+      select o.display_name
+      from group_members g
+      join users o on o.id = g.user_id
+      where g.event_id = l.event_id and g.user_id <> l.user_id
+      order by o.display_name asc
+      limit 1
+    ) as member_name,
+    (
+      -- Co-members besides the one named above.
+      select count(*) - 1
+      from group_members g
+      where g.event_id = l.event_id and g.user_id <> l.user_id
+    ) as other_count
+  from latest l
 $$;
 
 -- Single event with its computed size, in the same shape as events_nearby.
@@ -494,6 +649,7 @@ alter table push_receipts enable row level security;
 alter table meetup_recaps enable row level security;
 alter table usage_quotas enable row level security;
 alter table keepalive enable row level security;
+alter table notification_prefs enable row level security;
 
 revoke all on table keepalive from anon, authenticated;
 

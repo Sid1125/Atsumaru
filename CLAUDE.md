@@ -94,9 +94,10 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   `embed` (interests + personality → `preference_vector`). Matching and feedback *consume
   and update* that stored vector arithmetically — no service call. **Group chat, DMs, and
   the sweep touch no model at all**: `modules/chat/routes.ts`,
-  `modules/connections/routes.ts` and `socket/index.ts` validate, persist, broadcast, and
-  nothing else — no summarisation, sentiment, smart replies, or embedding of messages
-  (`docs/AI.md` §10). Putting AI in chat is a product change, not a refactor.
+  `modules/connections/routes.ts` and `socket/index.ts` validate, persist, broadcast, fire
+  a push notice at recipients with no live socket, and nothing else — no summarisation,
+  sentiment, smart replies, or embedding of messages (`docs/AI.md` §10). The notice sends
+  the sender's own text, truncated; putting AI in chat is a product change, not a refactor.
 - The vibe recap (`modules/recap/`, `docs/AI.md` §6a) is **per-user, not per-meetup**: it
   is built from the caller's own feedback rows, so two members see different text and
   neither can infer the other's picks. `RecapPrompt` is the privacy boundary — anonymised
@@ -128,15 +129,28 @@ A free project pauses after ~7 days idle, so `.github/workflows/keepalive.yml` p
   REST history and the live stream never disagree. Rooms: `group:{event_id}`,
   `dm:{connection_id}`, `user:{user_id}` (the last for server pushes such as
   `match:unlocked`, sent through `emitToUser`).
-- Post-meetup work lives in one idempotent `runSweep()` (`jobs/sweep.ts`); `jobs/index.ts`
+- Meetup-cycle work lives in one idempotent `runSweep()` (`jobs/sweep.ts`); `jobs/index.ts`
   drives it with BullMQ when `REDIS_URL` is set and a timer otherwise. Both drivers run
   the same body — if Redis is unreachable the API logs it and degrades to the timer. Each
   side effect **claims** its idempotency stamp (`claim()`) before running, so two drivers
-  cannot double-notify; never stamp after the effect.
+  cannot double-notify; never stamp after the effect. A new pass goes *inside* `runSweep()`
+  with its own stamp, never on a second queue: the BullMQ worker ignores `job.name`, so a
+  second scheduler would just re-run the same body.
 - Anything short-lived and keyed goes through `services/ephemeral.ts` — OAuth handoff codes,
-  PKCE verifiers, rate-limit counters. Same two-backend shape as the sweep: process memory
-  by default, Redis when `REDIS_URL` is set, degrading to memory on a Redis error. Never add
-  a new module-level `Map` for this kind of state; that is what kept the API to one instance.
+  PKCE verifiers, rate-limit counters, notification debounces. Same two-backend shape as the
+  sweep: process memory by default, Redis when `REDIS_URL` is set, degrading to memory on a
+  Redis error. Never add a new module-level `Map` for this kind of state; that is what kept
+  the API to one instance.
+- **Notifications all go through `notify()` in `services/notifications.ts`** — five types
+  (`feedback`, `meetup_soon`, `chat`, `nearby`, `reengagement`), and the gate applies quiet
+  hours, then the per-type opt-out, then the persisted daily cap, in that order (the cap
+  spends budget, so it must not be spent on something a cheaper check would drop). Copy is
+  server-side in `push.ts`, in all three languages. Every payload carries a `url`, because
+  React Navigation's linking reads URLs and never a notification's `data`.
+  `docs/TRD.md` §14 is the spec.
+- A notification may name a co-member (they already share a group chat) using
+  `display_name`, and may state only what the query proves. Never from `feedback` or
+  `connections`, and never a claim that someone is waiting for or missing anybody.
 - Every integration degrades to a 503 instead of crashing: no Supabase →
   `DB_UNAVAILABLE`, no `GROQ_API_KEY` → `AI_UNAVAILABLE`, no `HUGGINGFACE_API_KEY` →
   `EMBEDDING_UNAVAILABLE`, no provider credentials → `AUTH_PROVIDER_UNAVAILABLE`. Keep
@@ -349,6 +363,10 @@ feedback reminder). A third, `POST /api/auth/refresh`, trades a refresh token fo
 session — unauthenticated by necessity, since the expired access token is exactly what the
 caller cannot present. Keep all three documented in README when they change.
 
+`GET`/`PATCH /api/users/me/notifications` are likewise outside the contract — the per-type
+opt-out `docs/TRD.md` §14.2 requires. An absent `notification_prefs` row means enabled, so
+the endpoint reports every type as on until a member turns one off.
+
 `docs/API_STRUCTURE.md` §5–6 still reference the old OTP screens; `TRD.md` §17 declares
 OAuth canonical and the code follows TRD. Do not implement phone OTP.
 
@@ -356,6 +374,20 @@ OAuth canonical and the code follows TRD. Do not implement phone OTP.
 
 Mobile: infinite scroll on message history, and a venue/location picker for create-event
 (it posts a fixed Shibuya point).
+
+**No push notification has ever been delivered.** `push_tokens` is empty, `app.json` has no
+`extra.eas.projectId`, and there are no FCM credentials, so `getExpoPushTokenAsync()` throws
+and `usePushRegistration` swallows it — by design. Everything from the trigger down to
+`pushTargets` is verified live; nothing below `sendPush` has run. The *routing* half
+(`notificationRouting.ts` + the `linking.ts` override) is testable today with
+`scheduleNotificationAsync` without any of that. Getting real delivery needs `eas init`, a
+Firebase project, and a dev build on a device with Google Play services.
+
+**Chat presence is per-process.** `onlineUserIds` (`socket/presence.ts`) asks
+`fetchSockets()`, which only sees this instance, so a second API instance would push to
+members who are online elsewhere. `@socket.io/redis-adapter` behind `REDIS_URL` is the fix
+and is not wired. The chat debounce and the `last_active_at` throttle are in-process for the
+same reason; the persisted daily caps are the backstop.
 
 **The Mapbox path is written but has never run.** `MapboxMap.tsx` compiles and the bundle
 builds, but Mapbox needs a `pk.*` token plus a dev build and neither exists here — no

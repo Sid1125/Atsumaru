@@ -10,6 +10,8 @@ import {
   requireMembership,
 } from "../db/queries.js";
 import { createRateLimiter } from "../utils/rateLimit.js";
+import { notifyGroupMessage, notifyDmMessage } from "../services/chatNotice.js";
+import { setPresenceServer } from "./presence.js";
 
 interface SocketData {
   userId: string;
@@ -40,6 +42,7 @@ export function attachSocket(httpServer: HttpServer) {
   });
 
   server = io;
+  setPresenceServer(io);
 
   io.use(async (socket, next) => {
     try {
@@ -98,6 +101,14 @@ export function attachSocket(httpServer: HttpServer) {
           await requireMembership(event_id, userId);
           const saved = await insertMessage("event_id", event_id, userId, message);
           io.to(`group:${event_id}`).emit("group:message", saved);
+
+          // Members without a live socket did not receive the broadcast above. Notifying
+          // them is a delivery concern, not a change to what this handler is: it still
+          // validates, persists and broadcasts, and nothing here reads the message with a
+          // model (docs/AI.md §10). Never awaited — the sender's send must not wait on it.
+          void notifyGroupMessage(event_id, userId, message).catch((error: unknown) => {
+            console.error("Group chat notice failed:", (error as Error).message);
+          });
         } catch {
           socket.emit("error", { code: "SEND_FAILED", event_id });
         }
@@ -137,6 +148,12 @@ export function attachSocket(httpServer: HttpServer) {
             message
           );
           io.to(`dm:${connection_id}`).emit("dm:message", saved);
+
+          void notifyDmMessage(connection_id, userId, message).catch(
+            (error: unknown) => {
+              console.error("DM notice failed:", (error as Error).message);
+            }
+          );
         } catch {
           socket.emit("error", { code: "SEND_FAILED", connection_id });
         }

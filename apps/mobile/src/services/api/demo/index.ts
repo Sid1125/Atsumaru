@@ -17,6 +17,7 @@ import type {
   Language,
   MeetupEvent,
   Message,
+  NotificationPrefs,
   Rating,
   User,
   VibeRecap,
@@ -501,6 +502,21 @@ export async function demoRequest<T>(
 
   if (path === "/users/me/push-token" && method === "POST") {
     world.pushToken = (body.token as string) ?? null;
+    return settle({ success: true } as T);
+  }
+
+  // Preferences are real state in the demo world, so the settings toggles behave the same
+  // way they will against the API. No notification is ever sent here — there is no server
+  // to send one.
+  if (path === "/users/me/notifications" && method === "GET") {
+    return settle({ preferences: { ...world.notificationPrefs } } as T);
+  }
+
+  if (path === "/users/me/notifications" && method === "PATCH") {
+    world.notificationPrefs = {
+      ...world.notificationPrefs,
+      ...(body as Partial<NotificationPrefs>),
+    };
     return settle({ success: true } as T);
   }
 
