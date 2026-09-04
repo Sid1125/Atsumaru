@@ -174,6 +174,11 @@ post-meetup feedback. See §13 and `docs/AI.md` §10.
 
 Use location only for nearby meetup discovery.
 
+A venue place-search sends the *typed query* to Mapbox, and the member's coordinates only as
+a ranking hint. That is a search the member initiated, not a report of where they are: never
+send a position they did not ask you to use, and never send one on a screen with no search on
+it.
+
 Do not implement:
 - background tracking
 - movement history

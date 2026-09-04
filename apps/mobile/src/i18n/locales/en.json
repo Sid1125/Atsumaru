@@ -98,7 +98,8 @@
       "full": "Full",
       "ongoing": "Happening now",
       "completed": "Finished"
-    }
+    },
+    "recenter": "Back to my location"
   },
   "meetup": {
     "yourGroup": "Your group",
@@ -207,6 +208,11 @@
     "hostKicker": "HOST A MEETUP",
     "hostHint": "Fill in the details and post it to the board.",
     "detailsKicker": "DETAILS",
-    "groupKicker": "GROUP"
+    "groupKicker": "GROUP",
+    "venueSearchPlaceholder": "Search for a place",
+    "venueSearching": "Searching places…",
+    "venueNoResults": "No places found. You can type the name yourself.",
+    "venuePicked": "Location set",
+    "venueSearchUnavailable": "Place search is off, so the meetup pins to central Shibuya."
   }
 }

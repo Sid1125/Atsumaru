@@ -304,6 +304,52 @@ The API contract specifies `{ lat, lng }` coordinates and nearby event retrieval
 
 Do not implement continuous GPS tracking.
 
+### 12.1 Two renderers
+
+`hasMapbox()` is the whole decision. With a `pk.*` token *and* a dev build the app draws real
+tiles; otherwise it draws the hand-authored vector city in `components/map/geo.ts`. Expo Go can
+never load the native module, so the vector city is what runs there — it is a complete map, not
+a placeholder. Both surfaces take the same props and draw the same `PinBody`.
+
+### 12.2 Search radius
+
+Drawn as a **coordinate polygon** (`components/map/radius.ts` → `ShapeSource`), never a
+`CircleLayer`: `circleRadius` is screen pixels, so such a ring holds its size while the ground
+moves under it — a 5 km claim that becomes 50 km on zoom out. Real coordinates scale with the
+map, so the ring is generated once and never recomputed during a gesture.
+
+The radius must equal what the query asks for. Client, server default and drawing are all
+5 km; changing one means changing all three.
+
+**Mapbox only.** The vector city models a 3.35 × 3.33 km slice of Shibuya, so a 5 km radius
+wants 10 km across — three times its whole world — and its minimum zoom already shows that
+world entire. The ring's edge is unreachable at every zoom, so only a flat tint would render.
+
+### 12.3 Map controls
+
+`MapSurface` exposes one imperative verb, `recenter(coords)`, implemented by both renderers;
+everything else stays declarative. Recentring clears the panned centre, because the nearby
+query prefers it over the location fix and the two would otherwise describe different places.
+
+Controls sit clear of the bottom-left corner: Mapbox's attribution and wordmark are a licence
+condition and cannot be covered.
+
+### 12.4 Venue place-search
+
+Hosting takes coordinates from a place the member picked (`services/places.ts`, the single
+gate), falling back to a fixed central point only when no token is configured — and saying so
+on screen when it does.
+
+Use the **Search Box API**, not Geocoding. Geocoding is address-shaped: asked for "Shibuya
+Station" it answers with the ward, and a Japanese POI query returns nothing.
+
+Search Box must be called with `language=ja`. Japan's POI index is Japanese-language, so `en`
+or `zh` return wards and neighbourhoods with **zero** venues. Passing the member's UI language
+is the change that silently turns a venue picker into an administrative-area picker.
+
+`/suggest` returns names without coordinates and `/retrieve` resolves the chosen one. Both
+carry the same `session_token`, because Mapbox bills a session rather than a request.
+
 ## 13. AI
 
 ### Onboarding

@@ -96,6 +96,30 @@ export function IconMap(props: IconProps) {
   );
 }
 
+/**
+ * Recentre the map on me — a crosshair, the near-universal glyph for it. Deliberately not
+ * the pin above: a pin marks a place, a crosshair asks to be taken somewhere.
+ */
+export function IconLocate(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Circle cx="12" cy="12" r="6.2" />
+      <Circle cx="12" cy="12" r="1.6" />
+      <Path d="M12 2.4v2.6M12 19v2.6M2.4 12h2.6M19 12h2.6" />
+    </Base>
+  );
+}
+
+/** Place search — a magnifier. */
+export function IconSearch(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Circle cx="11" cy="11" r="6.4" />
+      <Path d="M15.8 15.8 21 21" />
+    </Base>
+  );
+}
+
 /** Error — a warning triangle, not a pouting face. */
 export function IconWarning(props: IconProps) {
   return (

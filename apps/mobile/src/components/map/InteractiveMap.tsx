@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -23,7 +29,8 @@ import {
   springs,
   useReducedMotion,
 } from "../../theme";
-import type { MeetupEvent } from "../../types/api";
+import type { MapSurfaceHandle } from "./MapSurface";
+import type { Coords, MeetupEvent } from "../../types/api";
 
 interface InteractiveMapProps {
   events: MeetupEvent[];
@@ -57,12 +64,11 @@ const INITIAL_SPAN = 620;
  *   • **X and Y are independent springs**, because a single 2-D spring desyncs
  *     when the axes carry different velocities.
  */
-export function InteractiveMap({
-  events,
-  selectedId,
-  onSelect,
-  onOpen,
-}: InteractiveMapProps) {
+export const InteractiveMap = forwardRef<MapSurfaceHandle, InteractiveMapProps>(
+  function InteractiveMap(
+    { events, selectedId, onSelect, onOpen },
+    ref
+  ) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -337,13 +343,19 @@ export function InteractiveMap({
     ],
   }));
 
-  /** Recentre on the selected meetup so selection and map agree. */
-  const focusOn = useCallback(
-    (event: MeetupEvent) => {
+  /**
+   * Bring a coordinate into the visible band. Used both when a pin is selected and by the
+   * recenter control, so the two produce identical motion rather than two near-misses.
+   *
+   * `height * 0.38` rather than the centre because the sheet covers the lower half — the
+   * geometric middle of the view is behind it.
+   */
+  const focusOnCoords = useCallback(
+    (coords: Coords) => {
       const { width, height } = viewport.value;
       if (!width) return;
 
-      const point = project(event.location);
+      const point = project(coords);
       const targetScale = Math.max(scale.value, minScale.value * 1.35);
       const config = reducedMotion ? springs.snappy : springs.standard;
 
@@ -357,7 +369,21 @@ export function InteractiveMap({
         config
       );
     },
-    [reducedMotion, scale, translateX, translateY, viewport]
+    [minScale, reducedMotion, scale, translateX, translateY, viewport]
+  );
+
+  /** Recentre on the selected meetup so selection and map agree. */
+  const focusOn = useCallback(
+    (event: MeetupEvent) => focusOnCoords(event.location),
+    [focusOnCoords]
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      recenter: (coords: Coords) => focusOnCoords(coords),
+    }),
+    [focusOnCoords]
   );
 
   useEffect(() => {
@@ -418,7 +444,8 @@ export function InteractiveMap({
       </GestureDetector>
     </View>
   );
-}
+  }
+);
 
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: "hidden", backgroundColor: "#F1E9DC" },

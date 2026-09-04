@@ -264,6 +264,16 @@ changes. Framing numbers shared by both live in `framing.ts`.
   visible band is neither the view's centre nor its full height. Mapbox feeds `framing.ts`
   to camera padding; the vector map clamps its pan against it — using the full view height
   silently clamps away any attempt to frame content.
+- The 5 km search radius is drawn **only on Mapbox** (`radius.ts` → `ShapeSource`, a real
+  coordinate polygon, never a `CircleLayer` — its radius is screen pixels, so it would hold
+  its size while the ground moved). The vector city models a 3.35 x 3.33 km slice, so a 5 km
+  radius wants 10 km across, three times its whole world: the ring's edge is unreachable at
+  any zoom and only a flat tint would render. That difference is measured, not an oversight.
+- **Mapbox Search Box, not the Geocoding API**, powers the venue picker
+  (`services/places.ts`, the single gate). And it must send `language=ja`: with `en` or `zh`
+  the same query returns wards instead of venues, because Japan's POI index is
+  Japanese-language. Threading `i18n.language` through is the change that silently turns a
+  venue picker into an administrative-area picker.
 - Panning the Mapbox map refetches nearby meetups on settle (`docs/FRONTEND.md` §9):
   gesture-driven moves only, past a 400 m threshold, so framing cannot feed itself a
   fetch. The panned centre is held separately from the location fix — panning changes what
@@ -372,8 +382,10 @@ OAuth canonical and the code follows TRD. Do not implement phone OTP.
 
 ## Not implemented
 
-Mobile: infinite scroll on message history, and a venue/location picker for create-event
-(it posts a fixed Shibuya point).
+Mobile: infinite scroll on message history. Create-event now takes its coordinates from a
+picked place (`VenuePicker`); the fixed Shibuya point survives only as the fallback for when
+no Mapbox token is configured, and the screen says when that is what happened. There is still
+no drag-a-pin fine-tune — the picked place's coordinates are taken as-is.
 
 **No push notification has ever been delivered.** `push_tokens` is empty, `app.json` has no
 `extra.eas.projectId`, and there are no FCM credentials, so `getExpoPushTokenAsync()` throws
@@ -389,11 +401,13 @@ members who are online elsewhere. `@socket.io/redis-adapter` behind `REDIS_URL` 
 and is not wired. The chat debounce and the `last_active_at` throttle are in-process for the
 same reason; the persisted daily caps are the backstop.
 
-**The Mapbox path is written but has never run.** `MapboxMap.tsx` compiles and the bundle
-builds, but Mapbox needs a `pk.*` token plus a dev build and neither exists here — no
-token has been issued, and Expo Go cannot load the native module. Everything verified so
-far is the vector-city branch. Refetch-on-region-settle is likewise written and unexercised,
-because only the Mapbox surface raises the event.
+**The Mapbox path is written but has still never run.** A `pk.*` token now exists in
+`apps/mobile/.env` and is verified against the live service, so that half of the requirement
+is met — but `@rnmapbox/maps` is native and Expo Go cannot load it, so `hasMapbox()` is false
+there and everything verified so far is the vector-city branch. Refetch-on-region-settle and
+the search-radius ring are written and unexercised for the same reason: only the Mapbox
+surface raises the one and draws the other. The venue place-search shares the token but no
+native module, so it does run today.
 
 **The Keystore native module is written but has never run either.** `AtsumaruKeystoreModule`
 compiles in the sense that the TS bundle builds, but the Kotlin code only runs in a
