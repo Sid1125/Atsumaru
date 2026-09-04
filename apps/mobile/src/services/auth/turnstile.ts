@@ -10,7 +10,9 @@
  * holds. In Expo Go the widget never mounts and this returns undefined, which the server
  * (only configured with a secret key on real deployments) would reject — so email auth on
  * the webview-less client surfaces the server's `CAPTCHA_FAILED` explicitly rather than
- * failing silently, and the site key is what turns the flow on.
+ * failing silently. The mobile `EXPO_PUBLIC_TURNSTILE_SITE_KEY` availability gate mirrors a
+ * server with no Turnstile configured; the widget page itself is served by the API at
+ * `GET /auth/turnstile`, which injects the server-side site key.
  */
 import { TURNSTILE_SITE_KEY } from "../../config/env";
 import { takeTurnstileToken } from "./turnstileToken";

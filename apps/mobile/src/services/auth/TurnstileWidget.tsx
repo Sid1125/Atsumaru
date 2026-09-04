@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AppState, View } from "react-native";
 
-import { TURNSTILE_SITE_KEY } from "../../config/env";
+import { API_URL } from "../../config/env";
 import { setTurnstileTokenHandler, setToken, clearToken } from "./turnstileToken";
 
 // `react-native-webview` is a native module — Expo Go cannot load it, so a
@@ -20,37 +20,13 @@ try {
   WebViewComponent = null;
 }
 
-const WIDGET_HTML = (siteKey: string) => `
-<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile&render=explicit"></script>
-</head><body style="margin:0;padding:0;background:transparent">
-<div id="container"></div>
-<script>
-  var widgetId = null;
-  var attempts = 0;
-  function tryExecute() {
-    // The first execute can race api.js finishing its load — retry briefly until the
-    // widget exists rather than letting a lost kick leave no token at all.
-    if (widgetId) { turnstile.execute(widgetId); return; }
-    if (attempts++ < 40) { setTimeout(tryExecute, 250); }
-  }
-  function onLoadTurnstile() {
-    widgetId = turnstile.render('container', {
-      sitekey: '${siteKey}',
-      size: 'invisible',
-      callback: function (token) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'token', token: token }));
-      },
-      'expired-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'expired' })); },
-      'error-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error' })); }
-    });
-    tryExecute();
-  }
-  window.__turnstileExecute = tryExecute;
-</script>
-</body></html>
-`;
+// The widget page is served by the API at GET /api/auth/turnstile, not shipped inline.
+// Cloudflare hostname-checks the page that renders the widget against the widget's
+// dashboard hostname list, and an inline `about:blank` document has no hostname to match
+// — loading a real https URL on the API's own host is what makes the check pass. The page
+// self-executes once api.js is ready and exposes window.__turnstileExecute, which this
+// side calls to mint the next token after a consume or on foreground.
+const TURNSTILE_PAGE_URL = `${API_URL}/auth/turnstile`;
 
 const EXECUTE_JS =
   "(function(){ try{ if (window.__turnstileExecute) window.__turnstileExecute(); }catch(e){} })(); true;";
@@ -61,16 +37,14 @@ const EXECUTE_JS =
  * gate — they already travelled through a provider round trip — so this widget exists
  * for the direct-hit email surfaces: login, signup and password reset.
  *
- * Renders an invisible, managed Turnstile widget inside a WebView and forwards each
- * freshly-minted token to `turnstileToken.ts`. Turnstile's invisible mode auto-solves
- * the challenge without a visible puzzle for low-risk sessions, so a normal login is
- * never interrupted; a challenged session shows its own interstitial.
+ * Renders an invisible, managed Turnstile widget inside a WebView loading the API-served
+ * widget page (`server/src/modules/auth/turnstile.ts turnstilePageHtml`) and forwards each
+ * freshly-minted token to `turnstileToken.ts`. Turnstile's invisible mode auto-solves the
+ * challenge without a visible puzzle for low-risk sessions, so a normal login is never
+ * interrupted; a challenged session shows its own interstitial.
  *
- * Cloudflare requires DOM storage for the widget to fingerprint and solve
- * (developers.cloudflare.com/turnstile mobile-implementation), and react-native-webview
- * defaults `domStorageEnabled` to false on Android — without it no token is ever minted.
- * The widget also re-executes when the app returns to the foreground, so a token is
- * fresh even after the app was backgrounded mid-flow.
+ * The widget page re-executes when the app returns to the foreground, so a token is fresh
+ * even after the app was backgrounded mid-flow.
  *
  * Rendering a zero-sized WebView keeps it out of the layout. The widget is a native
  * module, so this only works in a dev build (`expo run:android` / the release APK) —
@@ -78,7 +52,6 @@ const EXECUTE_JS =
  */
 export function TurnstileWidget() {
   const webviewRef = useRef<unknown>(null);
-  const loadedRef = useRef(false);
 
   useEffect(() => {
     setTurnstileTokenHandler(() => {
@@ -119,7 +92,7 @@ export function TurnstileWidget() {
       <WebView
         ref={webviewRef as any}
         originWhitelist={["*"]}
-        source={{ html: WIDGET_HTML(TURNSTILE_SITE_KEY) }}
+        source={{ uri: TURNSTILE_PAGE_URL }}
         javaScriptEnabled
         javaScriptCanOpenWindowsAutomatically={false}
         domStorageEnabled
@@ -133,18 +106,6 @@ export function TurnstileWidget() {
             }
           } catch {
             /* ignore malformed frames */
-          }
-        }}
-        onLoad={() => {
-          // Run the first challenge once the widget script is ready, before the user
-          // finishes typing; subsequent tokens come on each consume.
-          if (!loadedRef.current) {
-            loadedRef.current = true;
-            try {
-              (webviewRef.current as any)?.injectJavaScript?.(EXECUTE_JS);
-            } catch {
-              /* best effort */
-            }
           }
         }}
         androidLayerType="none"

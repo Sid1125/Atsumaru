@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
-import { verifyTurnstile } from "./turnstile.js";
+import { turnstilePageHtml, verifyTurnstile } from "./turnstile.js";
 import { db, PUBLIC_USER_COLUMNS, type PublicUser } from "../../db/queries.js";
 import { env } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
@@ -377,6 +377,18 @@ authRouter.post(
     return ok(res, await sessionFromRefreshToken(parsed.data.refresh_token));
   })
 );
+
+/**
+ * The Turnstile widget page (docs/SECURITY_AUDIT.md §22). The mobile WebView loads this
+ * URL instead of inline HTML because Cloudflare hostname-checks the page that renders the
+ * widget against the widget's dashboard hostname list — an `about:blank` document has no
+ * hostname, so no token would ever mint. Served from the API's real hostname, which is what
+ * gets registered in the widget's Cloudflare settings. Plain `text/html`, deliberately not
+ * the JSON envelope, and not rate-limited: it is a static page load, not an auth surface.
+ */
+authRouter.get("/turnstile", (_req, res) => {
+  res.type("html").send(turnstilePageHtml(env.TURNSTILE_SITE_KEY ?? ""));
+});
 
 /**
  * `GET /auth/line` and `GET /auth/google` (docs/API_STRUCTURE.md §3.1). Add

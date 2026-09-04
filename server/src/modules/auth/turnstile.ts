@@ -65,3 +65,50 @@ export async function verifyTurnstile(
     return false;
   }
 }
+
+/**
+ * The widget page the mobile WebView loads, served by this API at `GET /auth/turnstile`.
+ * It lives server-side — not shipped inline in the app — because Cloudflare hostname-checks
+ * the page that renders the widget against the widget's dashboard hostname list: an inline
+ * `about:blank` document has no hostname and can never match, so no token would ever mint.
+ * Loading the page from the API's real https hostname is what makes that check pass, and the
+ * hostname registered in the Cloudflare widget settings must be the API's own (bare FQDN,
+ * e.g. `atsumaru-6i3n.onrender.com`). The site key is injected from server env here, so it
+ * never has to ship in the app bundle at all.
+ *
+ * The page self-executes once api.js is ready (with a bounded retry so the first execute
+ * cannot race `api.js`), and exposes `window.__turnstileExecute` so the native side can kick
+ * a fresh challenge after a token is consumed or the app returns to the foreground. Tokens
+ * are posted to the React Native bridge as JSON `{ type: "token" | "expired" | "error" }`.
+ */
+export function turnstilePageHtml(siteKey: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile&render=explicit"></script>
+</head><body style="margin:0;padding:0;background:transparent">
+<div id="container"></div>
+<script>
+  var widgetId = null;
+  var attempts = 0;
+  function tryExecute() {
+    // The first execute can race api.js finishing its load — retry briefly until the
+    // widget exists rather than letting a lost kick leave no token at all.
+    if (widgetId) { turnstile.execute(widgetId); return; }
+    if (attempts++ < 40) { setTimeout(tryExecute, 250); }
+  }
+  function onLoadTurnstile() {
+    widgetId = turnstile.render('container', {
+      sitekey: '${siteKey}',
+      size: 'invisible',
+      callback: function (token) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'token', token: token }));
+      },
+      'expired-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'expired' })); },
+      'error-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error' })); }
+    });
+    tryExecute();
+  }
+  window.__turnstileExecute = tryExecute;
+</script>
+</body></html>`;
+}

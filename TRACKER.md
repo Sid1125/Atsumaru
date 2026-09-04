@@ -361,6 +361,29 @@ fix. Two changes:
 
 Mobile typecheck clean; no server change.
 
+### 5n. Widget page served by the API — Cloudflare hostname gate (2026-09-04)
+
+Email login still failed after the §5k/5l fixes + real keys: the widget's HTML was injected
+inline into the WebView, so the page's origin was `about:blank` — and Cloudflare hostname-checks
+the page that renders the widget against the widget's dashboard hostname list. No FQDN matches
+`about:blank`, so the widget refused to mint and every email attempt 403'd (`invalid-domain`).
+Registering any hostname in the dashboard could not help on its own.
+
+**Fix (user picked: serve from the API):** the widget page now lives server-side and the WebView
+loads it by URL, giving the widget a real https origin that Cloudflare can bless.
+- `server/.../turnstile.ts` — canonical `turnstilePageHtml(siteKey)` (self-executes on load with
+  the bounded retry; same postMessage protocol). Site key injected from server env — no longer
+  shipped in the app bundle at all.
+- `server/.../routes.ts` — `GET /auth/turnstile` serves it as `text/html` (deliberately not the
+  JSON envelope; declared before the `/:provider` catch-all).
+- `apps/mobile` `TurnstileWidget.tsx` — loads `${API_URL}/auth/turnstile` instead of inline HTML;
+  drops the `onLoad` kick (the page self-executes), keeps consume/foreground re-execute.
+- `EXPO_PUBLIC_TURNSTILE_SITE_KEY` demoted to the client availability gate only.
+
+**Required Cloudflare config:** add the API's bare FQDN to the widget's Hostname Management
+(prod: `atsumaru-6i3n.onrender.com`). Then rebuild the APK (JS change) + redeploy the server.
+Still unverified: real-device mint against the live hostname.
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere

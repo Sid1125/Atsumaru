@@ -52,9 +52,12 @@ export const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 /**
- * Cloudflare Turnstile site key for the auth gate (docs/ATSUMARU_SECURITY_COMPLETE §22).
- * Blank means the server does not challenge the auth handoff; when set, this app must
- * present a widget-minted token on `POST /auth/session` or the handoff is rejected.
+ * Cloudflare Turnstile site key for the email auth gate (docs/SECURITY_AUDIT.md §22).
+ * Since the widget page is now served by the API (which injects its own server-side key),
+ * this value is only the client-side availability gate for `acquireTurnstileToken()`:
+ * when it is blank the email hooks skip waiting for a widget token, mirroring a server
+ * that has no Turnstile secret configured. It must be set in builds that talk to a
+ * gate-enforcing server, or every email submit is rejected with CAPTCHA_FAILED.
  */
 export const TURNSTILE_SITE_KEY = fromEnv(
   process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY,

@@ -36,9 +36,14 @@ surfaces throttled, persisted per-user usage quotas, and an optional Turnstile a
 > the live project, then `notify pgrst, 'reload schema'` — until then the quota call fails open
 > and the in-process rate limiters remain the only layer.
 >
-> **Turnstile:** gated and off by default. Set server `TURNSTILE_SECRET_KEY` + mobile
-> `EXPO_PUBLIC_TURNSTILE_SITE_KEY` to enforce; the mobile widget still needs `react-native-webview`
-> + a dev build (see Open findings).
+> **Turnstile:** gated and off by default. Set server `TURNSTILE_SECRET_KEY` to enforce
+> (the paired `TURNSTILE_SITE_KEY` on the same server feeds the widget page). The widget page is
+> served by the API at `GET /api/auth/turnstile` — the app's WebView loads that URL, never inline
+> HTML — and the **widget's Cloudflare hostname list must contain the API's bare hostname**
+> (e.g. `atsumaru-6i3n.onrender.com`): Cloudflare refuses to mint on any other host, and an
+> `about:blank` document can never match. The mobile widget still needs `react-native-webview`
+> + a dev build (see Open findings); `EXPO_PUBLIC_TURNSTILE_SITE_KEY` is now only the client
+> availability gate.
 
 ## Findings fixed during this audit
 
