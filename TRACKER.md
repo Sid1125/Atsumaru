@@ -95,6 +95,256 @@ that stopped being true on 2026-08-30.
 
 ## To do
 
+### 5h. Manual security review, 2026-09-04 — white-box audit, no critical/high findings
+
+Free manual review of `server/src` + live API (`https://atsumaru-6i3n.onrender.com/api`).
+Strix agentic scanning was attempted but cannot run free: OSS CLI needs a paid LLM key
+(Groq free = 8k TPM < request size; Gemini free = 20 req/day, no tool-calling), and Strix
+Cloud is signed-in but credits cost $1 each (a source code_review starts at ~$60). User
+chose the manual path. Result: **no critical or high severity** issues. The backend is
+already hardened (rhymes with `fix-backend-hardening` in §1f). Full scope in
+`docs/ATSUMARU_SECURITY_COMPLETE.md` §1–22 terms.
+
+What held up (verified in code + live):
+- **AuthN/AuthZ.** `requireAuth` verifies the Supabase token server-side
+  (`auth.getUser`) and asserts `isUuid(user.id)` before any route uses it — which also
+  renders the one interpolated PostgREST `.or()` in `connections/routes.ts:46`
+  injection-proof. Socket handshake runs the same check (`verifySocketToken`).
+- **IDOR/BOLA.** Every object-scoped read/write gates on the caller's own id:
+  `requireMembership` (group chat, feedback, recap), `requireConnection` (mutual +
+  participant-only DMs), everything else scoped `.eq("id", req.userId!)`. All `:id`
+  params via `uuidParam` → 400 before hitting the DB.
+- **Mass assignment.** `PATCH /users/me` (patchSchema) and onboarding `completeSchema`
+  are explicit zod whitelists — no `reputation_score`/`role`/`preference_vector` in the
+  request path; the vector is recomputed server-side.
+- **Injection.** Zero dynamic SQL besides the two compile-safe interpolations
+  (`PUBLIC_USER_COLUMNS` constant; uuid-guarded `.or`). All functions in
+  `schema.sql` are parameterised, `search_path` pinned (blocks schema-shadowing),
+  RLS on for every table, `event_sizes` view `security_invoker=true`, service-role key
+  (RLS-bypassing) but every access re-gated in route code.
+- **Sensitive data.** `PUBLIC_USER_COLUMNS` never contains `real_name`/email; `dbError`
+  logs Postgres text but returns a generic 500; error envelope/server errors leak no
+  body. OAuth response bodies (can echo codes) are never surfaced. No sensitive
+  `console.*` logging found.
+- **Auth flows.** HMAC-SHA256-signed OAuth `state` + httpOnly SameSite=Lax binding
+  cookie (login CSRF), PKCE, nonce, timing-safe compares, single-use handoff codes
+  (60 s TTL) + single-use PKCE verifier. LINE id_token verified via LINE's `/verify`.
+  Email/password: password policy, fail-closed Turnstile on signup/reset, anti-
+  enumeration login/reset, throwaway `authDb()` client avoids session-poisoning the
+  singleton.
+- **Rate/abuse.** Per-IP auth limits (session redeem very strict 20/min + Turnstile),
+  per-user send/read limits, persisted atomic daily quotas via `bump_quota` RPC.
+- **Secrets.** No hardcoded keys; `.git` tracks only blank `.env.example`. Root
+  `.gitignore:5` `.env`/`.env.*` covers `apps/mobile/.env` (the mobile `.gitignore`
+  gap is harmless).
+- **Live smoke (black-box):** `/api/users/me` and `/api/events/nearby` → 401
+  unauthenticated; unknown route → 404 envelope; `/health` → `{"success":true,...}`
+  with no provider/config disclosure.
+
+Low / informational (no fix, tracked for awareness):
+- **`GET /events/:id/match-preview` has no `requireMembership` gate** — any authenticated
+  user can compute their own fit against any event's full member set (members'
+  `preference_vector` used internally, never serialized; only the caller's own scalar
+  score + public-tag reasons are returned). Consistent with public event browsing; not a
+  leak. If group privacy is ever wanted, gate it like feedback/recap.
+- **Feedback submit is a TOCTOU** — `firstSubmission` is `count === 0` then upsert +
+  reputation bump with no transaction, so two concurrent submissions could each double-
+  apply the reputation delta and the vector update. Bounded to 0–100 reputation, no
+  privilege escalation; low. A unique partial index / advisory lock on
+  `(event_id, from_user)` would close it.
+- **Socket `typing` is un-throttled** (unlike `group:message`/`dm:message`) — a member
+  can spam typing to a room they're in. Membership-bounded; low.
+- **`strongbox` is a client-supplied boolean** and Play Integrity attestation is
+  deliberately out of scope — the flag is metadata, not a control; the actual proof is
+  the Keystore signature over the nonce.
+
+`npm run typecheck` clean, `npm test` green, live guards verified. No code changed.
+
+### 5i. Release APK + live heavy attack, 2026-09-04 — one finding (Turnstile disabled in prod)
+
+Continued the security work onto the built release APK
+(`apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, v1.0.0) on a Genymotion
+emulator and against the live Render API.
+
+**Release-APK forensics — clean.** Extracted `assets/index.android.bundle` from the APK and
+grep'd for hardcoded secrets:
+- Only two URLs: `https://atsumaru-6i3n.onrender.com/api` (the API) and an `rnmapbox` docs
+  link (dead code).
+- One `pk.` **public** Mapbox token (user `yashchoudharyog`, scoped to a mapbox project id) —
+  public by Mapbox's design, unsafe only if it were `sk.`. **No `sk.` token present.**
+- **Zero** Supabase anon/service JWTs, Groq/HuggingFace keys, OAuth client ids /
+  channel secrets. Matches the server-side-secrets-only design. Release build leaks nothing.
+
+**Live finding (Medium) — Turnstile human-verification gate is disabled in production.**
+Probed the live API (`atsumaru-6i3n.onrender.com`):
+- `POST /api/auth/session` with a fabricated `turnstile_token` + invalid code →
+  `400 INVALID_CODE` ("That sign-in code is no longer valid.") — **not** `403 CAPTCHA_FAILED`,
+  so `verifyTurnstile` returned `true` on a bogus token.
+- `POST /api/auth/password/reset` with a bogus token + nonexistent email →
+  `200 {sent:true}` (generic anti-enumeration) — **not** `CAPTCHA_FAILED`.
+- `POST /api/auth/signup` with a bogus token → got **past** the gate to the *email-format*
+  zod validation (`INVALID_BODY` "Enter a valid email address") — **not** `CAPTCHA_FAILED`.
+
+`verifyTurnstile` (`modules/auth/turnstile.ts`) returns `true` either when `hasTurnstile` is
+false (no `TURNSTILE_SECRET_KEY`) or when `TURNSTILE_ALWAYS_PASS === true`. On the deployed
+instance one of those holds, so the CAPTCHA on session-mint / signup / reset is **not
+enforced in production** — a test/degradation flag shipped to prod. Enables email-storm /
+mass-signup abuse and weakens brute-force defence, and for this app specifically it defeats
+the fail-closed bot gate that `email.ts` and the handoff route are built around.
+
+**Mitigation (deploy-side, not code):** confirm `TURNSTILE_ALWAYS_PASS` is `false`/unset and
+`TURNSTILE_SECRET_KEY` is set on Render, then re-probe — the three requests above should
+return `CAPTCHA_FAILED`. The code is correct; the deployment carried the bypass. Honest
+severity: Medium — the per-IP auth rate limiters still apply (login/session/reset/signup
+are IP-limited and Turnstile-gated in depth), so this lowers rather than removes the
+brute-force barrier, but a control explicitly built to fail closed is failing open here.
+
+**RESOLVED — verified fixed live 2026-09-04.** Owner set `TURNSTILE_SITE_KEY` +
+`TURNSTILE_SECRET_KEY` on Render and removed `TURNSTILE_ALWAYS_PASS`, then redeployed
+(Render does **not** auto-redeploy on a dashboard env edit — the first re-probe still saw the
+old process config until a manual deploy/restart). Re-probed all three endpoints with a bogus
+token: `signup`, `password/reset`, and `session` each now return
+`403 CAPTCHA_FAILED "Human verification failed."` — the gate fails closed as designed
+(`env.ts:93` `hasTurnstile`, `turnstile.ts:19/24/26-41`). Device UI down-stream also shows the
+Turnstile widget rejecting.
+
+Also re-verified the 💯 items still hold live: release app boots to the real auth screen and
+talks to the live API; unprotected routes 401; unknown routes 404 envelope. No code changed.
+
+### 5j. Drove the app end-to-end on the emulator + live API battery, 2026-09-04 — two findings
+
+Continued §5i onto the **running release app**: drove `com.atsumaru.app` v1.0.0 on the Genymotion
+emulator through the whole product via `adb input`, and ran the authenticated API attack battery
+with a freshly minted session against the live Render API. **The app does not crash anywhere.**
+
+**App drive (all real UI, on-device):**
+- **Login** with the confirmed `campus.crusaders.auh@gmail.com` account (driven by `adb input text`).
+- **Onboarding complete** — AI chat (Groq live), vibe chips, handle `hiker`, display `Hikaru`,
+  "Find my people", the runtime notification-permission dialog, then **DISCOVER**. Profile saved:
+  `handle=hiker`, `display_name=Hikaru`, interests/personality persisted, `is_new` flipped false.
+  (An earlier "landed on launcher" scare was a mis-tap hitting the Android nav bar, not a crash —
+  process stayed alive throughout; corrected, not a finding.)
+- **Discover / Mapbox surface** — release build loads the real Mapbox renderer ("Powered by Mapbox
+  Maps" present), shows seeded meetup cards at their map pins with match % (42%) group fit.
+- **match-preview** opens for a meetup.
+- **Join group** — "Nigga's Hideout" via `join_event`; now 2/6, "You are already in this group",
+  members `@drivinggaming` + `@hiker`. GROUP CHAT section renders.
+- **Connections tab** — empty state "No connections yet. They unlock after a meetup." (correct
+  pre-meetup gating for the mutual 1:1 unlock).
+
+**Finding (Moderate) — `match-preview` has no membership gate, confirmed live.**
+`GET /events/{id}/match-preview` (`events/routes.ts:299`) runs a non-member call to `200` and
+returns the caller's **match score against a group they are not in** plus shared-interest reasons
+("Shared interests: hiking, photography, board games", "3/6 spots taken"). It never names a member,
+but it computes and leaks a group-fit signal about a private group the caller cannot see, built from
+that group's member vectors. White-box identified in §5h; this run promoted it to Moderate because
+the exposure is now proven reachable live by an unrelated account. Fix: add
+`await requireMembership(id, userId)` before computing — one line, matches every other per-event
+sub-resource (feedback, chat, recap all gate).
+
+**Finding (Low / UI bug) — group-chat composer is behind the Android nav bar (edge-to-edge insets
+unhandled).** On the release build the chat `EditText` (bounds y 1177–1230) and the **Send** button
+(y 1191–1226) render in the system-nav-bar region of a 570×1230 screen; tapping them dispatches
+Android Home and the app backgrounds instead of focusing input / sending. The primary chat action is
+effectively unreachable through the UI on this build. The REST chat path works fine (below), so this
+is an inset/insets-bug, not a backend gap. Fix on the mobile side: consume `SafeAreaInsets` bottom
+(and the IME) for the chat screen composer.
+
+**Live API battery — everything else held:**
+- **Turnstile re-confirmed bypassed on a real auth** (same Medium as §5i): a fabricated
+  `turnstile_token` on `/auth/session` minted a **valid session** (no `CAPTCHA_FAILED`).
+- `PATCH /users/me` **mass-assignment probe**: editable `language` / `interests` / `display_name`
+  write through; **`reputation_score:9999` was ignored** (stayed 50) — protected fields are
+  server-authoritative. Not a vuln. (Test mutation was reverted to the original profile.)
+- `POST /:id/feedback` + `GET /:id/feedback-form` on a non-member meetup → `NOT_A_MEMBER`
+  (membership gate + per-user limiter + persisted quota + post-meetup status gate all present).
+- `POST/GET /:id/messages` — **member send works** (message persisted, `{messages,page,limit,total}`
+  returned); **non-member POST and GET → `NOT_A_MEMBER`** (no chat IDOR).
+- `GET /users/{id}` for an arbitrary user returns only public columns (handle / display_name /
+  interests / personality / reputation_score) — **no `real_name`, no email** (`PUBLIC_USER_COLUMNS`
+  held). Intended social read, not a leak.
+
+**Seed-data note (not a security defect):** the seeded demo events/accounts use the display name
+"Nigga" ("Nigga's Hideout", "Official nigga"). It is live test data the project owner created
+(visible in this user's own join flow), not a PII breach, but brand-reputational for any public
+demo. Recommend renaming the seed rows before any showcase.
+
+No code was changed in this pass; all live scratch state (profile mutation, chat message) was left
+as ordinary test data under the test account.
+
+**Feedback / mutual-unlock path — every reachable gate verified; the genuine unlock is not
+reachable without DB-admin write access, and that is by design.**
+- Member `GET /:id/feedback-form` on an open meetup → `200`, lists only the *other* member (caller
+  excluded — the §8 privacy rule).
+- Member `POST /:id/feedback` on an open (not yet completed) meetup → `409 MEETUP_NOT_FINISHED`
+  (the status gate holds for a legitimate member, not just a non-member).
+- `createSchema` (`events/routes.ts:44-49`) **rejects any past `start_time`** ("start_time must be
+  in the future") — so a past-dated meetup cannot be created via the API to farm an unlock or skip
+  the meetup. Deliberate hardening, verified in source.
+- The genuine two-way **mutual unlock** (two reciprocal `connect_with` picks on a *completed*
+  meetup → a `connections` row is created and `match:unlocked` fires) could not be driven without a
+  second authenticated picker and a completed meetup I'm a member of. Reaching it would require
+  either a second account or direct DB writes (no `access_token.txt` / Supabase admin creds
+  available in this environment, and injecting state into the shared live project is out of scope).
+  This is a data-availability limit, not an open surface — the write gate, form privacy, and the
+  status gate are all confirmed to hold.
+
+### 5k. Turnstile client widget implemented — phone login unblocked (2026-09-04)
+
+Flipping the server gate to strict (§5i resolved) exposed a latent gap: **the mobile client never
+minted a Turnstile token** — `acquireTurnstileToken()` was a stub that always returned
+`undefined` (`turnstile.ts:37`), so every real login after the server went strict failed with
+`CAPTCHA_FAILED` (the phone showed "human verification failed"). Fixed by implementing the client
+widget so real users pass the gate.
+
+- **`react-native-webview` 13.16.1** added (`expo install`). Native module — only the dev build /
+  release APK can run it; Expo Go renders nothing (same deferred-require convention as
+  `mapbox.ts`/`keystore.ts`).
+- **`services/auth/TurnstileWidget.tsx`** — invisible, managed Turnstile widget inside an off-screen
+  WebView (`size: "invisible"`). Loads Cloudflare's `api.js` with the site key, auto-executes on
+  load and after each consume, forwards each `turnstile-callback` token to the token slot. Invisible
+  mode auto-solves low-risk sessions with no visible puzzle; challenged sessions get Cloudflare's
+  interstitial. Zero-size, `pointerEvents="none"`.
+- **`services/auth/turnstileToken.ts`** — the shared slot. Widget writes, `takeTurnstileToken()`
+  reads (consuming clears it, single-use) and waits up to 5s for the first mint. Also nudges the
+  widget to re-execute for the next attempt via `setTurnstileTokenHandler`.
+- **`services/auth/turnstile.ts`** — `acquireTurnstileToken()` now returns the slot's token
+  (awaits it) instead of `undefined`. API unchanged, so the two auth hooks needed no logic change.
+- **Mounted on `LoginScreen`** (pre-mints for the OAuth `/auth/session` handoff) **and
+  `EmailAuthScreen`** (login/signup/reset).
+
+Verified: `npm run typecheck` (server + mobile) clean. Real-device proof still required — a rebuild
+(`expo run:android` or a fresh `app-release.apk`) + a real login on the phone to confirm the token
+passes `siteverify` and the session mints. Follow-up: confirm the site key (len 24) belongs to the
+same widget/site as the server `TURNSTILE_SECRET_KEY`.
+
+### 5l. Turnstile scoped to email auth only — OAuth passes through (2026-09-04)
+
+First real-device test of §5k exposed the design flaw: the OAuth deep-link handoff needed a
+widget-minted token on `POST /auth/session`, but the widget's WebView is backgrounded (and often
+paused/torn down) for the whole provider round trip, and Cloudflare is hostile to WebViews
+(no DOM storage by default, `X-Requested-With` detection). Login dead-ended on the strict gate.
+
+**Decision (user-driven): Turnstile stays on the email surfaces only; Google/LINE pass through.**
+The OAuth code is already human-gated upstream — provider round trip + PKCE verifier + signed
+state + binding cookie — and the redeem keeps its per-IP 20/min limiter. The direct-hit surfaces
+CAPTCHA exists for (email signup, password reset, email-login redeem) keep the fail-closed gate.
+
+- `server/.../session.ts` — handoff stash now carries an `origin` (`"oauth" | "email"`);
+  `claimSession` returns `{ origin, session }`.
+- `server/.../routes.ts` — `/auth/session` applies the Turnstile gate only when
+  `handoff.origin === "email"`; OAuth codes redeem without a token. `/auth/callback` stashes
+  `"oauth"`, `email.ts logIn` stashes `"email"`.
+- `apps/mobile` — `LoginScreen` no longer mounts the widget; `useOAuthLogin` sends no token.
+  `EmailAuthScreen` keeps it.
+- `TurnstileWidget.tsx` hardened for the email flows: `domStorageEnabled` (Cloudflare requires
+  DOM storage; react-native-webview defaults it **off** on Android — without it no token is ever
+  minted), bounded retry so the first `execute` can't lose the race against `api.js`, and a
+  re-execute on `AppState` active so a backgrounded app mints a fresh token.
+- Docs: `API_STRUCTURE.md` §3.1 + `SECURITY_AUDIT.md` §22 rows updated to the email-only scope.
+
+Tests: session round-trip now pins `origin` (oauth default, email explicit); typecheck clean.
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere

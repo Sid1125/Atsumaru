@@ -211,7 +211,7 @@ authRouter.get(
 
     // Tokens never travel in a URL: the app trades this code for them.
     const handoff = new URL(env.APP_AUTH_REDIRECT);
-    handoff.searchParams.set("code", await stashSession(session));
+    handoff.searchParams.set("code", await stashSession(session, "oauth"));
 
     return res.redirect(handoff.toString());
   })
@@ -219,11 +219,18 @@ authRouter.get(
 
 const sessionSchema = z.object({
   code: z.string().min(1).max(200),
-  /** Turnstile token; required only when TURNSTILE_SECRET_KEY is configured. */
+  /** Turnstile token; required only when TURNSTILE_SECRET_KEY is configured AND the code
+   *  came from the email/password path (OAuth codes pass through without one). */
   turnstile_token: z.string().min(1).max(2048).optional(),
 });
 
-/** Second half of the deep-link flow; single use, 60-second window. */
+/**
+ * Second half of the deep-link flow; single use, 60-second window. The CAPTCHA gate
+ * applies to email-origin codes only: they are minted by a direct-hit credential call.
+ * OAuth codes already travelled through the provider round trip (PKCE verifier, signed
+ * state, binding cookie), which is the human gate, so requiring a widget token there too
+ * made the deep-link handoff depend on a WebView minting mid-round-trip (broken).
+ */
 authRouter.post(
   "/session",
   asyncRoute(async (req, res) => {
@@ -235,19 +242,23 @@ authRouter.post(
       throw new HttpError(400, "INVALID_BODY", "code is required.");
     }
 
-    // When Turnstile is configured, the handoff that mints a full session is gated on a
-    // valid token — this is the unauthenticated brute-force surface (§22).
-    if (!(await verifyTurnstile(parsed.data.turnstile_token ?? "", clientIp(req)))) {
-      throw new HttpError(403, "CAPTCHA_FAILED", "Human verification failed.");
-    }
+    const handoff = await claimSession(parsed.data.code);
 
-    const session = await claimSession(parsed.data.code);
-
-    if (!session) {
+    if (!handoff) {
       throw new HttpError(400, "INVALID_CODE", "That sign-in code is no longer valid.");
     }
 
-    return ok(res, session);
+    // The unauthenticated brute-force surface is the email handoff — a code guesser needs
+    // no provider at all. OAuth codes cannot be guessed: they only exist after a real
+    // provider exchange, and the per-IP limiter above still applies to every redeem.
+    if (
+      handoff.origin === "email" &&
+      !(await verifyTurnstile(parsed.data.turnstile_token ?? "", clientIp(req)))
+    ) {
+      throw new HttpError(403, "CAPTCHA_FAILED", "Human verification failed.");
+    }
+
+    return ok(res, handoff.session);
   })
 );
 

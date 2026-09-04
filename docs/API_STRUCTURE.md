@@ -110,10 +110,13 @@
 > **No phone OTP** — SMS needs a paid provider (Twilio/Vonage), so we use OAuth + email/password only.
 > On the client, use Supabase's `signInWithOAuth({ provider: 'line' \| 'google' })` with an Expo
 > redirect URL. `is_new: true` → route the user into the AI onboarding chat.
-> Email/password signup and password-reset are gated on Cloudflare Turnstile (fail-closed when
-> no `TURNSTILE_SECRET_KEY` is set — `503 CAPTCHA_REQUIRED`). Confirmation and recovery emails
-> redirect to `APP_AUTH_REDIRECT` (`atsumaru://auth`); recovery appends `?action=recovery`, and
-> the app trades the link's `token_hash` at `/auth/password/reset-complete`.
+> Cloudflare Turnstile gates the **email-only** surfaces (docs/SECURITY_AUDIT.md §22): signup and
+> password-reset fail closed when no `TURNSTILE_SECRET_KEY` is set (`503 CAPTCHA_REQUIRED`), and
+> `POST /auth/session` requires a widget token when the code came from email/password login.
+> **OAuth codes are exempt** — Google/LINE codes only exist after a provider round trip, so the
+> deep-link handoff needs no widget token. Confirmation and recovery emails redirect to
+> `APP_AUTH_REDIRECT` (`atsumaru://auth`); recovery appends `?action=recovery`, and the app
+> trades the link's `token_hash` at `/auth/password/reset-complete`.
 
 ### 3.2 Onboarding (AI chat)
 | Method | Path | Body | Returns |

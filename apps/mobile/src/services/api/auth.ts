@@ -10,7 +10,8 @@ export const authApi = {
   /**
    * Second half of the deep-link OAuth flow: the callback redirects to
    * `atsumaru://auth?code=…` and the app trades that one-time code for the session.
-   * `turnstileToken` is required once the server has Turnstile configured (§22).
+   * `turnstileToken` is required only for email-origin codes once the server has Turnstile
+   * configured (§22) — OAuth codes pass through without one.
    */
   session: (code: string, turnstileToken?: string) =>
     api.post<{

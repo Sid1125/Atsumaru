@@ -1,38 +1,26 @@
 /**
- * Client half of the Cloudflare Turnstile auth gate (docs/ATSUMARU_SECURITY_COMPLETE §22).
+ * Client half of the Cloudflare Turnstile auth gate (docs/SECURITY_AUDIT.md §22), used by
+ * the email auth flows only — Google/LINE OAuth codes are exempt server-side, so no widget
+ * token travels the deep-link handoff.
  *
- * The server only challenges `POST /auth/session` when TURNSTILE_SECRET_KEY is set, so
- * the client must present a widget-minted token exactly then. This file is the single
- * place that touches the widget, mirroring the `mapbox.ts` / `keystore.ts` convention:
- * when neither a site key nor the native WebView module is present, it degrades to
- * "no token", which the server (also unconfigured) accepts.
- *
- * A real Turnstile widget needs `react-native-webview` and a dev build, and neither
- * exists here yet — Expo Go can never load it. So like Mapbox and the Keystore, this
- * path is written but has never run; `acquireTurnstileToken` returns undefined until a
- * site key AND the native module are both present.
+ * The email hook calls `acquireTurnstileToken()` right before the server call. The actual
+ * widget lives in `TurnstileWidget.tsx` (a native WebView — rendered only in a dev build /
+ * the release APK); it mints tokens into `turnstileToken.ts`. This module is the thin,
+ * imperative entry point the hooks already use: it returns whatever the widget currently
+ * holds. In Expo Go the widget never mounts and this returns undefined, which the server
+ * (only configured with a secret key on real deployments) would reject — so email auth on
+ * the webview-less client surfaces the server's `CAPTCHA_FAILED` explicitly rather than
+ * failing silently, and the site key is what turns the flow on.
  */
 import { TURNSTILE_SITE_KEY } from "../../config/env";
-
-declare const require: (name: string) => unknown;
-
-let webview: unknown = null;
-try {
-  webview = require("react-native-webview");
-} catch {
-  webview = null;
-}
+import { takeTurnstileToken } from "./turnstileToken";
 
 /**
- * Best-effort: returns a Turnstile token ready to send as `turnstile_token`, or
- * undefined when Turnstile is not configured/available. Never throws — a missing
- * widget must not block sign-in (the server skips the check when unconfigured).
+ * Best-effort: returns a widget-minted Turnstile token ready to send as `turnstile_token`,
+ * or undefined when the widget is not configured/available. Never throws — a missing
+ * widget must not crash sign-in (it degrades to the server's own decision).
  */
 export async function acquireTurnstileToken(): Promise<string | undefined> {
   if (!TURNSTILE_SITE_KEY) return undefined;
-  // ponytail: real widget acquisition needs react-native-webview + dev build. Returning
-  // undefined keeps the flow working until that integration lands (same status as Mapbox
-  // / Keystore — written, unexercised). See docs/SECURITY_AUDIT.md §22.
-  if (!webview) return undefined;
-  return undefined;
+  return takeTurnstileToken();
 }

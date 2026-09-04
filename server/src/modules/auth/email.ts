@@ -95,8 +95,11 @@ export async function signUp(
   });
 
   if (error) {
+    // Anti-enumeration: never leak whether the address is already registered. An
+    // "email_exists" error is expected and invisible to the caller.
     if (error.code === "email_exists" || /already been registered/i.test(error.message)) {
-      throw new HttpError(409, "EMAIL_TAKEN", "An account with that email already exists.");
+      console.warn("Signup attempt for existing email:", error.code);
+      return { sent: true };
     }
     throw new HttpError(502, "AUTH_PROVIDER_ERROR", error.message ?? "Could not sign up.");
   }
@@ -132,14 +135,19 @@ export async function logIn(
 
   const profile = await profileOrNull(session.user.id);
 
-  const code = await stashSession({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-    user: profile,
-    // Email/password creates the auth user at signup; "new" means no profile row yet,
-    // same meaning as OAuth.
-    is_new: profile === null,
-  });
+  const code = await stashSession(
+    {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      user: profile,
+      // Email/password creates the auth user at signup; "new" means no profile row yet,
+      // same meaning as OAuth.
+      is_new: profile === null,
+    },
+    // The code is minted by a direct-hit credential call, so its redeem carries the
+    // CAPTCHA gate (the OAuth callback tags its codes "oauth" and passes through).
+    "email"
+  );
 
   return { code };
 }

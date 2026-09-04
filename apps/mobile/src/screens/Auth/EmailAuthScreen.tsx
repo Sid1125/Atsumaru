@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
+import { TurnstileWidget } from "../../services/auth/TurnstileWidget";
 import { Button } from "../../components/common/Button";
 import { TextField } from "../../components/common/TextField";
 import { useEmailAuth, type EmailAuthMode } from "../../features/auth/hooks/useEmailAuth";
@@ -52,6 +53,7 @@ export function EmailAuthScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <TurnstileWidget />
       <ScrollView
         contentContainerStyle={[
           styles.content,

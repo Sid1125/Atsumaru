@@ -13,19 +13,29 @@ const session: AuthSession = {
   is_new: true,
 };
 
-test("a handoff code works once", async () => {
+test("a handoff code works once and carries its origin", async () => {
   const store = memoryStore(() => NOW);
-  const code = await stashSession(session, store);
+  const code = await stashSession(session, "email", store);
 
-  assert.equal((await claimSession(code, store))?.access_token, "access");
+  const claimed = await claimSession(code, store);
+
+  assert.equal(claimed?.origin, "email");
+  assert.equal(claimed?.session.access_token, "access");
   // Replaying the code must not hand out the tokens again.
   assert.equal(await claimSession(code, store), null);
+});
+
+test("an OAuth stash is tagged oauth by default", async () => {
+  const store = memoryStore(() => NOW);
+  const code = await stashSession(session, "oauth", store);
+
+  assert.equal((await claimSession(code, store))?.origin, "oauth");
 });
 
 test("a handoff code expires after a minute", async () => {
   let now = NOW;
   const store = memoryStore(() => now);
-  const code = await stashSession(session, store);
+  const code = await stashSession(session, "oauth", store);
 
   now = NOW + 61_000;
 

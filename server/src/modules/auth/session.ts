@@ -276,6 +276,19 @@ async function profileOrNull(userId: string): Promise<PublicUser | null> {
 const PENDING_TTL_MS = 60_000;
 
 /**
+ * Where a handoff code came from. OAuth codes are produced behind a provider round trip
+ * (PKCE + binding cookie + state signature) and are therefore already human-gated, while
+ * email/password codes are minted by a direct-hit credential call. The CAPTCHA gate on
+ * `POST /auth/session` applies to the latter only (docs/SECURITY_AUDIT.md §22).
+ */
+export type HandoffOrigin = "oauth" | "email";
+
+export interface StashedHandoff {
+  origin: HandoffOrigin;
+  session: AuthSession;
+}
+
+/**
  * Hands the app a code instead of putting tokens in a redirect URL.
  *
  * Codes live in the shared ephemeral store, not a Map, so the instance that redeems one
@@ -284,11 +297,12 @@ const PENDING_TTL_MS = 60_000;
  */
 export async function stashSession(
   session: AuthSession,
+  origin: HandoffOrigin = "oauth",
   store: EphemeralStore = ephemeral
 ): Promise<string> {
   const code = randomBytes(32).toString("base64url");
 
-  await store.put(`handoff:${code}`, JSON.stringify(session), PENDING_TTL_MS);
+  await store.put(`handoff:${code}`, JSON.stringify({ origin, session }), PENDING_TTL_MS);
 
   return code;
 }
@@ -297,13 +311,13 @@ export async function stashSession(
 export async function claimSession(
   code: string,
   store: EphemeralStore = ephemeral
-): Promise<AuthSession | null> {
+): Promise<StashedHandoff | null> {
   const raw = await store.take(`handoff:${code}`);
 
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as AuthSession;
+    return JSON.parse(raw) as StashedHandoff;
   } catch {
     // Only this module ever writes these values, so a parse failure means a corrupted
     // store rather than a client problem. Treated as "no such code".

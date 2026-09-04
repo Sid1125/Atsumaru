@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { API_URL, DEMO_MODE } from "../../../config/env";
 import { authApi } from "../../../services/api/auth";
-import { acquireTurnstileToken } from "../../../services/auth/turnstile";
 import { registerDeviceIdentity } from "../../../services/deviceIdentity/deviceIdentity";
 import { useAuthStore } from "../../../store";
 
@@ -48,8 +47,9 @@ export function useOAuthLogin() {
       setError(null);
 
       try {
-        const turnstileToken = await acquireTurnstileToken();
-        const session = await authApi.session(code, turnstileToken);
+        // OAuth codes are exempt from the Turnstile gate: they only exist after a real
+        // provider round trip, so no widget token is needed (docs/SECURITY_AUDIT.md §22).
+        const session = await authApi.session(code);
         await signIn(session.access_token, session.user, session.refresh_token);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 
