@@ -37,9 +37,31 @@ export async function verifyTurnstile(
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: body.toString(),
     });
-    const json = (await res.json()) as { success?: boolean };
+    const json = (await res.json()) as {
+      success?: boolean;
+      hostname?: string;
+      "error-codes"?: string[];
+    };
+
+    if (json.success !== true || !res.ok) {
+      // A rejected token is otherwise invisible — the client only ever sees a generic
+      // 403. Log Cloudflare's reason (invalid-input-secret = secret/site key mismatch,
+      // invalid-domain = widget hostname not allowed, timeout-or-duplicate = replay)
+      // so a login failure is diagnosable from the server logs instead of a black box.
+      console.warn(
+        "Turnstile siteverify rejected:",
+        JSON.stringify({
+          status: res.status,
+          errorCodes: json["error-codes"] ?? null,
+          hostname: json.hostname ?? null,
+        })
+      );
+    }
+
     return json.success === true && res.ok;
-  } catch {
+  } catch (error) {
+    console.warn("Turnstile siteverify failed to reach Cloudflare:", (error as Error).message);
+
     return false;
   }
 }
