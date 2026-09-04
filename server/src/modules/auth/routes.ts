@@ -43,7 +43,135 @@ import {
   signUp,
 } from "./email.js";
 
-export const authRouter = Router();
+/**
+ * Branded confirmation page shown after the user clicks the email link in the Supabase
+ * confirmation email (GET /auth/confirm). This is the first thing the user sees — the email
+ * itself uses Supabase's default template (no custom domain needed), and only the link target
+ * is our endpoint. After this page the user is invited to sign in from the app.
+ *
+ * The page shares the app's editorial beat (docs/IDEA.md §3 "warm Japanese editorial"):
+ * a short editorial headline, the meetup-hosted framing the brand uses, and a single tappable
+ * return button that deep-links back to the app scheme via the `redirect_to` query param of the
+ * original email link. Copy is the same across the three app languages, so the email template
+ * and this page read as one experience. The page is static: no auth header, no JS, no
+ * telemetry — just a styled message and a link back to the app.
+ *
+ * Environment note: `APP_AUTH_REDIRECT` is the app's deep-link scheme (here `atsumaru://auth`);
+ * the page constructs the deep-link URL from it and offers it as the return action. If the app
+ * scheme isn't reachable from the device's browser (e.g. a desktop browser), the button still
+ * works on the device that has the app installed (the link opens the app if it can, otherwise
+ * nothing).
+ */
+function confirmPageHTML(opts: { status: string; appUrl?: string }): string {
+  const appUrl = opts.appUrl ?? "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email confirmed — ${opts.status}</title>
+  <style>
+    :root {
+      --ink: #1a1a2e;
+      --muted: #5a5a72;
+      --bg: #fbf7f2;
+      --card: #ffffff;
+      --accent: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    main {
+      max-width: 420px;
+      margin: 48px auto 80px;
+    }
+    .brand {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    .kicker {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #e9e2d8;
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .email {
+      font-size: 14px;
+      color: var(--ink);
+      background: #f4f1ec;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      word-break: break-all;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      text-decoration: none;
+      margin-top: 8px;
+      transition: background 0.15s;
+      border: none;
+      cursor: pointer;
+    }
+    .button:hover { background: #9a3400; }
+    .fallback {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">あつまる</div>
+    <div class="kicker">Email confirmation</div>
+    <div class="card">
+      <h1>${opts.status}</h1>
+      <p>Open the app and sign in with the email and password you used to sign up — you're all set.</p>
+      ${appUrl ? `<a class="button" href="${appUrl}">Back to the app</a>` : ""}
+      <p class="fallback">If the button didn't open the app, just open Atsumaru on your phone and sign in.</p>
+    </div>
+  </main>
+</body>
+</html>`;
+}
+export const authRouter = Router();
 
 // Auth endpoints have no user context yet, so they rate-limit by IP. The handoff-code
 // exchange is the tightest budget: it is an unauthenticated brute-force surface for the
@@ -388,6 +516,31 @@ authRouter.post(
  */
 authRouter.get("/turnstile", (_req, res) => {
   res.type("html").send(turnstilePageHtml(env.TURNSTILE_SITE_KEY ?? ""));
+});
+
+/**
+ * Branded confirmation page the user lands on after clicking the link in the Supabase
+ * confirmation email (docs/API_STRUCTURE.md §3.1).
+ *
+ * How the flow works: the signup endpoint sets `emailRedirectTo` to
+ * `${APP_PUBLIC_URL}/api/auth/confirm`, so the confirmation link GoTrue sends is
+ * `…/auth/v1/verify?token=…&type=email&redirect_to=<this page>`. GoTrue verifies the
+ * token itself (consuming it) and then 302s the browser here — this endpoint never sees
+ * the token, which is why there is nothing to verify: reaching this page at all means the
+ * address is confirmed. The page says so, and its "Back to the app" button deep-links into
+ * the app (APP_AUTH_REDIRECT), where the user signs in as usual. No auth header, no query
+ * params, static HTML — it is a landing page, not an auth surface.
+ *
+ * Brand: shares the app's editorial beat (docs/IDEA.md §3): the あつまる wordmark, a short
+ * headline, and a single tappable return button.
+ */
+authRouter.get("/confirm", (_req, res) => {
+  return res.type("html").send(
+    confirmPageHTML({
+      status: "Your email is confirmed — now sign in to finish setting up your profile.",
+      appUrl: env.APP_AUTH_REDIRECT,
+    })
+  );
 });
 
 /**

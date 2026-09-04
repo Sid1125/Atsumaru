@@ -47,6 +47,11 @@ const schema = z.object({
   OAUTH_CALLBACK_URL: z.string().url().default("http://localhost:4000/api/auth/callback"),
   /** Deep link the app listens on when the callback is asked to redirect. */
   APP_AUTH_REDIRECT: z.string().default("atsumaru://auth"),
+  /** Public URL of this API (e.g. https://atsumaru-6i3n.onrender.com). Used to build the
+   *  confirmation-page link target for the Supabase email so the user lands on our branded
+   *  page first, then returns to the app from it. When unset the email link goes straight to
+   *  APP_AUTH_REDIRECT (the app scheme) and the user confirms inside the app instead. */
+  APP_PUBLIC_URL: z.string().url().default("https://atsumaru-6i3n.onrender.com"),
   /** Signs the OAuth `state` blob. Random per deployment; a default keeps dev simple. */
   AUTH_STATE_SECRET: z.string().min(16).default(`${DEV_STATE_SECRET_PREFIX}-state-secret`),
 

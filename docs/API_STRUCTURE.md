@@ -101,6 +101,7 @@
 | GET | `/auth/callback` | `?code&provider` | `{ access_token, user, is_new }` |
 | POST | `/auth/session` | `{ code, turnstile_token? }` | `{ access_token, refresh_token, user, is_new }` (single handoff-code exchange; see README) |
 | POST | `/auth/logout` | — | `{ success }` |
+| GET | `/auth/confirm` | — | Branded confirmation web page (text/html; no auth, static). The signup `emailRedirectTo` points here, so after GoTrue verifies the email link it redirects the browser to this page, which says "email confirmed" and deep-links back into the app (APP_AUTH_REDIRECT) |
 | GET | `/auth/turnstile` | — | Turnstile widget page (`text/html`, not the JSON envelope) |
 | GET | `/auth/me` | — | `{ user }` (current session) |
 | POST | `/auth/signup` | `{ email, password, turnstile_token? }` | `{ sent }` (email confirmation required; no tokens) |
@@ -118,10 +119,14 @@
 > deep-link handoff needs no widget token. The widget page is `GET /auth/turnstile`, served
 > `text/html` by this API: the app's WebView loads that URL because Cloudflare hostname-checks
 > the page that renders the widget, so **the API's bare hostname must be in the widget's
-> Cloudflare hostname list** (inline `about:blank` HTML can never match). Confirmation and
-> recovery emails redirect to
-> `APP_AUTH_REDIRECT` (`atsumaru://auth`); recovery appends `?action=recovery`, and the app
-> trades the link's `token_hash` at `/auth/password/reset-complete`.
+> Cloudflare hostname list** (inline `about:blank` HTML can never match).
+> Confirmation emails now redirect to `GET /auth/confirm` (set via the signup `emailRedirectTo`
+> to `${APP_PUBLIC_URL}/api/auth/confirm`) — GoTrue verifies the link's token itself and then
+> 302s the browser to that branded page, whose "Back to the app" button deep-links into
+> `APP_AUTH_REDIRECT` (`atsumaru://auth`); recovery emails still go straight to
+> `APP_AUTH_REDIRECT` with `?action=recovery`, and the app trades the link's `token_hash` at
+> `/auth/password/reset-complete`. The confirmation redirect target must be allowlisted in
+> Supabase → Auth → URL Configuration → Redirect URLs, or GoTrue falls back to Site URL.
 
 ### 3.2 Onboarding (AI chat)
 | Method | Path | Body | Returns |

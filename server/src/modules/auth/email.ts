@@ -28,6 +28,7 @@ export const passwordSchema = z
   .refine((value) => /[a-z]/.test(value), "Password needs a lowercase letter.")
   .refine((value) => /[0-9]/.test(value), "Password needs a digit.");
 
+
 export const emailSchema = z.string().email("Enter a valid email address.").max(254);
 
 export interface PasswordAuthSession {
@@ -86,11 +87,21 @@ export async function signUp(
   requireSupabaseAuth();
   await requireCaptcha(turnstileToken, remoteIp);
 
+  // Bring the confirmation link back through the app's branded confirmation page
+  // (GET /auth/confirm) instead of straight into the app. The user confirms on that web
+  // page, then signs in from the app — see docs/API_STRUCTURE.md §3.1 / LORE/SECURITY_AUDIT.md §4.
   const { error } = await authDb().auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: env.APP_AUTH_REDIRECT,
+      // Point the confirmation email link at our branded confirmation page (GET
+      // /auth/confirm) instead of straight into the app. The user confirms on that web
+      // page, then signs in from the app. When APP_PUBLIC_URL is unset the link falls back
+      // to APP_AUTH_REDIRECT (the app scheme) so the user confirms inside the app instead.
+      emailRedirectTo:
+        env.APP_PUBLIC_URL
+          ? `${env.APP_PUBLIC_URL}/api/auth/confirm`
+          : env.APP_AUTH_REDIRECT,
     },
   });
 

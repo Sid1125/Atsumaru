@@ -440,6 +440,29 @@ next, but the mint-blocking bug was this one line, all along.
 and the WebView gets the corrected page. Pending: confirm the browser self-test and an in-app
 email login now mint + pass siteverify.
 
+### 5q. Branded email-confirmation web page (2026-09-04)
+
+Signup confirmed from the email link but the user then landed nowhere visible. Now the
+signup `emailRedirectTo` points at a branded page instead of the app scheme:
+- `email.ts signUp` — `emailRedirectTo` = `${APP_PUBLIC_URL}/api/auth/confirm` (falls back to
+  `APP_AUTH_REDIRECT` when `APP_PUBLIC_URL` is unset). New env `APP_PUBLIC_URL` (defaults to
+  the Render app URL) documented in `.env.example`.
+- `routes.ts` — new public `GET /auth/confirm` renders the あつまる-branded page (wordmark,
+  "Your email is confirmed — now sign in", a "Back to the app" button deep-linking to
+  `APP_AUTH_REDIRECT`). Static HTML, no auth surface.
+
+Key insight from the docs (and why there is no token handling on the page): GoTrue consumes
+the confirmation token at `/auth/v1/verify` and then 302s the browser to `redirect_to` — the
+page never sees the token; merely reaching it means the email is confirmed. An earlier draft
+that called `verifyOtp` on `/auth/confirm` was removed for exactly that reason (the token never
+arrives).
+
+Verified locally: page serves with the brand, headline, and a working back-to-app href
+(`exp://…/--/auth` in dev; `atsumaru://auth` in prod). Server typecheck + 100/100 tests pass.
+Pending: deploy; **add `${APP_PUBLIC_URL}/api/auth/confirm` to Supabase → Auth → URL
+Configuration → Redirect URLs** (else GoTrue falls back to Site URL); no email-template edit
+needed (branding was explicitly out of scope — default Supabase email stays).
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere
