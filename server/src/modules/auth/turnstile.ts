@@ -103,42 +103,58 @@ export function turnstilePageHtml(siteKey: string): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; }
   body { display: flex; align-items: center; justify-content: center; }
+  #container { width: min(300px, 100%); min-height: 65px; }
   #status { margin-top: 10px; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #888; text-align: center; }
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
 </head><body>
 <div>
   <div id="container"></div>
-  <div id="status">Verifying…</div>
+  <div id="status">Loading Cloudflare verification…</div>
 </div>
 <script>
   var widgetId = null;
   var tries = 0;
+  var ticker = null;
+  var started = 0;
   function post(msg) { try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg)); } catch (e) {} }
   function setStatus(text) { var el = document.getElementById('status'); if (el) el.textContent = text; }
-  function refresh() { if (!widgetId) return; try { turnstile.reset(widgetId); } catch (e) {} }
+  function startTicker() {
+    started = Date.now();
+    if (ticker) clearInterval(ticker);
+    ticker = setInterval(function () {
+      setStatus('Verifying… (' + Math.round((Date.now() - started) / 1000) + 's)');
+    }, 5000);
+  }
+  function refresh() { if (!widgetId) return; try { turnstile.reset(widgetId); startTicker(); } catch (e) {} }
   function boot() {
     if (typeof turnstile === 'undefined') {
       // api.js may still be loading — bounded retry, then a visible failure instead of a
       // silent no-token timeout on the native side.
       if (tries++ < 40) { setTimeout(boot, 250); return; }
-      setStatus('Turnstile could not load — check the network, or the widget\'s hostname settings in Cloudflare.');
+      setStatus('Turnstile script did not load — check the network connection.');
       return;
     }
     if (widgetId) return;
     // Managed-mode widget: runs automatically once rendered (spinner, then auto-pass or a
     // checkbox if Cloudflare wants interaction). No explicit execute() — that is only for
     // Invisible-mode widgets, which are exactly the mode that cannot mint here.
-    widgetId = turnstile.render('container', {
-      sitekey: '${siteKey}',
-      appearance: 'light',
-      callback: function (token) { setStatus('Verified'); post({ type: 'token', token: token }); },
-      'expired-callback': function () { setStatus('Verification expired — re-running…'); post({ type: 'expired' }); refresh(); },
-      'timeout-callback': function () { setStatus('Verification timed out — re-running…'); post({ type: 'timeout' }); refresh(); },
-      'error-callback': function (code) { setStatus('Verification failed (' + (code || 'unknown') + ')'); post({ type: 'error', code: code || 'unknown' }); }
-    });
+    try {
+      widgetId = turnstile.render('container', {
+        sitekey: '${siteKey}',
+        appearance: 'light',
+        callback: function (token) { setStatus('Verified'); post({ type: 'token', token: token }); },
+        'expired-callback': function () { setStatus('Verification expired — re-running…'); post({ type: 'expired' }); refresh(); },
+        'timeout-callback': function () { setStatus('Verification timed out — re-running…'); post({ type: 'timeout' }); refresh(); },
+        'error-callback': function (code) { setStatus('Verification failed (' + (code || 'unknown') + ')'); post({ type: 'error', code: code || 'unknown' }); }
+      });
+      startTicker();
+    } catch (e) {
+      setStatus('Widget failed to start: ' + (e && e.message ? e.message : String(e)));
+      post({ type: 'error', code: 'render-threw' });
+    }
   }
   window.__turnstileRefresh = refresh;
   boot();

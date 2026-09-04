@@ -120,6 +120,9 @@ export function TurnstileWidget() {
         onHttpError={(event: { nativeEvent?: { statusCode?: number } }) =>
           console.warn("Turnstile page HTTP error:", event.nativeEvent?.statusCode)
         }
+        onConsoleMessage={(event: { nativeEvent?: { message?: string; source?: string } }) =>
+          console.warn("Turnstile page console:", event.nativeEvent?.message ?? "")
+        }
         style={styles.webview}
       />
     </View>
