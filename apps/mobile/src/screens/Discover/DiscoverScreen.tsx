@@ -38,7 +38,7 @@ import { eventsApi } from "../../services/api/events";
 import { usePersistLocation } from "../../features/location/usePersistLocation";
 import { EXPOSED_FRACTION } from "../../components/map/framing";
 import type { MapSurfaceHandle } from "../../components/map/MapSurface";
-import { useAuthStore, useUiStore } from "../../store";
+import { useAuthStore, useLocationStore, useUiStore } from "../../store";
 import {
   colors,
   radius,
@@ -77,6 +77,7 @@ export function DiscoverScreen() {
   const user = useAuthStore((s) => s.user);
   const category = useUiStore((s) => s.selectedCategory);
   const setCategory = useUiStore((s) => s.setSelectedCategory);
+  const setLastFix = useLocationStore((s) => s.setLastFix);
 
   const [coords, setCoords] = useState<Coords | null>(null);
   /**
@@ -152,6 +153,12 @@ export function DiscoverScreen() {
   // Saves the fix above once per session, so the "meetup near you" notice has a point to
   // work from. No new reading is taken.
   usePersistLocation(coords, hasRealFix);
+
+  // Share the same single fix with create-event's venue search — covering the mount read
+  // and the re-ask path in one place, and never the Shibuya fallback (hasRealFix gates).
+  useEffect(() => {
+    if (hasRealFix && coords) setLastFix(coords);
+  }, [coords, hasRealFix, setLastFix]);
 
   const query = useNearbyEvents(pannedTo ?? coords, category);
   const events = query.data?.events ?? [];

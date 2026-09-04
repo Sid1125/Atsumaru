@@ -24,8 +24,20 @@ import type { Coords } from "../types/api";
 const SUGGEST_URL = "https://api.mapbox.com/search/searchbox/v1/suggest";
 const RETRIEVE_URL = "https://api.mapbox.com/search/searchbox/v1/retrieve";
 
-/** Japan-only: the product is Japan-first, and unbounded results are mostly noise here. */
+/**
+ * Country filter for when there is no location fix: the product's data lives in Japan,
+ * and an unbounded worldwide search on a fallback is mostly noise. Once the member has a
+ * real fix, the search space is their own area instead — see `suggestPlaces`.
+ */
 const COUNTRY = "jp";
+
+/**
+ * How wide the area around the member's fix is searched, in degrees (~1° ≈ 111 km).
+ * Bounding the results is what makes the picker feel like "around your district or
+ * province" rather than a country-wide relevance rank — Search Box accepts this as a
+ * `radius` around the `proximity` point (docs.mapbox.com/api/search/search-box).
+ */
+const FIXED_AREA_RADIUS_DEG = 1;
 
 /**
  * Always Japanese, **not** the member's UI language, and this is measured rather than
@@ -95,14 +107,24 @@ export async function suggestPlaces(
 
   const params = new URLSearchParams({
     q: query.trim(),
-    country: COUNTRY,
     language: SEARCH_LANGUAGE,
     limit: String(LIMIT),
     session_token: session,
     access_token: MAPBOX_PUBLIC_TOKEN,
   });
 
-  if (near) params.set("proximity", `${near.lng},${near.lat}`);
+  if (near) {
+    // The member's own area is the search space: bias results toward their fix and bound
+    // them inside the `radius` around it. No country filter here — a member outside Japan
+    // searching their own district must not be pinned to `country=jp` (that is exactly
+    // the "searches in Japan, no place found" bug). For a member in Japan the radius
+    // already keeps results local, so the filter is redundant either way.
+    params.set("proximity", `${near.lng},${near.lat}`);
+    params.set("radius", String(FIXED_AREA_RADIUS_DEG));
+  } else {
+    // No fix: the Japan-first baseline.
+    params.set("country", COUNTRY);
+  }
 
   try {
     const response = await fetch(`${SUGGEST_URL}?${params.toString()}`);

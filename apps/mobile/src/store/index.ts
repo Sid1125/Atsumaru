@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { Language, User } from "../types/api";
+import type { Coords, Language, User } from "../types/api";
 import {
   clearAccessToken,
   setSession,
@@ -47,6 +47,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     await clearAccessToken();
     set({ user: null, isAuthenticated: false });
   },
+}));
+
+interface LocationState {
+  /**
+   * The one-shot device fix Discover took, shared so the venue search in create-event
+   * can bias and bound its results around the member instead of searching Japan-wide.
+   * Only ever set from a real fix (never the Shibuya fallback), and no new location
+   * read is taken anywhere to fill it — the same single read, reused (docs/RULES.md).
+   */
+  lastFix: Coords | null;
+  setLastFix: (coords: Coords | null) => void;
+}
+
+export const useLocationStore = create<LocationState>((set) => ({
+  lastFix: null,
+  setLastFix: (lastFix) => set({ lastFix }),
 }));
 
 interface UiState {

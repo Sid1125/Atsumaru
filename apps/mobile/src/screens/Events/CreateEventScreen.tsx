@@ -15,6 +15,7 @@ import { VenuePicker } from "../../components/events/VenuePicker";
 import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMeta";
 import { eventsApi } from "../../services/api/events";
 import type { ResolvedPlace } from "../../services/places";
+import { useLocationStore } from "../../store";
 import { colors, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
@@ -38,6 +39,11 @@ export function CreateEventScreen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+
+  // The one-shot fix Discover already took (shared via the store), so the venue search
+  // looks around the member's district/province rather than Japan-wide. Null on a
+  // denied/no-fix device keeps the Japan baseline.
+  const near = useLocationStore((s) => s.lastFix);
 
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
@@ -108,6 +114,7 @@ export function CreateEventScreen() {
               setVenue(next.name);
             }}
             onClearPick={() => setPlace(null)}
+            near={near}
           />
           <TextField
             accessibilityLabel={t("createEvent.description")}

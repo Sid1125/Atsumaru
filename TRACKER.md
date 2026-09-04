@@ -345,6 +345,22 @@ CAPTCHA exists for (email signup, password reset, email-login redeem) keep the f
 
 Tests: session round-trip now pins `origin` (oauth default, email explicit); typecheck clean.
 
+### 5m. Venue search scoped to the member's own area (2026-09-04)
+
+Create-event's place search (Mapbox Search Box, `services/places.ts`) was hardcoded to
+`country=jp` and `near` was never wired in, so for a member outside Japan the picker
+searched Japan-wide and returned "no place found" even though the map showed their real
+fix. Two changes:
+- `places.ts` — when a real fix exists, send `proximity` + `radius` (1° ≈ 111 km,
+  district/province scale) around it and drop the `country` filter; the Japan filter is
+  now only the no-fix baseline.
+- The member's one-shot Discover fix is shared via a new `useLocationStore`
+  (`store/index.ts`); `DiscoverScreen` mirrors `coords` into it when `hasRealFix`
+  (never the Shibuya fallback), and `CreateEventScreen` passes it as `near` to
+  `VenuePicker`. No new location read anywhere — same single fix, reused.
+
+Mobile typecheck clean; no server change.
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere
