@@ -384,6 +384,39 @@ loads it by URL, giving the widget a real https origin that Cloudflare can bless
 (prod: `atsumaru-6i3n.onrender.com`). Then rebuild the APK (JS change) + redeploy the server.
 Still unverified: real-device mint against the live hostname.
 
+### 5o. Widget must be Managed + visible — the mode the dashboard, not the code, chose (2026-09-04)
+
+Email login STILL failed after §5n with the page live on the real hostname. Root cause found at
+last, and it was the one thing no amount of key/hostname code could fix: **widget mode is a
+Cloudflare dashboard setting** (per-widget, chosen at creation / editable under Settings), not a
+render option — and this widget was created **Invisible**. Invisible (and Non-Interactive) mode
+never presents an interaction: if Cloudflare's background check does not pass the visitor
+(emulator, VPN, datacenter, cross-border IP — exactly this user's setup), there is no checkbox
+and no token, ever. The hidden 1×1 WebView + 5s timeout then silently delivered `undefined`, and
+`verifyTurnstile` returned false **without logging** — so every attempt 403'd with no server-side
+signal. This explains why the failure survived the site-key fix and the hostname fix intact.
+
+- **Dashboard (user, done): widget mode → Managed.** Managed auto-passes a trusted session
+  silently, and when Cloudflare wants more proof it shows a checkbox the visitor ticks — the
+  only mode that can complete a challenged session. Invisible cannot, by design.
+- `server/.../turnstile.ts` — `turnstilePageHtml` now renders a **visible** widget (Managed
+  auto-runs on render; no `execute()` — that is Invisible-only and is what the old page did) with
+  an on-page status line (`Verifying… / Verified / failed (code)`) that doubles as a browser
+  self-test: opening `GET /auth/turnstile` in any browser should solve to "Verified".
+  `window.__turnstileRefresh` (reset) replaces `__turnstileExecute`. api.js load failure now
+  shows visible text instead of a silent no-token timeout.
+- `verifyTurnstile` — the empty-token case now logs distinctly (previously silent), so a widget
+  that fails to mint is visible in Render logs instead of a black-box 403.
+- `apps/mobile` `TurnstileWidget.tsx` — the WebView is now a visible, tappable ~220px card in
+  the email form (a Managed checkbox needs to be seen and clicked); zero-size + `pointerEvents
+  none` gone. `EmailAuthScreen` mounts it between the error text and the submit button. Load
+  errors (`onError`/`onHttpError`) log to console.
+
+**Dashboard facts pinned:** mode + hostname list live on the widget's Settings; the hostname must
+be the API's bare FQDN (`atsumaru-6i3n.onrender.com`), and the site key/secret pair only match
+while the widget keeps its current keys. Pending: user to deploy the new page, rebuild the APK,
+and confirm the browser self-test shows "Verified" before testing in-app.
+
 ### 1g. Four new notification types, 2026-09-03 — logic verified live, delivery still unexercised
 
 Push was one notification wide (the feedback reminder) and, more importantly, **had nowhere

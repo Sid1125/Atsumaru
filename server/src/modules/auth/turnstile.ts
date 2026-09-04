@@ -23,7 +23,13 @@ export async function verifyTurnstile(
   // behind a token that is never produced. Real deployments leave this unset → strict.
   if (env.TURNSTILE_ALWAYS_PASS === true) return true;
 
-  if (!token) return false;
+  if (!token) {
+    // Distinguish "no token presented" from "token rejected": a widget that failed to
+    // mint (network, WebView quirk, or a challenge that needed interaction it could not
+    // show) is otherwise invisible — the client only ever reports the generic 403.
+    console.warn("Turnstile gate: no token presented (the widget failed to mint one).");
+    return false;
+  }
 
   try {
     const body = new URLSearchParams({
@@ -76,39 +82,66 @@ export async function verifyTurnstile(
  * e.g. `atsumaru-6i3n.onrender.com`). The site key is injected from server env here, so it
  * never has to ship in the app bundle at all.
  *
- * The page self-executes once api.js is ready (with a bounded retry so the first execute
- * cannot race `api.js`), and exposes `window.__turnstileExecute` so the native side can kick
- * a fresh challenge after a token is consumed or the app returns to the foreground. Tokens
- * are posted to the React Native bridge as JSON `{ type: "token" | "expired" | "error" }`.
+ * The page renders a VISIBLE widget. It must render in the widget's **Managed** mode
+ * (a dashboard setting on the widget — not a render option): Managed auto-passes a trusted
+ * session silently, and when Cloudflare decides more proof is needed it shows a checkbox the
+ * visitor ticks. Invisible/Non-Interactive widgets can never present that checkbox, so on a
+ * network Cloudflare distrusts (datacenter, VPN, emulator) they simply never mint a token —
+ * which is exactly the failure an invisible widget in a hidden WebView produced. A Managed
+ * widget only works when the visitor can see and click it, so this page is rendered at real
+ * size and the native side gives it a tappable area on the auth screen.
+ *
+ * api.js availability is polled (bounded retry, so the first render cannot race the script
+ * load), and `window.__turnstileRefresh` (reset + auto re-run) lets the native side arm the
+ * next token after one is consumed or the app returns to the foreground. State is shown in a
+ * status line under the widget — it doubles as the browser self-test: open this URL in a
+ * normal browser and it should show the widget solving to "Verified" (or a checkbox to tick)
+ * rather than an error. Tokens are posted to the React Native bridge as JSON
+ * `{ type: "token" | "expired" | "timeout" | "error", ... }`.
  */
 export function turnstilePageHtml(siteKey: string): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile&render=explicit"></script>
-</head><body style="margin:0;padding:0;background:transparent">
-<div id="container"></div>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; }
+  #status { margin-top: 10px; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #888; text-align: center; }
+</style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
+</head><body>
+<div>
+  <div id="container"></div>
+  <div id="status">Verifying…</div>
+</div>
 <script>
   var widgetId = null;
-  var attempts = 0;
-  function tryExecute() {
-    // The first execute can race api.js finishing its load — retry briefly until the
-    // widget exists rather than letting a lost kick leave no token at all.
-    if (widgetId) { turnstile.execute(widgetId); return; }
-    if (attempts++ < 40) { setTimeout(tryExecute, 250); }
-  }
-  function onLoadTurnstile() {
+  var tries = 0;
+  function post(msg) { try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg)); } catch (e) {} }
+  function setStatus(text) { var el = document.getElementById('status'); if (el) el.textContent = text; }
+  function refresh() { if (!widgetId) return; try { turnstile.reset(widgetId); } catch (e) {} }
+  function boot() {
+    if (typeof turnstile === 'undefined') {
+      // api.js may still be loading — bounded retry, then a visible failure instead of a
+      // silent no-token timeout on the native side.
+      if (tries++ < 40) { setTimeout(boot, 250); return; }
+      setStatus('Turnstile could not load — check the network, or the widget\'s hostname settings in Cloudflare.');
+      return;
+    }
+    if (widgetId) return;
+    // Managed-mode widget: runs automatically once rendered (spinner, then auto-pass or a
+    // checkbox if Cloudflare wants interaction). No explicit execute() — that is only for
+    // Invisible-mode widgets, which are exactly the mode that cannot mint here.
     widgetId = turnstile.render('container', {
       sitekey: '${siteKey}',
-      size: 'invisible',
-      callback: function (token) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'token', token: token }));
-      },
-      'expired-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'expired' })); },
-      'error-callback': function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error' })); }
+      appearance: 'light',
+      callback: function (token) { setStatus('Verified'); post({ type: 'token', token: token }); },
+      'expired-callback': function () { setStatus('Verification expired — re-running…'); post({ type: 'expired' }); refresh(); },
+      'timeout-callback': function () { setStatus('Verification timed out — re-running…'); post({ type: 'timeout' }); refresh(); },
+      'error-callback': function (code) { setStatus('Verification failed (' + (code || 'unknown') + ')'); post({ type: 'error', code: code || 'unknown' }); }
     });
-    tryExecute();
   }
-  window.__turnstileExecute = tryExecute;
+  window.__turnstileRefresh = refresh;
+  boot();
 </script>
 </body></html>`;
 }

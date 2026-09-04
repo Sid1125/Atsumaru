@@ -53,7 +53,6 @@ export function EmailAuthScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <TurnstileWidget />
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -106,6 +105,8 @@ export function EmailAuthScreen() {
             {error}
           </Text>
         ) : null}
+
+        <TurnstileWidget />
 
         <Button
           label={
