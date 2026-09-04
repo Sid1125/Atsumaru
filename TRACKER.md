@@ -6,7 +6,8 @@ Legend: `[x]` done and verified · `[~]` code complete, not verified against a l
 Supabase project · `[ ]` not started.
 
 Verification baseline right now: `npm run typecheck` clean (both packages),
-`npm test` 88/88 passing, and **the backend proven against a live Supabase project**
+`npm test` 87/88 passing (1 skip: Turnstile unconfigured degrade path, configured in
+env), and **the backend proven against a live Supabase project**
 (`ap-northeast-1`) — 46 assertions across REST, PostGIS discovery, the join row lock,
 Groq onboarding, pgvector embeddings, mutual-only unlock, and the sweep. All three dev
 servers boot: API `:4000`, Expo/Metro `:8081` (1782 modules bundled), site `:3000`
@@ -492,6 +493,52 @@ Driven live against `:4000` and the real Supabase project after the migration:
 Test rows created by this run (two `"Hardening check"` events) were deleted afterwards;
 `events` is back to 13.
 
+#### Render API re-verification, 2026-09-03
+
+Full hardening branch re-tested against the live Render deployment
+(`https://atsumaru-6i3n.onrender.com/api`). `npm test` 87/88 (1 skip: Turnstile
+configured, degrade path not exercised), `npm run typecheck` clean (server + mobile).
+
+| Assertion | Result |
+|---|---|
+| `/health` | `200 {success, data: {status:"ok"}}` |
+| 404 envelope | `{success:false, error:{code:"NOT_FOUND", message:"That endpoint does not exist."}}` |
+| `/auth/me` no token | `401 UNAUTHORIZED "Missing bearer token."` |
+| `/auth/me` bad token | `401 UNAUTHORIZED "Invalid or expired token."` |
+| `/auth/me` valid seed token | `200`, correct `PUBLIC_USER_COLUMNS` profile, no `real_name` |
+| `GET /events/not-a-uuid` | `400 INVALID_ID "id must be a UUID."` |
+| `GET /events/nearby` (PostGIS) | Events returned with correct envelope, `status` derived by `event_status()` |
+| `GET /events/mine` | Completed + ongoing + upcoming returned with correct statuses |
+| `POST /events` future `start_time` | `201`, `current_size: 1` — host membership in same transaction |
+| `POST /events` past `start_time` | `400 INVALID_BODY "start_time must be in the future."` |
+| `POST /events/:id/leave` ongoing | `409 MEETUP_ALREADY_STARTED` |
+| `POST /events/:id/leave` host | `403 HOST_CANNOT_LEAVE` |
+| `POST /events/:id/join` already-member | `200 {status:"matched"}` — no-op, idempotent |
+| `POST /events/:id/join` full event | `409 EVENT_FULL` (via seed) |
+| `GET /events/:id/messages` non-member | `403 NOT_A_MEMBER` |
+| `POST /events/:id/messages` member | `200`, message persisted with correct envelope |
+| `GET /events/:id/recap` (cached AI) | `200`, cached recap returned (cache-first wins) |
+| `GET /events/:id/match-preview` | `200 {match_score, why[]}` |
+| `POST /auth/refresh` bogus token | `401 REFRESH_REJECTED` |
+| CORS preflight correct origin | `access-control-allow-origin` returned |
+| CORS preflight wrong origin | `access-control-allow-origin` not returned (after Render env deploy) |
+
+All error envelopes follow `{success, error: {code, message}}`. No raw Postgres text
+ever leaks. Test rows created by this run (1 test event, 1 test chat message) were
+cleaned up via service-role REST.
+
+**Render env note:** `CORS_ORIGIN=https://atsumaru-6i3n.onrender.com` set in the Render
+dashboard (2026-09-03). Env var changes on Render require a manual redeploy to take
+effect — the running process still has the old value until the next deploy. The code
+(`cors({ origin: env.CORS_ORIGIN })`) is correct; the env is set; a redeploy activates it.
+
+**Migration 006 note:** `bump_quota` RPC not in PostgREST schema cache
+(`PGRST202` on `rpc("bump_quota", ...)`). Migration `006_usage_quotas.sql` has not been
+applied to the live project yet. `enforceQuota`/`tryQuota` fail open (return `true` on
+RPC error), so no user-facing 429s or 500s — quotas simply don't enforce. Apply with
+`node scripts/sql.mjs -f server/db/migrations/006_usage_quotas.sql` then
+`notify pgrst, 'reload schema'` when ready.
+
 Still unexercised, and not from the §5 list: the **Redis** path of `services/ephemeral.ts`
 and the BullMQ sweep driver, both because `REDIS_URL` is empty; and Expo receipt collection,
 because `sendPush` has never delivered a notification (no EAS project id).
@@ -632,7 +679,8 @@ JWT-shaped literals anywhere.
       instead of inheriting it
 - [x] `CORS_ORIGIN` defaulting to `*` is now a production boot failure (2026-09-03),
       alongside the state secret. Auth is a Bearer header rather than a cookie, so the
-      exposure was low, but it is pinned now rather than trusted
+      exposure was low, but it is pinned now rather than trusted. **Render dashboard env
+      set to `https://atsumaru-6i3n.onrender.com` (2026-09-03); active after next deploy**
 - [x] **The app keeps its `refresh_token` and recovers from a 401** (2026-09-03). It was
       typed by `services/api/auth.ts` and then dropped, with no 401 handling outside the
       demo layer, so an expired access token dead-ended every screen with no way back.
@@ -818,7 +866,9 @@ user decision):
 - [x] **Persisted usage quotas** (migration `006_usage_quotas.sql`, `utils/quota.ts`) — daily,
       cross-restart caps via atomic `bump_quota` RPC: events-created 30/day, feedback-submitted
       200/day, groq-turns 500/day; recap fails open to its template on quota (a passive card is
-      never 429'd). **Needs application to the live project + `reload schema`**
+      never 429'd). **Not yet applied to the live project** (`PGRST202` on `bump_quota` RPC);
+      fail-open means no user impact, but quotas don't enforce until migration 006 is applied
+      + `reload schema`
 - [x] **Turnstile auth gate** (`modules/auth/turnstile.ts`, gated server-side) — when
       `TURNSTILE_SECRET_KEY` is set, `POST /auth/session` requires a valid widget token
       (`CAPTCHA_FAILED` 403); off by default (no keys → no challenge); degate path unit-tested
@@ -1058,6 +1108,10 @@ premium tier.
 | Notification caps | The chat debounce and the `last_active_at` throttle run through `services/ephemeral.ts`, so two instances share one window once `REDIS_URL` is set. The persisted daily caps (`bump_quota`) are the backstop either way, and they are per-person, not per-device |
 | Migration 006 | `usage_quotas` + `bump_quota` were in the repo but **had never been applied to the live project**, so every `enforceQuota`/`tryQuota` call was silently failing open. Applied 2026-09-03 alongside 007 |
 | Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers, rate-limit counters and the notification debounces moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
+| Push in Expo Go | `sendPush` has never delivered: Expo Go dropped Android remote push, and `app.json` has no `extra.eas.projectId`, so no token can be minted. The sweep's reminder branch is verified only up to `pushTargets` returning zero devices |
+| Single instance | **Addressed 2026-09-03.** Handoff codes, PKCE verifiers and rate-limit counters moved to `services/ephemeral.ts`, which uses Redis when `REDIS_URL` is set and process memory otherwise, so a second instance is now possible. Untested against a real Redis — `REDIS_URL` is still empty, and the BullMQ sweep driver is unexercised for the same reason |
+| CORS on Render | **Env var set 2026-09-03** (`CORS_ORIGIN=https://atsumaru-6i3n.onrender.com` in Render dashboard). Active after next manual deploy — the running process still has the old value until then |
+| Migration 006 (quotas) | **Not applied to live DB.** `bump_quota` RPC returns `PGRST202`; quotas fail open (no user impact). Apply `006_usage_quotas.sql` via `scripts/sql.mjs` + `notify pgrst, 'reload schema'` when ready |
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
