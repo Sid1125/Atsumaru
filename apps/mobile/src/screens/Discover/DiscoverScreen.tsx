@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
-import Animated from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -20,7 +20,6 @@ import { ScreenState } from "../../components/common/ScreenState";
 import { EventCard } from "../../components/events/EventCard";
 import { MapSurface } from "../../components/map/MapSurface";
 import {
-  IconChevronRight,
   IconConnections,
   IconLocate,
 } from "../../components/ui/Icons";
@@ -30,6 +29,11 @@ import {
   useBottomSheetScrollable,
 } from "../../components/ui/BottomSheet";
 import { PressableScale } from "../../components/ui/PressableScale";
+import { Material } from "../../components/ui/Material";
+import { EditorialRow } from "../../components/common/EditorialRow";
+import { ScreenHeader } from "../../components/common/ScreenHeader";
+import { ScrollEdge } from "../../components/ui/ScrollEdge";
+import { VinylShadow } from "../../components/ui/VinylShadow";
 import {
   useMyEvents,
   useNearbyEvents,
@@ -42,9 +46,11 @@ import { useAuthStore, useLocationStore, useUiStore } from "../../store";
 import {
   colors,
   radius,
-  sectionHeader,
   spacing,
+  STAGGER_STEP,
+  timings,
   type,
+  useReducedMotion,
 } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 import type { Coords, MeetupEvent } from "../../types/api";
@@ -177,8 +183,60 @@ export function DiscoverScreen() {
 
   const scoreFor = (index: number) => previews[index]?.data?.match_score;
 
+  /**
+   * The sheet list: the best-scoring meetup pulled to the top, everything else left
+   * in the order the server returned (distance).
+   *
+   * This is `docs/DESIGN.md` §4's hierarchy — "4. Recommended meetup, 5. Nearby
+   * meetup list" — which the screen had flattened into one distance-ordered list
+   * while still printing a fit score on every row. The visible symptom was a
+   * promoted card reading 30% sitting directly above a row reading 38%: a hierarchy
+   * contradicted by the number inside it.
+   *
+   * Sorting the *whole* list by score would be the other wrong answer, because then
+   * "nearby" would stop meaning anything. Only the recommendation moves.
+   *
+   * `events` itself is deliberately NOT reordered — the map pins and the
+   * selection/`previews` indices are keyed to it, and shuffling it underneath them
+   * would move pins around as scores arrive.
+   */
+  const rows = useMemo(() => {
+    const scored = events.map((event, index) => ({
+      event,
+      score: scoreFor(index),
+    }));
+
+    let bestAt = -1;
+    let bestScore = -Infinity;
+
+    scored.forEach((row, index) => {
+      if (row.score != null && row.score > bestScore) {
+        bestScore = row.score;
+        bestAt = index;
+      }
+    });
+
+    // Nothing scored yet (previews still in flight) — a flat set of equals is the
+    // honest render until one of them can claim to be best.
+    if (bestAt < 0) return scored.map((row) => ({ ...row, featured: false }));
+
+    const best = scored[bestAt]!;
+
+    return [
+      { ...best, featured: true },
+      ...scored.filter((_, index) => index !== bestAt).map((row) => ({ ...row, featured: false })),
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, previews]);
+
   const open = useCallback(
     (eventId: string) => navigation.navigate("Meetup", { eventId }),
+    [navigation]
+  );
+
+  /** The feedback form is one destination, reached from here and from the meetup. */
+  const openFeedback = useCallback(
+    (eventId: string) => navigation.navigate("Feedback", { eventId }),
     [navigation]
   );
 
@@ -263,42 +321,72 @@ export function DiscoverScreen() {
         radiusKm={NEARBY_RADIUS_KM}
       />
 
-      {/* Floating chrome — the map scrolls underneath it */}
+      {/*
+        Floating chrome. One material rail, not two floating discs.
+
+        This was two 44pt circular buttons with `nightRaised` fills — the exact
+        shape docs/DESIGN.md §1b names when it says "kill the pill smell", and
+        opaque, so the map did **not** scroll underneath the chrome the comment
+        claimed it did. It also had nowhere for the member's own handle, which
+        DESIGN §4 asks for in this slot.
+
+        Now: a single `Material` bar the map genuinely shows through, carrying the
+        handle on the left and the two destinations on the right with no per-button
+        surface of their own. The avatar stays round because an avatar is a
+        portrait, not a control shape.
+      */}
       <View
         style={[styles.topChrome, { paddingTop: insets.top + spacing.sm }]}
         pointerEvents="box-none"
       >
-        {/* Editorial band — two circular chrome anchors over the map.
-            LEFT: connections (SVG network icon). RIGHT: profile avatar. No
-            username here — identity lives in the profile. Neither is a pill. */}
-        <View
-          style={styles.identityBand}
-          onLayout={(e) =>
-            setBandBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)
-          }
-        >
-          <PressableScale
-            accessibilityLabel={t("connection.title")}
-            onPress={() => navigation.navigate("Connections")}
-            style={styles.circleButton}
-            scaleTo={0.92}
+        {/*
+          Two islands, not one bar. A full-width rail across the top of a map is
+          heavy chrome that hides the thing the screen is about; splitting it lets
+          the map read between them, which is the point of floating chrome at all.
+        */}
+        <View style={styles.identityRow}>
+          <Material
+            tone="night"
+            weight="thin"
+            style={styles.identityPill}
+            // Measured on the rail itself, not on a child. The filter row below is
+            // positioned from this, and reading it off an inner view gave a
+            // near-zero offset — so the chips rendered on top of the handle.
+            onLayout={(e) =>
+              setBandBottom(
+                e.nativeEvent.layout.height + insets.top + spacing.sm
+              )
+            }
           >
-            <IconConnections size={22} color={colors.nightText} />
-          </PressableScale>
+            <Text style={styles.identityHandle} numberOfLines={1}>
+              @{user?.handle ?? ""}
+            </Text>
+          </Material>
 
-          <PressableScale
-            accessibilityLabel={t("profile.title")}
-            onPress={() => navigation.navigate("Profile")}
-            style={styles.circleButton}
-            scaleTo={0.92}
-          >
-            <Avatar
-              id={user?.id ?? ""}
-              label={(user?.handle ?? "?").slice(0, 1)}
-              uri={user?.avatar_url}
-              size="md"
-            />
-          </PressableScale>
+          <Material tone="night" weight="thin" style={styles.identityActions}>
+            <PressableScale
+              accessibilityLabel={t("connection.title")}
+              onPress={() => navigation.navigate("Connections")}
+              style={styles.railAction}
+              scaleTo={0.92}
+            >
+              <IconConnections size={22} color={colors.nightText} />
+            </PressableScale>
+
+            <PressableScale
+              accessibilityLabel={t("profile.title")}
+              onPress={() => navigation.navigate("Profile")}
+              style={styles.railAction}
+              scaleTo={0.92}
+            >
+              <Avatar
+                id={user?.id ?? ""}
+                label={(user?.handle ?? "?").slice(0, 1)}
+                uri={user?.avatar_url}
+                size="md"
+              />
+            </PressableScale>
+          </Material>
         </View>
       </View>
 
@@ -310,7 +398,7 @@ export function DiscoverScreen() {
           accessibilityLabel={t("discover.recenter")}
           accessibilityState={{ disabled: !coords }}
           onPress={recenter}
-          style={styles.circleButton}
+          style={styles.mapControl}
           scaleTo={0.92}
         >
           <IconLocate
@@ -335,7 +423,6 @@ export function DiscoverScreen() {
             label={t("discover.categories.all")}
             selected={category === null}
             onPress={() => setCategory(null)}
-            tone="neutral"
           />
           {CATEGORY_ORDER.map((key) => {
             const sticker = categorySticker(key);
@@ -347,7 +434,6 @@ export function DiscoverScreen() {
                 label={t(`discover.categories.${key}`)}
                 selected={category === key}
                 onPress={() => setCategory(key)}
-                tone="neutral"
                 sticker={sticker}
               />
             );
@@ -359,46 +445,66 @@ export function DiscoverScreen() {
         ref={sheet}
         initial="half"
         dark
-        header={
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetKicker}>{t("discover.titleKicker")}</Text>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>{t("discover.forYou")}</Text>
-              <View style={styles.hostWrap}>
-                <View
-                  pointerEvents="none"
-                  accessibilityElementsHidden
-                  style={styles.hostShadow}
-                />
-                <PressableScale
-                  accessibilityLabel={t("createEvent.title")}
-                  onPress={() => navigation.navigate("CreateEvent")}
-                  style={styles.hostButton}
-                  scaleTo={0.93}
-                >
-                  <Text style={styles.hostLabel}>
-                    + {t("createEvent.short")}
-                  </Text>
-                </PressableScale>
-              </View>
-            </View>
-          </View>
-        }
+        header={<SheetHeader onHost={() => navigation.navigate("CreateEvent")} />}
       >
         <SheetBody
           permissionDenied={permissionDenied}
           requestLocation={requestLocation}
           needsFeedback={needsFeedback}
+          openFeedback={openFeedback}
           open={open}
           query={query}
-          events={events}
-          scoreFor={scoreFor}
+          rows={rows}
           selectedId={selectedId}
           selectFromList={selectFromList}
           insetsBottom={insets.bottom}
+          onHostFromEmpty={() => navigation.navigate("CreateEvent")}
         />
       </BottomSheet>
     </View>
+  );
+}
+
+/**
+ * The sheet's own header, extracted so it can read the sheet's scroll position.
+ *
+ * It has to be a component rather than inline JSX: `useBottomSheetScrollable()`
+ * reads a context that `BottomSheet` provides *inside* its own tree, and a hook
+ * only sees that if it runs at the render position the header actually occupies.
+ *
+ * The point of it is the scroll edge. The header used to be a bare `View` on the
+ * night ground, so a meetup row scrolling past it simply vanished under an
+ * unmarked edge. Now the material fades in over the first 24pt of scroll — the
+ * chrome announces "there is content above" only once that is true, which is what
+ * Apple's guidance prefers to a permanently drawn divider.
+ */
+function SheetHeader({ onHost }: { onHost: () => void }) {
+  const { t } = useTranslation();
+  const { scrollOffset } = useBottomSheetScrollable();
+
+  return (
+    <ScrollEdge offset={scrollOffset} tone="night" weight="thin" style={styles.sheetEdge}>
+      <View style={styles.sheetHeader}>
+        <ScreenHeader
+          kicker={t("discover.titleKicker")}
+          title={t("discover.forYou")}
+          tone="night"
+          trailing={
+            <View style={styles.hostWrap}>
+              <VinylShadow offset={2} borderRadius={radius.pill} />
+              <PressableScale
+                accessibilityLabel={t("createEvent.title")}
+                onPress={onHost}
+                style={styles.hostButton}
+                scaleTo={0.93}
+              >
+                <Text style={styles.hostLabel}>+ {t("createEvent.short")}</Text>
+              </PressableScale>
+            </View>
+          }
+        />
+      </View>
+    </ScrollEdge>
   );
 }
 
@@ -412,26 +518,30 @@ function SheetBody({
   requestLocation,
   needsFeedback,
   open,
+  openFeedback,
   query,
-  events,
-  scoreFor,
+  rows,
   selectedId,
   selectFromList,
   insetsBottom,
+  onHostFromEmpty,
 }: {
   permissionDenied: boolean;
   requestLocation: () => void;
   needsFeedback: MeetupEvent[];
   open: (eventId: string) => void;
+  openFeedback: (eventId: string) => void;
   query: UseQueryResult<{ events: MeetupEvent[] }>;
-  events: MeetupEvent[];
-  scoreFor: (index: number) => number | undefined;
+  rows: { event: MeetupEvent; score: number | undefined; featured: boolean }[];
   selectedId: string | null;
   selectFromList: (eventId: string) => void;
   insetsBottom: number;
+  onHostFromEmpty: () => void;
 }) {
   const { t } = useTranslation();
   const { nativeGesture, scrollHandler } = useBottomSheetScrollable();
+  const reducedMotion = useReducedMotion();
+
 
   return (
     <GestureDetector gesture={nativeGesture}>
@@ -445,23 +555,13 @@ function SheetBody({
         showsVerticalScrollIndicator={false}
       >
         {permissionDenied ? (
-          <PressableScale
-            accessibilityLabel={t("discover.allowLocation")}
+          <EditorialRow
+            tone="night"
+            title={t("discover.locationDenied")}
+            detail={t("discover.allowLocation")}
             onPress={requestLocation}
-            style={styles.locationRow}
-            scaleTo={0.98}
-          >
-            <View style={styles.locationDot} />
-            <View style={styles.feedbackBody}>
-              <Text style={styles.locationTitle}>
-                {t("discover.locationDenied")}
-              </Text>
-            <Text style={styles.locationHint}>
-              {t("discover.allowLocation")}
-            </Text>
-          </View>
-          <IconChevronRight size={18} color={colors.nightMuted} />
-        </PressableScale>
+            accessibilityLabel={t("discover.allowLocation")}
+          />
         ) : null}
 
         {needsFeedback.length > 0 ? (
@@ -470,7 +570,14 @@ function SheetBody({
               {t("discover.yourMeetups")}
             </Text>
             {needsFeedback.map((event) => (
-              <FeedbackRow key={event.id} event={event} onPress={() => open(event.id)} />
+              // Straight to the form, not to the meetup detail: this row exists
+              // because feedback is outstanding, so making the user find the
+              // form again on the next screen is a wasted tap.
+              <FeedbackRow
+                key={event.id}
+                event={event}
+                onPress={() => openFeedback(event.id)}
+              />
             ))}
           </View>
         ) : null}
@@ -479,20 +586,45 @@ function SheetBody({
           <ScreenState status="loading" dark />
         ) : query.isError ? (
           <ScreenState status="error" onRetry={() => query.refetch()} dark />
-        ) : events.length === 0 ? (
-          <ScreenState status="empty" dark />
+        ) : rows.length === 0 ? (
+          // The one screen whose empty state has an obvious next move. A generic
+          // "nothing here" on Discover is a dead end when the user could host.
+          <ScreenState
+            status="empty"
+            dark
+            message={t("discover.emptyNearby")}
+            actionLabel={t("createEvent.title")}
+            onAction={onHostFromEmpty}
+          />
         ) : (
           <View style={styles.section}>
-            {events.map((event, index) => (
-              <EventCard
+            {rows.map(({ event, score, featured }, index) => (
+              <Animated.View
                 key={event.id}
-                event={event}
-                matchScore={scoreFor(index)}
-                selected={event.id === selectedId}
-                onPress={() => selectFromList(event.id)}
-                onOpen={() => open(event.id)}
-                dark
-              />
+                // Opacity-led, 8pt of rise, 40ms apart. The whole run finishes
+                // inside one perceived beat; a longer step turns a list into a
+                // queue the user watches. First paint only — React Query serves
+                // cached results instantly afterwards, and re-animating a list the
+                // user has already seen is the classic doubled-transition smell.
+                entering={
+                  reducedMotion
+                    ? undefined
+                    : FadeInDown.duration(timings.enter.duration)
+                        .delay(index * STAGGER_STEP)
+                        .withInitialValues({ transform: [{ translateY: 8 }] })
+                }
+              >
+                <EventCard
+                  event={event}
+                  matchScore={score}
+                  // The top match is the reason this screen exists.
+                  variant={featured ? "featured" : "standard"}
+                  selected={event.id === selectedId}
+                  onPress={() => selectFromList(event.id)}
+                  onOpen={() => open(event.id)}
+                  dark
+                />
+              </Animated.View>
             ))}
           </View>
         )}
@@ -501,6 +633,15 @@ function SheetBody({
   );
 }
 
+/**
+ * An outstanding-feedback prompt. `EditorialRow` rather than the hand-rolled
+ * dot + chevron this used to be: the same shape now carries "open a destination"
+ * on the meetup screen and in the connections list, and the three had drifted
+ * apart while doing one job.
+ *
+ * The detail line is the emphasised one, not the title — the meetup name is
+ * context, and the thing being offered is the action.
+ */
 function FeedbackRow({
   event,
   onPress,
@@ -511,21 +652,13 @@ function FeedbackRow({
   const { t } = useTranslation();
 
   return (
-    <PressableScale
-      accessibilityLabel={`${event.title} — ${t("discover.leaveFeedback")}`}
+    <EditorialRow
+      tone="night"
+      title={event.title}
+      detail={t("discover.leaveFeedback")}
       onPress={onPress}
-      style={styles.feedbackRow}
-      scaleTo={0.98}
-    >
-      <View style={styles.feedbackDot} />
-      <View style={styles.feedbackBody}>
-        <Text style={styles.feedbackTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
-        <Text style={styles.feedbackMeta}>{t("discover.leaveFeedback")}</Text>
-      </View>
-      <IconChevronRight size={18} color={colors.nightMuted} />
-    </PressableScale>
+      accessibilityLabel={`${event.title}, ${t("discover.leaveFeedback")}`}
+    />
   );
 }
 
@@ -540,18 +673,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
   },
-  identityBand: {
+  identityRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
-    paddingHorizontal: spacing.xs,
   },
-  circleButton: {
+  identityPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    flexShrink: 1,
+  },
+  identityHandle: { ...type.kicker, color: colors.citrus },
+  identityActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xxs,
+    paddingHorizontal: spacing.xxs,
+    borderRadius: radius.pill,
+  },
+  /**
+   * No fill and no border. The rail behind these is the surface; giving each one
+   * its own would stack a light material on a light material, which Apple's
+   * materials guidance rules out outright — legibility collapses.
+   *
+   * Still 44pt, so the target survives losing its visible shape.
+   */
+  railAction: {
     width: 44,
     height: 44,
     borderRadius: radius.pill,
-    backgroundColor: colors.nightRaised,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  /**
+   * The recenter control keeps its circle: it is a *map* control, not navigation,
+   * and a round target over a map is the convention everywhere. Its own constant so
+   * that it and the nav chrome can no longer drift into looking like one family.
+   */
+  mapControl: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.materialNightRegular,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.nightSeparator,
     alignItems: "center",
@@ -575,76 +741,31 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
 
+  // The edge clips its material to the sheet's own top corners rather than
+  // painting a square block across them.
+  sheetEdge: {
+    overflow: "hidden",
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+  },
   sheetHeader: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-    gap: spacing.xxs,
+    paddingBottom: spacing.md,
   },
-  sheetKicker: { ...type.overline, color: colors.neon },
-  sheetTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sheetTitle: { ...type.title2, color: colors.nightText },
   hostWrap: { position: "relative" },
-  hostShadow: {
-    position: "absolute",
-    top: 2,
-    left: 2,
-    right: 0,
-    bottom: 0,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(9,9,11,0.9)",
-  },
   hostButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
     borderRadius: radius.pill,
-    backgroundColor: colors.lime,
+    backgroundColor: colors.citrus,
   },
-  hostLabel: { ...type.footnote, color: colors.limeInk, fontWeight: "800" },
+  hostLabel: { ...type.footnote, color: colors.citrusInk, fontWeight: "800" },
 
   sheetBody: { paddingHorizontal: spacing.page, gap: spacing.md },
   section: { gap: spacing.sm },
-  sectionKicker: { ...sectionHeader, color: colors.nightMuted, marginBottom: spacing.xxs },
+  // `overline`, not a screen kicker: this labels the group under it. The screen's
+  // one kicker is already spent on the sheet header above.
+  sectionKicker: { ...type.overline, color: colors.nightMuted, marginBottom: spacing.xxs },
 
-  feedbackRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md - 2,
-    paddingHorizontal: spacing.md - 2,
-    backgroundColor: colors.nightRaisedSoft,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.nightSeparator,
-  },
-  feedbackDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neon,
-  },
-  feedbackBody: { flex: 1, gap: spacing.xxs },
-  feedbackTitle: { ...type.bodyEmphasized, color: colors.nightText },
-  feedbackMeta: { ...type.caption, color: colors.neon, fontWeight: "600" },
-
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md - 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.nightSeparator,
-  },
-  locationDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neon,
-  },
-  locationTitle: { ...type.bodyEmphasized, color: colors.nightText },
-  locationHint: { ...type.caption, color: colors.nightMuted },
 });

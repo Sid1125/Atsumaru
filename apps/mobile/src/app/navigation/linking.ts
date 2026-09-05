@@ -24,9 +24,18 @@ import type { AppStackParamList } from "./types";
 export const linking: LinkingOptions<AppStackParamList> = {
   prefixes: ["atsumaru://"],
   config: {
+    /**
+     * Without this, a cold-start deep link builds a stack containing only the
+     * linked screen — no back button, and from a chat link, no route to the
+     * meetup at all. Naming the initial route makes Discover the parent every
+     * deep link lands on top of.
+     */
+    initialRouteName: "Discover",
     screens: {
       Discover: "discover",
       Meetup: "meetup/:eventId",
+      // Nested under the meetup so the path reads as the sub-resource it is.
+      GroupChat: "meetup/:eventId/chat",
       Connections: "connections",
       Dm: "dm/:connectionId",
       Profile: "profile",

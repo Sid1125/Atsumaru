@@ -13,12 +13,13 @@ export {
   MIN_TARGET,
 } from "./tokens";
 
-export { type, sectionHeader, typography } from "./typography";
+export { type, fonts, typography } from "./typography";
 
 export {
   springs,
   spring,
   timings,
+  STAGGER_STEP,
   projectDecay,
   rubberband,
   nearestSnap,

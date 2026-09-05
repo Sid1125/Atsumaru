@@ -7,14 +7,17 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#F5E5CC",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.atsumaru.app"
     },
     "android": {
       "package": "com.atsumaru.app",
+      "backgroundColor": "#F5E5CC",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#FBF7F2",
+        "backgroundColor": "#F5E5CC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -49,7 +52,7 @@
       [
         "expo-notifications",
         {
-          "color": "#FBF7F2"
+          "color": "#CE4503"
         }
       ]
     ]

@@ -198,6 +198,42 @@ App → Bearer JWT on everything after
 - screens/hooks/query keys identical in both modes; flipping the flag to `0` removes the
   demo layer from the call path entirely
 
+## Navigation (mobile)
+
+Three stacks, chosen by two facts, not one — `isAuthenticated` and whether a profile row
+exists. A signed-in account has no `user` until onboarding completes, so `user === null`
+is ambiguous alone, and collapsing the two is what once made the onboarding stack
+unreachable.
+
+```
+auth        Login → EmailAuth                       (headerShown: false, night ground)
+onboarding  AIChat → ProfileConfirm
+app         Discover ─┬─ Meetup ─┬─ GroupChat        meetup/:eventId/chat
+                      │          └─ Feedback         (modal, deliberately unlinked)
+                      ├─ Connections → Dm            dm/:connectionId
+                      ├─ CreateEvent                 (modal, deliberately unlinked)
+                      └─ Profile
+```
+
+**Chat and feedback are destinations, not sections.** `MeetupScreen` shows a
+`GroupChatCard` preview (live via `useThreadPreview`, a `select` over the same
+`["events", id, "messages"]` key, so no extra request) directly under the hero, and a
+`WrapUpRow` for feedback. `docs/DESIGN.md` §5 specified this shape from the start;
+the embedded thread that preceded it was the un-virtualized, keyboard-unaware one behind
+`TRACKER.md` §5j.
+
+`linking.ts` sets `initialRouteName: "Discover"` — without it a cold-start deep link
+builds a stack containing only the linked screen, with no back button and, from a chat
+link, no route to the meetup at all. `CreateEvent` and `Feedback` are intentionally
+absent from `config.screens`: a modal you can only reach from inside the app.
+
+One `animation: "ios_from_right"` on the app stack rather than six per-route overrides.
+It is Android-only and resolves to `default` on iOS, so both platforms get the same felt
+push. It is **not** gated on `useReducedMotion()` — the OS already handles that, and a JS
+gate would fight the system setting. Note that on an emulator reporting reduce-motion,
+`TRANSITION_ANIMATION_SCALE` is 0 and every transition runs at zero duration; bump the
+three `adb shell settings put global *_animation_scale 1` values before judging motion.
+
 ## Map wiring (mobile)
 
 `components/map/MapSurface.tsx` is one branch, the same shape as the demo-mode switch:

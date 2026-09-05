@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,7 +12,16 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import Animated, {
+  cancelAnimation,
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 
 import { PressableScale } from "../../components/ui/PressableScale";
 import { Chip } from "../../components/common/Chip";
@@ -152,17 +161,32 @@ export function AIChatScreen() {
       <View style={styles.head}>
         <Text style={styles.kicker}>{t("onboarding.title")}</Text>
         <Text style={styles.title}>{t("onboarding.chatTitle")}</Text>
-        {/* Animated progress bar — coral fill tracks conversation depth */}
-        <View style={styles.progressTrack}>
-          {[0, 1, 2].map((step) => (
-            <View
-              key={step}
-              style={[
-                styles.progressFill,
-                step < progress && styles.progressFillDone,
-              ]}
-            />
-          ))}
+        {/**
+          * Progress is stated in words as well as fill. Three coral bars alone
+          * communicated the state by colour only, which docs/DESIGN.md §10 rules
+          * out — and DESIGN.md §3's own layout sketch shows the counter as text
+          * ("Atsumaru    1/3"). The role and value also make it legible to a
+          * screen reader, which previously got nothing at all from this.
+          */}
+        <View style={styles.progressRow}>
+          <View
+            style={styles.progressTrack}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: 3, now: progress }}
+          >
+            {[0, 1, 2].map((step) => (
+              <View
+                key={step}
+                style={[
+                  styles.progressFill,
+                  step < progress && styles.progressFillDone,
+                ]}
+              />
+            ))}
+          </View>
+          <Text style={styles.progressLabel}>
+            {t("onboarding.step", { current: progress, total: 3 })}
+          </Text>
         </View>
       </View>
 
@@ -211,12 +235,18 @@ export function AIChatScreen() {
         ))}
 
         {sending ? (
-          <View style={[styles.bubble, styles.aiBubble, styles.typing]}>
+          <View
+            style={[styles.bubble, styles.aiBubble, styles.typing]}
+            accessibilityLiveRegion="polite"
+            // Motion is never the only signal: the dots are decoration, and this
+            // label is what actually announces the state.
+            accessibilityLabel={t("common.loading")}
+          >
             <Text style={styles.aiLabel}>AI</Text>
             <View style={styles.typingDots}>
-              <View style={[styles.dot, styles.dot1]} />
-              <View style={[styles.dot, styles.dot2]} />
-              <View style={[styles.dot, styles.dot3]} />
+              <TypingDot index={0} />
+              <TypingDot index={1} />
+              <TypingDot index={2} />
             </View>
           </View>
         ) : null}
@@ -297,6 +327,48 @@ export function AIChatScreen() {
   );
 }
 
+/**
+ * One dot of the "the host is thinking" indicator.
+ *
+ * These were three static `View`s at fixed opacities 0.4 / 0.6 / 0.8, sitting under
+ * a file docblock that described "animated typing dots" — the app claimed a
+ * behaviour it did not have. They now actually pulse.
+ *
+ * Staggered by a third of the cycle each so the group reads as a travelling wave
+ * rather than three things blinking together. `withRepeat(..., -1, true)` reverses
+ * on each pass, so the sequence is continuous with no jump back to the start.
+ *
+ * This is a loop, which the guidance generally rules out — permitted here because
+ * it is a *progress* indicator bound to an in-flight request: it exists only while
+ * `sending` is true and unmounts the moment the reply lands, so it cannot become
+ * ambient motion with no end. Under reduced motion it settles to a static opacity
+ * and the `accessibilityLabel` above carries the meaning instead.
+ */
+function TypingDot({ index }: { index: number }) {
+  const reducedMotion = useReducedMotion();
+  const pulse = useSharedValue(0);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+
+    pulse.value = withDelay(
+      index * (DOT_CYCLE / 3),
+      withRepeat(withTiming(1, { duration: DOT_CYCLE }), -1, true)
+    );
+
+    return () => cancelAnimation(pulse);
+  }, [pulse, index, reducedMotion]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: reducedMotion ? 0.6 : 0.3 + pulse.value * 0.6,
+  }));
+
+  return <Animated.View style={[styles.dot, style]} />;
+}
+
+/** One dot's full pulse, in ms. Slow enough to read as breathing, not blinking. */
+const DOT_CYCLE = 560;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   head: {
@@ -306,14 +378,23 @@ const styles = StyleSheet.create({
   },
   kicker: {
     ...type.overline,
-    color: colors.primary,
+    color: colors.primaryInk,
   },
   title: {
     ...type.title1,
     color: colors.text,
     maxWidth: 320,
   },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  progressLabel: { ...type.overline, color: colors.textMuted },
   progressTrack: {
+    // Shares its row with the "1/3" label now, so it must claim the slack
+    // rather than collapsing to its content width.
+    flex: 1,
     flexDirection: "row",
     gap: spacing.xs + 2,
     marginTop: spacing.xs,
@@ -363,7 +444,7 @@ const styles = StyleSheet.create({
   },
   aiLabel: {
     ...type.overline,
-    color: colors.primary,
+    color: colors.primaryInk,
     marginBottom: spacing.xxs,
   },
   bubbleText: { ...type.body, color: colors.text },
@@ -384,9 +465,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.textMuted,
   },
-  dot1: { opacity: 0.4 },
-  dot2: { opacity: 0.6 },
-  dot3: { opacity: 0.8 },
 
   error: {
     ...type.footnote,

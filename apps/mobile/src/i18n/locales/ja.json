@@ -9,7 +9,11 @@
     "submit": "送信",
     "cancel": "キャンセル",
     "reconnecting": "再接続中...",
-    "send": "送信"
+    "send": "送信",
+    "you": "あなた",
+    "sending": "送信中…",
+    "sendFailed": "メッセージを送信できませんでした。もう一度お試しください",
+    "rateLimited": "送信が早すぎます。少し待ってください"
   },
   "auth": {
     "tagline": "恋活アプリじゃない。まずは友達から。",
@@ -34,7 +38,12 @@
     "backToLogin": "ログインに戻る",
     "confirmSent": "確認メールを送信しました。確認後、ログインしてください。",
     "resetSent": "そのメールアドレスのアカウントがあれば、再設定リンクをお送りしました。",
-    "passwordUpdated": "パスワードを更新しました。新しいパスワードでログインしてください。"
+    "passwordUpdated": "パスワードを更新しました。新しいパスワードでログインしてください。",
+    "humanVerification": "本人確認",
+    "loginFailed": "サインインできませんでした",
+    "signupFailed": "登録できませんでした",
+    "resetFailed": "再設定メールを送信できませんでした",
+    "resetCompleteFailed": "パスワードを更新できませんでした"
   },
   "onboarding": {
     "title": "あなたのことを教えてください。",
@@ -67,7 +76,8 @@
       "adventurous": "冒険好き",
       "creative": "クリエイティブ",
       "easygoing": "気さく"
-    }
+    },
+    "step": "{{current}}/{{total}}"
   },
   "discover": {
     "subtitle": "近くの仲間をさがす",
@@ -99,7 +109,8 @@
       "ongoing": "開催中",
       "completed": "終了"
     },
-    "recenter": "現在地に戻る"
+    "recenter": "現在地に戻る",
+    "emptyNearby": "近くにミートアップはまだありません。最初のホストになりましょう。"
   },
   "meetup": {
     "yourGroup": "あなたのグループ",
@@ -110,7 +121,8 @@
     "openChat": "チャットを開く",
     "messagePlaceholder": "グループにメッセージ...",
     "chatEmpty": "まだメッセージはありません。あいさつしてみましょう",
-    "groupFitLabel": "グループ相性"
+    "groupFitLabel": "グループ相性",
+    "chatNew": "新着"
   },
   "feedback": {
     "title": "集まりはどうでした？",
@@ -190,7 +202,8 @@
     "noInterests": "まだ興味がありません — 追加してみましょう。",
     "addInterest": "興味を追加",
     "addInterestPlaceholder": "例：ラーメン",
-    "personalityCap": "性格タグは最大{{max}}個です。"
+    "personalityCap": "性格タグは最大{{max}}個です。",
+    "removeTag": "{{tag}} を削除"
   },
   "createEvent": {
     "title": "集まりを主催する",

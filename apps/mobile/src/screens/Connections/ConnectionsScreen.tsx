@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
-import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Avatar } from "../../components/common/Avatar";
 import { ScreenState } from "../../components/common/ScreenState";
@@ -12,7 +11,7 @@ import { PressableScale } from "../../components/ui/PressableScale";
 import { useConnections } from "../../features/connections/hooks/useConnections";
 import { usersApi } from "../../services/api/users";
 import { useAuthStore } from "../../store";
-import { colors, elevation, radius, spacing, type, useReducedMotion } from "../../theme";
+import { colors, elevation, radius, spacing, type } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 import type { Connection } from "../../types/api";
 
@@ -72,7 +71,6 @@ export function ConnectionsScreen() {
   const navigation = useNavigation<Nav>();
   const me = useAuthStore((s) => s.user);
   const query = useConnections();
-  const reducedMotion = useReducedMotion();
 
   if (query.isPending) return <ScreenState status="loading" />;
   if (query.isError)
@@ -86,7 +84,7 @@ export function ConnectionsScreen() {
 
   return (
     <View style={styles.container}>
-      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)} style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <Text style={styles.kicker}>{t("connection.titleKicker")}</Text>
         <Text style={styles.subtitle}>{t("connection.subtitle")}</Text>
         <FlatList
@@ -103,14 +101,14 @@ export function ConnectionsScreen() {
             />
           )}
         />
-      </Animated.View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.page },
-  kicker: { ...type.overline, color: colors.primary, marginBottom: spacing.xxs },
+  kicker: { ...type.overline, color: colors.primaryInk, marginBottom: spacing.xxs },
   subtitle: { ...type.footnote, color: colors.textMuted, marginBottom: spacing.sm },
   list: { gap: spacing.sm },
   row: {

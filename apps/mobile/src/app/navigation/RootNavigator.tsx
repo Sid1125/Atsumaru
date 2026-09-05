@@ -14,11 +14,14 @@ import { AIChatScreen } from "../../screens/Onboarding/AIChatScreen";
 import { ProfileConfirmScreen } from "../../screens/Onboarding/ProfileConfirmScreen";
 import { DiscoverScreen } from "../../screens/Discover/DiscoverScreen";
 import { MeetupScreen } from "../../screens/Meetup/MeetupScreen";
+import { GroupChatScreen } from "../../screens/Meetup/GroupChatScreen";
+import { FeedbackScreen } from "../../screens/Meetup/FeedbackScreen";
 import { ConnectionsScreen } from "../../screens/Connections/ConnectionsScreen";
 import { DmScreen } from "../../screens/Connections/DmScreen";
 import { CreateEventScreen } from "../../screens/Events/CreateEventScreen";
-import { ProfileScreen } from "../../screens/Settings/ProfileScreen";import { useAuthStore } from "../../store";
-import { colors, type } from "../../theme";
+import { ProfileScreen } from "../../screens/Settings/ProfileScreen";
+import { useAuthStore } from "../../store";
+import { colors, fonts, type } from "../../theme";
 import { linking } from "./linking";
 import type {
   AppStackParamList,
@@ -41,11 +44,14 @@ const navigationTheme: Theme = {
     border: "transparent",
     notification: colors.primary,
   },
+  // React Navigation renders a few strings of its own (the iOS back-button label,
+  // fallback titles). Left on "System" they would be the one place in the app still
+  // set in the platform face.
   fonts: {
-    regular: { fontFamily: "System", fontWeight: "400" },
-    medium: { fontFamily: "System", fontWeight: "500" },
-    bold: { fontFamily: "System", fontWeight: "700" },
-    heavy: { fontFamily: "System", fontWeight: "800" },
+    regular: { fontFamily: fonts.regular, fontWeight: "400" },
+    medium: { fontFamily: fonts.medium, fontWeight: "500" },
+    bold: { fontFamily: fonts.bold, fontWeight: "700" },
+    heavy: { fontFamily: fonts.extrabold, fontWeight: "800" },
   },
 };
 
@@ -97,7 +103,7 @@ export function RootNavigator() {
       {/* The auth stage sits on the night ground, everything else on cream — the
           status bar icons must flip with the surface or the login screen reads
           as broken chrome on a dark background. */}
-      <StatusBar style={stage === "auth" ? "light" : "dark"} />
+      <StatusBar style={stage === "auth" ? "light" : "dark"} animated />
       {stage === "auth" ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
@@ -112,7 +118,29 @@ export function RootNavigator() {
           />
         </OnboardingStack.Navigator>
       ) : (
-        <AppStack.Navigator screenOptions={headerOptions}>
+        <AppStack.Navigator
+          screenOptions={{
+            ...headerOptions,
+            /**
+             * One animation for the whole stack rather than six per-route
+             * overrides. `ios_from_right` is Android-only and resolves to
+             * `default` on iOS, so iOS keeps its native parallax push and
+             * Android gets a matching one instead of its flat co-slide — the
+             * same felt transition on both platforms, for zero JS cost and with
+             * the back gesture interruptible for free.
+             *
+             * Deliberately NOT gated on `useReducedMotion()`: the OS already
+             * handles it (iOS converts pushes to a cross-dissolve, Android runs
+             * them at zero duration), so a JS gate would double-handle and fight
+             * the system setting.
+             *
+             * `animationDuration` is not set because it is iOS-only and ignored
+             * for `default` — writing one would imply a control that does not exist.
+             */
+            animation: "ios_from_right",
+            animationTypeForReplace: "push",
+          }}
+        >
           <AppStack.Screen
             name="Discover"
             component={DiscoverScreen}
@@ -124,6 +152,25 @@ export function RootNavigator() {
             name="Meetup"
             component={MeetupScreen}
             options={{ title: "", headerTransparent: true }}
+          />
+          <AppStack.Screen
+            name="GroupChat"
+            component={GroupChatScreen}
+            // Title and the member stack are set from inside the screen, which
+            // is the only place `useEventMembers` can be called.
+            options={{ title: "" }}
+          />
+          <AppStack.Screen
+            name="Feedback"
+            component={FeedbackScreen}
+            options={{
+              title: t("feedback.title"),
+              presentation: "modal",
+              // Android has no native modal presentation, so without this the
+              // modal falls back to a push and the "a detour you can abandon"
+              // reading is lost.
+              animation: "slide_from_bottom",
+            }}
           />
           <AppStack.Screen
             name="Connections"
@@ -140,7 +187,11 @@ export function RootNavigator() {
           <AppStack.Screen
             name="CreateEvent"
             component={CreateEventScreen}
-            options={{ title: t("createEvent.title"), presentation: "modal" }}
+            options={{
+              title: t("createEvent.title"),
+              presentation: "modal",
+              animation: "slide_from_bottom",
+            }}
           />
           <AppStack.Screen
             name="Profile"

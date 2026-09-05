@@ -48,6 +48,13 @@ export interface BottomSheetHandle {
 export interface BottomSheetScrollable {
   nativeGesture: ReturnType<typeof Gesture.Native>;
   scrollHandler: ReturnType<typeof useAnimatedScrollHandler>;
+  /**
+   * How far the sheet's own list is scrolled. Already tracked here to decide
+   * whether a downward drag should move the sheet or the list, and exposed so the
+   * sheet header can drive a `ScrollEdge` from it — the same value, no second
+   * listener, still entirely on the UI thread.
+   */
+  scrollOffset: SharedValue<number>;
 }
 
 const BottomSheetScrollCtx = createContext<BottomSheetScrollable | null>(null);
@@ -112,8 +119,8 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
       },
     });
     const sheetScrollable = useMemo(
-      () => ({ nativeGesture: sheetNativeGesture, scrollHandler }),
-      [sheetNativeGesture, scrollHandler]
+      () => ({ nativeGesture: sheetNativeGesture, scrollHandler, scrollOffset }),
+      [sheetNativeGesture, scrollHandler, scrollOffset]
     );
 
     const notify = useCallback(
@@ -207,7 +214,7 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
     }));
 
     const bgColor = dark ? colors.night : colors.surface;
-    const grabberColor = dark ? "rgba(250,247,242,0.18)" : "rgba(26,22,19,0.18)";
+    const grabberColor = dark ? colors.grabberNight : colors.grabber;
 
     const content = (
       <BottomSheetScrollCtx.Provider value={sheetScrollable}>

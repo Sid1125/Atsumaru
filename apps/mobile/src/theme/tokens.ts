@@ -2,57 +2,93 @@
  * Design tokens. Every value here is a deliberate choice, not a default —
  * "nothing is random" (Apple, Principles of Great Design §Craft).
  *
- * The palette keeps Atsumaru's warm, calm, activity-first direction
- * (docs/DESIGN.md §1) while adding the layered surfaces and material tints an
- * Apple-grade interface needs to express depth.
+ * ## Source palette — `assets/color pal.jpeg`
+ *
+ * | Swatch          | Hex       | Role here                                       |
+ * |-----------------|-----------|-------------------------------------------------|
+ * | Champagne Glow  | `#F5E5CC` | the page ground and the whole warm surface ramp  |
+ * | Citrus Fizz     | `#FFCC99` | the mid tint — soft fills, pips, badges          |
+ * | Neon Citrus     | `#FF9E0F` | the electric/highlight register (tape, marks)    |
+ * | Orange Zest     | `#CE4503` | THE action colour                               |
+ * | Berry Pop       | `#7D0000` | destructive, and the deep end of the ink ramp    |
+ *
+ * The sampled swatches match their printed hex exactly in four of five cases.
+ * **Orange Zest's printed `#5E2638` is a typo in the source image** — that hex is
+ * a dark plum, while the swatch it labels reads `#CE4503`. The swatch wins: it is
+ * what the palette actually shows, and a plum would have no relationship to the
+ * citrus ramp on either side of it.
+ *
+ * ## What the palette does not supply, and why this file adds it
+ *
+ * Five analogous warm swatches are a *brand* palette, not a complete interface
+ * system. Stated in it: ground, tint, highlight, action, destructive. Absent: a
+ * hue that is legibly NOT the action colour, which the product needs for trust /
+ * AI / compatibility / success (match scores, the onboarding host, the "good"
+ * rating). Rendering those in another orange would collapse the one distinction
+ * they exist to make. So `accent` is an olive drawn to sit under the citrus ramp
+ * rather than beside it — the classic complement to burnt orange on cream, and
+ * the only hue in this file not derived from the palette.
+ *
+ * ## Every pair below is measured, not judged by eye
+ *
+ * Champagne is a full step darker than the cream it replaces, so text weights
+ * that passed on `#F7F4EE` do not automatically pass on it — `textMuted` at its
+ * old `#77716A` measures **3.90:1** here and fails AA. Each value was solved
+ * against the actual ground rather than carried over.
+ *
+ * The one consequence worth knowing at a call site: **`primary` is a fill, not an
+ * ink.** Orange Zest as small text on champagne is 3.79:1. Use `primaryInk` when
+ * the action colour has to be *text* (5.83:1), and `citrus` (8.66:1) when it has
+ * to be text on `night` — `primary` there is 3.82:1.
  */
 
 import { Platform } from "react-native";
 
 export const palette = {
-  // Warm paper ground — the cream surface the product reads on (docs/DESIGN.md
-  // §1). Warmer than before: the site's `#FAF7F2` pulled down slightly so cards
-  // and hairline rules still separate on it.
-  sand50: "#FDFBF8",
-  sand100: "#F7F4EE",
-  sand200: "#F0EBE2",
-  sand300: "#E4DDD1",
-  sand400: "#D0C6B6",
+  /**
+   * Champagne Glow and its ramp. `champagne100` is the swatch itself and the page
+   * ground; the rest are mixes toward warm ink, so every surface in the app is the
+   * same colour at a different depth rather than five unrelated creams.
+   */
+  champagne50: "#FDF8EF",
+  champagne100: "#F5E5CC",
+  champagne200: "#E6D7BF",
+  champagne300: "#D3C4AE",
+  champagne400: "#B9AB97",
 
-  ink900: "#171717",
-  ink700: "#3A362F",
-  ink500: "#77716A",
-  ink300: "#9C9188",
+  /**
+   * Warm ink. Pulled off neutral toward the champagne/berry axis so the dark
+   * family belongs to the same world as the ground — a neutral `#171717` reads
+   * blue against this much yellow.
+   */
+  ink900: "#1E1710",
+  ink700: "#3F372B",
+  ink500: "#6B6053",
+  ink300: "#A2937E",
 
-  // Coral — the Atsumaru brand/action colour (site `--color-accent`). Coral is
-  // THE one action register; it also carries the celebration payoff, elevated.
-  clay500: "#FF432A",
-  clay600: "#E02E17",
-  clay100: "#FFF0ED",
+  /** Orange Zest — THE one action register. `zest600` is also its text weight. */
+  zest500: "#CE4503",
+  zest600: "#9C3406",
+  zest100: "#F0CFB0",
 
-  // Sage — the warm-nature secondary (trust / AI / compatibility / success).
-  pine500: "#719B86",
-  pine600: "#5E8570",
-  pine100: "#E8F0EA",
+  /** Neon Citrus — the electric/highlight band. Always takes ink, never white. */
+  citrus500: "#FF9E0F",
+  /** Citrus Fizz — the mid tint between the ground and the action colour. */
+  fizz300: "#FFCC99",
+  /** Berry Pop — destructive, and the deepest note in the ramp. */
+  berry700: "#7D0000",
 
-  amber500: "#C98A2E",
-  rose500: "#B3402C",
+  /**
+   * Olive — the single non-palette hue (see the header). Warm and low enough in
+   * chroma to read as part of the citrus world rather than an import from a
+   * different system.
+   */
+  olive500: "#4F6B3A",
+  olive600: "#3F562C",
+  olive100: "#DED4B8",
 
-  // The electric band (site `--color-neon`). Lime is the Gen-Z register —
-  // highlighter marks, tape badges, sticker highlights. It is never the action
-  // colour: coral owns that. Lime appears only where the site wears it.
-  lime500: "#C8FF00",
-
-  // Category sticker band (site/globals.css). Each maps to a category; the pair
-  // decides text colour per WCAG. These are DATA-ENCODED content accents only —
-  // they never decorate generic UI chrome. Food lost the neon lime, settling on
-  // a warm amber distinct from both brand coral and sage.
-  neon500: "#FF432A",
-  hotpink500: "#FF2E93",
-  lilac500: "#8A4FFF",
-  sage500: "#7A9E7E",
   /** Warm ink, used as text ON a sticker (site $000 ink rule). */
-  stickerInk: "#171717",
+  stickerInk: "#1E1710",
 } as const;
 
 /**
@@ -60,98 +96,185 @@ export const palette = {
  * future dark theme is a single swap rather than a survey of every file.
  */
 export const colors = {
-  background: "#F7F4EE",
+  background: "#F5E5CC",
   /** One step above background — grouped list backdrop. */
-  backgroundElevated: "#F0EBE2",
+  backgroundElevated: "#E6D7BF",
   surface: "#FFFFFF",
   /** Surface resting on an image or the map; needs its own contrast. */
   surfaceRaised: "#FFFFFF",
-  border: "#E4DDD1",
+  border: "#D3C4AE",
   /** Hairline used between rows inside a grouped card. */
-  separator: "rgba(23,23,23,0.08)",
+  separator: "rgba(30,23,16,0.10)",
 
-  text: "#171717",
-  textSecondary: "#3A362F",
-  textMuted: "#77716A",
+  text: "#1E1710",
+  textSecondary: "#3F372B",
+  textMuted: "#6B6053",
   textOnColor: "#FFFFFF",
 
-  primary: "#FF432A",
-  primaryPressed: "#E02E17",
+  /**
+   * Orange Zest. White on it clears 4.69:1, so it carries button labels — but it
+   * is a **fill**. As small text on the champagne ground it is 3.79:1; reach for
+   * `primaryInk` there.
+   */
+  primary: "#CE4503",
+  primaryPressed: "#9C3406",
   primaryText: "#FFFFFF",
-  primarySoft: "#FFF0ED",
+  /** Citrus Fizz pulled toward the ground — soft fills behind action content. */
+  primarySoft: "#F0CFB0",
+  /**
+   * The action colour at a weight that survives being text: 5.83:1 on the ground,
+   * 7.22:1 on white. Match scores, inline emphasis, error-adjacent text.
+   */
+  primaryInk: "#9C3406",
 
-  accent: "#719B86",
-  accentPressed: "#5E8570",
-  accentSoft: "#E8F0EA",
+  accent: "#4F6B3A",
+  accentPressed: "#3F562C",
+  /**
+   * Olive pulled most of the way to the ground. Tinted toward olive rather than
+   * split evenly with champagne: at a 50/50 mix the block reads as dirty cream
+   * instead of "a quiet green panel", which is the whole job.
+   */
+  accentSoft: "#DBDCB2",
+  /**
+   * Olive at a weight that survives being text ON `accentSoft` (5.77:1). The
+   * same split `primary`/`primaryInk` makes, and for the same measured reason:
+   * `accent` on `accentSoft` is **4.07:1** and fails AA — which is what the match
+   * card's "group fit" label and its reason bullets were rendering at.
+   */
+  accentInk: "#3F562C",
 
-  danger: "#B3402C",
-  dangerLight: "#FF8A7A",
-  warning: "#C98A2E",
+  /**
+   * Berry Pop. Deliberately far darker than `primary` rather than a redder sibling
+   * of it — destructive has to be distinguishable from the action colour at a
+   * glance, and in an all-warm palette weight is the only axis left.
+   */
+  danger: "#7D0000",
+  /** Berry lifted for legibility on `night` (8.75:1 there). */
+  dangerLight: "#FF9B80",
+  warning: "#8F5606",
 
   /** LINE's brand green — used only for the LINE sign-in button and mark. */
   brandLine: "#06C755",
 
-  // Night surfaces — the site's dark sections (site/globals.css `bg-dark` /
-  // `bg-warm`), warmed toward the ink family: near-black `#09090B` became
-  // `#171717` so dark chrome reads as warm Japanese ink, not cold black.
-  // Login and the editorial chrome sit on these; content stays warm cream.
-  night: "#171717",
-  nightRaised: "#1E1C1A",
+  /**
+   * Night surfaces. Not black, and not Berry Pop at full strength — `#7D0000` as a
+   * full-bleed ground is loud enough to read as an error state. This is the berry
+   * desaturated and taken down to ink weight, so dark chrome is recognisably the
+   * same palette rather than a neutral hole punched in it.
+   */
+  night: "#231310",
+  nightRaised: "#31201B",
   /** One step up again — completed-meetup feedback tiles read clearly lighter. */
-  nightRaisedSoft: "#2C2925",
-  nightText: "#F7F4EE",
-  nightMuted: "rgba(247,244,238,0.72)",
-  nightSeparator: "#2A2724",
-  /**
-   * Payoff register — the celebration / Discover chrome / rep-value accents.
-   * Neon lime is gone as a general-purpose accent (per the palette direction);
-   * `neon` now ALIASES the brand coral so "best moment" resolves to the same
-   * action coral as everything else — elevated by size and craft, not a second
-   * hue. Cream ink clears ~4.2:1 on coral, AA for large button labels.
-   */
-  neon: "#FF432A",
-  neonText: "#F7F4EE",
+  nightRaisedSoft: "#422C24",
+  nightText: "#F5E5CC",
+  nightMuted: "rgba(245,229,204,0.72)",
+  nightSeparator: "#3E2822",
 
   /**
-   * The electric band (site `--color-neon`). Lime is the Gen-Z register —
-   * highlighter marks, tape badges, sticker highlights. Coral stays THE action
-   * colour; lime only appears where the site wears it, never on generic chrome.
+   * Neon Citrus — the electric register. Highlighter marks, tape badges, sticker
+   * highlights, the payoff moment. It is never the action colour: Orange Zest owns
+   * that. White on it is 2.07:1, so it takes `citrusInk` and only `citrusInk`.
+   *
+   * (This replaces the old `lime` / `neon` pair. `neon` had decayed into a plain
+   * alias of `primary` — two names, one colour, nothing to choose between them —
+   * and `lime` named a hue this palette does not contain.)
    */
-  lime: "#C8FF00",
-  /** Ink that clears WCAG AA on lime. */
-  limeInk: "#171717",
+  citrus: "#FF9E0F",
+  /** Ink that clears WCAG AA on citrus (8.66:1). */
+  citrusInk: "#1E1710",
+  /** Citrus Fizz at full strength — the mid tint. Takes ink (12.25:1). */
+  fizz: "#FFCC99",
 
   /**
-   * Feedback rating stickers — data-encoded marks, one { bg, on } pair per
-   * rating so ink stays legible on the specific colour (docs/DESIGN.md §10).
+   * The hard offset under every vinyl/sticker surface. Warm, so the offset belongs
+   * to the same world as the ink rather than being a cold near-black pasted under
+   * a warm palette.
+   */
+  vinylShadow: "rgba(30,17,10,0.92)",
+
+  /** Translucent-chrome fills for `components/ui/Material`. */
+  materialThin: "rgba(245,229,204,0.86)",
+  materialRegular: "rgba(245,229,204,0.94)",
+  /** Bright top lip — light catching the edge of the material. */
+  materialEdge: "rgba(255,252,245,0.70)",
+  /** Night equivalents, so the same primitive can back chrome over the map. */
+  materialNightThin: "rgba(35,19,16,0.72)",
+  materialNightRegular: "rgba(35,19,16,0.88)",
+  materialNightEdge: "rgba(245,229,204,0.10)",
+
+  /**
+   * Ambient full-screen washes (Login's ground). Named for their **role**, not
+   * their hue — the previous `washCoral` / `washSage` had to be renamed the moment
+   * the palette moved, which is the whole argument against colour-named tokens.
+   */
+  washPrimary: "rgba(206,69,3,0.10)",
+  washAccent: "rgba(79,107,58,0.12)",
+
+  /**
+   * Avatar fallback grounds — one `{ bg, on }` pair per slot, deterministically
+   * chosen from the handle so a person keeps their colour.
+   *
+   * Drawn from the ink / zest / berry / olive families and **not** the `sticker`
+   * band, so a person is never painted in a data-encoded category colour purely as
+   * decoration. Every pair clears WCAG AA for the initial, which is the meaning
+   * carrier when there is no photo.
+   */
+  avatar: [
+    { bg: "#CE4503", on: "#FFFFFF" },
+    { bg: "#4F6B3A", on: "#FFFFFF" },
+    { bg: "#7D0000", on: "#FFFFFF" },
+    { bg: "#3F372B", on: "#FFFFFF" },
+    { bg: "#8A5A1C", on: "#FFFFFF" },
+    { bg: "#FFCC99", on: "#1E1710" },
+  ] as const,
+
+  /**
+   * Feedback rating stickers — data-encoded marks, one { bg, on } pair per rating
+   * so ink stays legible on the specific colour (docs/DESIGN.md §10).
    */
   rating: {
-    meh: { bg: "#E4DDD1", on: "#171717" },
-    good: { bg: "#719B86", on: "#FFFFFF" },
-    fire: { bg: "#FF432A", on: "#FFFFFF" },
+    meh: { bg: "#D3C4AE", on: "#1E1710" },
+    good: { bg: "#4F6B3A", on: "#FFFFFF" },
+    fire: { bg: "#CE4503", on: "#FFFFFF" },
   } as const,
 
+  /**
+   * Sheet grabbers. Two tokens rather than one with an opacity, because the light
+   * and dark cases are different colours, not the same colour at two strengths.
+   * These were the last two retired literals in `src/` — `rgba(250,247,242,…)`
+   * and `rgba(26,22,19,…)`, both hues this palette no longer contains.
+   */
+  grabber: "rgba(30,23,16,0.18)",
+  grabberNight: "rgba(245,229,204,0.20)",
+
   /** Scrim behind modal surfaces — dim to focus (skill §12). */
-  scrim: "rgba(23,23,23,0.32)",
+  scrim: "rgba(30,17,10,0.36)",
 
   /**
-   * Category sticker palette (mirrors the site's electric rail). The sticker is
-   * a data carrier, never decoration alone — colour always pairs with the glyph
-   * and the label text beside it (docs/DESIGN.md §10). Each entry is its own
-   * { bg, on } pair so ink stays WCAG-AA on the specific colour: warm amber and
-   * hot pink take the ink text, lilac takes white (site rule: soft = ink, hot
-   * = white).
+   * Category sticker palette. The sticker is a data carrier, never decoration
+   * alone — colour always pairs with the glyph and the label text beside it
+   * (docs/DESIGN.md §10).
+   *
+   * Nine categories need nine *distinguishable* hues, so this band cannot be folded
+   * into the warm ramp without destroying the thing it exists to do. What changed
+   * instead is register: the previous values were screen-neons (`#00F0FF`,
+   * `#FF2E93`, `#8A4FFF`) chosen against a near-white ground, and they read as
+   * radioactive on champagne. Each is retuned toward the palette's
+   * vintage-citrus-poster weight — same hue, pigment rather than backlight — and
+   * `food` resolves to Neon Citrus itself, which the palette hands us outright.
+   *
+   * Each entry is its own `{ bg, on }` pair, and every pair clears AA.
    */
   sticker: {
-    food: { bg: "#D9A441", on: "#171717" },
-    gaming: { bg: "#FF2E93", on: "#171717" },
-    arts: { bg: "#8A4FFF", on: "#FFFFFF" },
-    outdoor: { bg: "#7A9E7E", on: "#171717" },
-    music: { bg: "#00F0FF", on: "#171717" },
-    wellness: { bg: "#2FBFB3", on: "#171717" },
-    travel: { bg: "#2E6FB7", on: "#FFFFFF" },
-    learning: { bg: "#5B5BD6", on: "#FFFFFF" },
-    sports: { bg: "#46A84B", on: "#171717" },
+    food: { bg: "#FF9E0F", on: "#1E1710" },
+    gaming: { bg: "#D62F73", on: "#FFFFFF" },
+    arts: { bg: "#7A4FD0", on: "#FFFFFF" },
+    outdoor: { bg: "#4F6B3A", on: "#FFFFFF" },
+    music: { bg: "#2BB3AE", on: "#1E1710" },
+    wellness: { bg: "#2E9B8A", on: "#1E1710" },
+    travel: { bg: "#2C5E9E", on: "#FFFFFF" },
+    learning: { bg: "#4A4FB0", on: "#FFFFFF" },
+    sports: { bg: "#5FA84A", on: "#1E1710" },
   } as const,
 } as const;
 
@@ -185,13 +308,16 @@ export const radius = {
 /**
  * Elevation. Bigger surfaces read as thicker: more blur and a deeper, softer
  * shadow than small chips (skill §12).
+ *
+ * The shadow colour is a warm brown rather than black — on a champagne ground a
+ * neutral shadow greys the surface it falls on instead of deepening it.
  */
 export const elevation = {
   none: {},
   /** Chips, small controls resting on the page. */
   low: Platform.select({
     ios: {
-      shadowColor: "#3D2F22",
+      shadowColor: "#5A3A18",
       shadowOpacity: 0.06,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
@@ -205,7 +331,7 @@ export const elevation = {
    */
   card: Platform.select({
     ios: {
-      shadowColor: "#3D2F22",
+      shadowColor: "#5A3A18",
       shadowOpacity: 0.09,
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 4 },
@@ -215,7 +341,7 @@ export const elevation = {
   /** Sheets, floating chrome over the map. */
   medium: Platform.select({
     ios: {
-      shadowColor: "#3D2F22",
+      shadowColor: "#5A3A18",
       shadowOpacity: 0.1,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 6 },
@@ -225,7 +351,7 @@ export const elevation = {
   /** Sheets, floating chrome over the map. */
   high: Platform.select({
     ios: {
-      shadowColor: "#3D2F22",
+      shadowColor: "#5A3A18",
       shadowOpacity: 0.16,
       shadowRadius: 32,
       shadowOffset: { width: 0, height: 14 },

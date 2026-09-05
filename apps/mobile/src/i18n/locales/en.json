@@ -9,7 +9,11 @@
     "submit": "Submit",
     "cancel": "Cancel",
     "reconnecting": "Reconnecting...",
-    "send": "Send"
+    "send": "Send",
+    "you": "You",
+    "sending": "Sending…",
+    "sendFailed": "Message not sent — try again",
+    "rateLimited": "Sending too fast — wait a moment"
   },
   "auth": {
     "tagline": "Not a dating app — friendship first.",
@@ -34,7 +38,12 @@
     "backToLogin": "Back to sign in",
     "confirmSent": "A confirmation email has been sent. Confirm it, then sign in.",
     "resetSent": "If that email has an account, a reset link is on its way.",
-    "passwordUpdated": "Password updated. Sign in with your new password."
+    "passwordUpdated": "Password updated. Sign in with your new password.",
+    "humanVerification": "Human verification",
+    "loginFailed": "Sign-in failed",
+    "signupFailed": "Sign-up failed",
+    "resetFailed": "Could not send the reset email",
+    "resetCompleteFailed": "Could not update the password"
   },
   "onboarding": {
     "title": "Let's get to know you.",
@@ -67,7 +76,8 @@
       "adventurous": "Adventurous",
       "creative": "Creative",
       "easygoing": "Easygoing"
-    }
+    },
+    "step": "{{current}}/{{total}}"
   },
   "discover": {
     "subtitle": "Find your people nearby",
@@ -99,7 +109,8 @@
       "ongoing": "Happening now",
       "completed": "Finished"
     },
-    "recenter": "Back to my location"
+    "recenter": "Back to my location",
+    "emptyNearby": "No meetups nearby yet. Be the first to host one."
   },
   "meetup": {
     "yourGroup": "Your group",
@@ -110,7 +121,8 @@
     "openChat": "Open chat",
     "messagePlaceholder": "Message your group...",
     "chatEmpty": "No messages yet. Say hello",
-    "groupFitLabel": "group fit"
+    "groupFitLabel": "group fit",
+    "chatNew": "New"
   },
   "feedback": {
     "title": "How was the meetup?",
@@ -190,7 +202,8 @@
     "noInterests": "No interests yet — add a few.",
     "addInterest": "Add an interest",
     "addInterestPlaceholder": "e.g. ramen",
-    "personalityCap": "Up to {{max}} personality tags."
+    "personalityCap": "Up to {{max}} personality tags.",
+    "removeTag": "Remove {{tag}}"
   },
   "createEvent": {
     "title": "Host a meetup",

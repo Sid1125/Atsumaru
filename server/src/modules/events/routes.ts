@@ -16,6 +16,10 @@ import { matchReasons } from "../matching/reasons.js";
 import { notifyNearbyMeetup } from "../../services/notifications.js";
 import type { Language } from "../../types.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
+import {
+  BLOCKED_TERM_MESSAGE,
+  containsBlockedTerm,
+} from "../../utils/moderation.js";
 import { uuidParam } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { parseVector } from "../../utils/vector.js";
@@ -31,7 +35,13 @@ const coordsSchema = z.object({
 });
 
 const createSchema = z.object({
-  title: z.string().min(1).max(80),
+  // Shown on the map to every member in range, so it carries the same gate as a
+  // display name.
+  title: z
+    .string()
+    .min(1)
+    .max(80)
+    .refine((v) => !containsBlockedTerm(v), BLOCKED_TERM_MESSAGE),
   category: z.string().min(1).max(40),
   description: z.string().max(500).optional(),
   venue_name: z.string().min(1).max(80),

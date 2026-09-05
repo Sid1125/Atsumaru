@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { AppState, StyleSheet, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { API_URL } from "../../config/env";
 import { setTurnstileTokenHandler, setToken, clearToken } from "./turnstileToken";
+import { colors } from "../../theme";
 
 // `react-native-webview` is a native module — Expo Go cannot load it, so a
 // module-scope `import` kills the bundle, exactly like `mapbox.ts`/`keystore.ts`.
@@ -54,6 +56,7 @@ const REFRESH_JS =
  * the release APK) — in Expo Go it renders nothing and `acquireTurnstileToken` degrades.
  */
 export function TurnstileWidget() {
+  const { t } = useTranslation();
   const webviewRef = useRef<unknown>(null);
 
   useEffect(() => {
@@ -90,7 +93,7 @@ export function TurnstileWidget() {
   const WebView = WebViewComponent as React.ComponentType<any>;
 
   return (
-    <View style={styles.host} accessible accessibilityLabel="Human verification">
+    <View style={styles.host} accessible accessibilityLabel={t("auth.humanVerification")}>
       <WebView
         ref={webviewRef as any}
         originWhitelist={["*"]}
@@ -139,7 +142,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
   },
-  webview: { flex: 1, backgroundColor: "#ffffff" },
+  webview: { flex: 1, backgroundColor: colors.surface },
 });

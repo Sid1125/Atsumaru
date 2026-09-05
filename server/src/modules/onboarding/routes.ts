@@ -9,6 +9,10 @@ import { db, publicUser } from "../../db/queries.js";
 import { embed, onboardingChat } from "../../services/ai.js";
 import { hasGroq } from "../../config/env.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
+import {
+  BLOCKED_TERM_MESSAGE,
+  containsBlockedTerm,
+} from "../../utils/moderation.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { serializeVector } from "../../utils/vector.js";
 import { BloomFilter } from "../../utils/bloom.js";
@@ -55,9 +59,19 @@ const chatSchema = z.object({
   language: z.enum(LANGUAGES).optional(),
 });
 
+// `handle` and `display_name` are the two fields that become public identity, so
+// the slur gate lives on the schema rather than in the handler — a rejection then
+// lands as the same INVALID_BODY every other malformed field produces.
 const completeSchema = z.object({
-  handle: z.string().regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore"),
-  display_name: z.string().min(1).max(40),
+  handle: z
+    .string()
+    .regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore")
+    .refine((v) => !containsBlockedTerm(v), BLOCKED_TERM_MESSAGE),
+  display_name: z
+    .string()
+    .min(1)
+    .max(40)
+    .refine((v) => !containsBlockedTerm(v), BLOCKED_TERM_MESSAGE),
   language: z.enum(LANGUAGES),
   interests: z.array(z.string().min(1).max(40)).min(1).max(30),
   personality: z.array(z.string().min(1).max(40)).max(8),

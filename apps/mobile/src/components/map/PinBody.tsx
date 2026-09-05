@@ -129,7 +129,10 @@ export function PinBody({
 
         <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={`${event.title}, ${event.venue_name}, ${event.current_size} of ${event.max_size} people`}
+          accessibilityLabel={`${event.title}, ${event.venue_name}, ${t("discover.size", {
+            current: event.current_size,
+            max: event.max_size,
+          })}`}
           accessibilityState={{ selected }}
           hitSlop={12}
           onPressIn={() => {

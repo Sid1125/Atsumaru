@@ -500,6 +500,28 @@ export async function demoRequest<T>(
     return settle({ user: next } as T);
   }
 
+  /**
+   * A single public profile. `ConnectionsScreen` fetches one per row to resolve
+   * a connection's handle, and this route did not exist here — so in demo mode
+   * every connection row sat on "Loading…" with a `?` avatar forever, and
+   * tapping one opened a DM whose header and placeholder were blank because the
+   * handle it passes was never resolved.
+   *
+   * `publicUser` on the server strips `real_name`; the demo world has no such
+   * field at all, so the whole record is already public by construction
+   * (docs/RULES.md).
+   */
+  // Matched on a full segment, not a prefix: a `startsWith("/users/")` test here
+  // would also swallow `/users/me/notifications`, which is registered below.
+  if (method === "GET" && /^\/users\/[^/]+$/.test(path) && path !== "/users/me") {
+    const id = path.slice("/users/".length);
+    const user = world.users.get(id);
+
+    if (!user) throw new ApiError("NOT_FOUND", "User not found.", 404);
+
+    return settle({ user } as T);
+  }
+
   if (path === "/users/me/push-token" && method === "POST") {
     world.pushToken = (body.token as string) ?? null;
     return settle({ success: true } as T);

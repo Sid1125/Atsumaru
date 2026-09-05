@@ -56,14 +56,55 @@ export const springs = {
   celebrate: spring({ damping: 0.55, response: 0.5 }),
 } as const;
 
-/** Non-gesture fades. Springs are for things the user can touch. */
+/**
+ * The entrance curve. Front-loaded and long-tailed: it leaves immediately, which is
+ * what makes an element feel like it was already on its way, then eases out over a
+ * long tail so it never appears to stop dead.
+ *
+ * `Easing.out(Easing.cubic)` is the safe default and is what `base`/`slow` use.
+ * This is the one to reach for when an element is *arriving* and should feel
+ * composed rather than merely fast.
+ */
+const editorial = Easing.bezier(0.23, 1, 0.32, 1);
+
+/**
+ * Non-gesture fades. Springs are for things the user can touch.
+ *
+ * Durations are calibrated for a phone. Travel distances on a handset are short, so
+ * the same curve that reads as crisp on a desktop reads as sluggish here — the
+ * convergent guidance is that mobile runs 20–30% shorter than its desktop
+ * equivalent, and these values already sit at that end.
+ *
+ * **Enter and exit are deliberately asymmetric.** An element arriving has to be
+ * noticed, so it takes `base` (220ms). An element leaving has already been
+ * dismissed by the user, and making them wait to watch it go reads as sluggish, so
+ * it takes `exit` (140ms). Symmetric timings are the most common motion smell in an
+ * app that has any motion at all.
+ */
 export const timings = {
   fast: { duration: 140, easing: Easing.out(Easing.quad) } satisfies WithTimingConfig,
   base: { duration: 220, easing: Easing.out(Easing.cubic) } satisfies WithTimingConfig,
   slow: { duration: 320, easing: Easing.out(Easing.cubic) } satisfies WithTimingConfig,
+  /** Arrivals that should feel composed — a hero, a card, a first paint. */
+  enter: { duration: 260, easing: editorial } satisfies WithTimingConfig,
+  /**
+   * Departures. Shorter than every entrance on purpose: the user has already
+   * chosen to dismiss, so the exit only needs to read as decisive.
+   */
+  exit: { duration: 140, easing: Easing.in(Easing.quad) } satisfies WithTimingConfig,
   /** Ambient float for decorative elements — a gentle sine bob, never a spring. */
   float: { duration: 2600, easing: Easing.inOut(Easing.sin) } satisfies WithTimingConfig,
 };
+
+/**
+ * Stagger step for a list arriving at once.
+ *
+ * Small on purpose. The whole run has to finish inside a single perceived beat — at
+ * 40ms a six-row list completes its last entrance 200ms after the first, which
+ * reads as one gesture. Push it to 80ms and the same list takes half a second and
+ * starts to read as a queue the user is waiting on.
+ */
+export const STAGGER_STEP = 40;
 
 /**
  * Momentum projection — where a flick would come to rest (skill §6).

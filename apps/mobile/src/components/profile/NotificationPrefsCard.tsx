@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Card } from "../ui/Card";
 import { usersApi } from "../../services/api/users";
-import { colors, sectionHeader, spacing, type } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 import type { NotificationPrefs, NotificationType } from "../../types/api";
 
 /**
@@ -94,7 +94,16 @@ export function NotificationPrefsCard() {
             // Disabled while the first read is in flight, so a toggle cannot be based on
             // the all-on placeholder.
             disabled={query.isPending}
+            /**
+             * All three, not just the track. With only `trackColor` set, Android
+             * keeps its **default blue thumb** — so every toggle on this card read
+             * as a blue dot on an orange track, the one genuinely off-palette
+             * colour left in the app. `ios_backgroundColor` is the off-state track
+             * on iOS, which `trackColor.false` does not reach.
+             */
             trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.surface}
+            ios_backgroundColor={colors.border}
             accessibilityLabel={t(`settings.notify.${notificationType}.title`)}
           />
         </View>
@@ -107,7 +116,7 @@ export function NotificationPrefsCard() {
 
 const styles = StyleSheet.create({
   card: { gap: spacing.md },
-  groupLabel: { ...sectionHeader, color: colors.textMuted },
+  groupLabel: { ...type.overline, color: colors.textMuted },
   row: {
     flexDirection: "row",
     alignItems: "center",

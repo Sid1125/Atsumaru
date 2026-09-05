@@ -17,6 +17,10 @@ import { parseDataUrl } from "./avatar.js";
 import { verifyDeviceSignature } from "./deviceIdentity.js";
 import { EXPO_PUSH_TOKEN_RE } from "../../services/push.js";
 import { dbError, HttpError, ok } from "../../utils/response.js";
+import {
+  BLOCKED_TERM_MESSAGE,
+  containsBlockedTerm,
+} from "../../utils/moderation.js";
 import { uuidParam } from "../../utils/request.js";
 import { HANDLE_RE } from "../../utils/handle.js";
 import { serializeVector } from "../../utils/vector.js";
@@ -24,8 +28,19 @@ import { embed } from "../../services/ai.js";
 import { LANGUAGES } from "../../types.js";
 
 const patchSchema = z.object({
-  handle: z.string().regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore").optional(),
-  display_name: z.string().min(1).max(40).optional(),
+  // Same gate as onboarding: a name can be changed after the fact, so checking
+  // only at creation would leave the obvious hole.
+  handle: z
+    .string()
+    .regex(HANDLE_RE, "3-20 chars: a-z, 0-9, underscore")
+    .refine((v) => !containsBlockedTerm(v), BLOCKED_TERM_MESSAGE)
+    .optional(),
+  display_name: z
+    .string()
+    .min(1)
+    .max(40)
+    .refine((v) => !containsBlockedTerm(v), BLOCKED_TERM_MESSAGE)
+    .optional(),
   avatar_url: z.string().url().nullable().optional(),
   interests: z.array(z.string().min(1).max(40)).max(30).optional(),
   personality: z.array(z.string().min(1).max(40)).max(8).optional(),

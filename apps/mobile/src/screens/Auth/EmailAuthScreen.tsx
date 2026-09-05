@@ -97,12 +97,13 @@ export function EmailAuthScreen() {
 
         {info ? (
           <Text style={styles.info} accessibilityLiveRegion="polite">
-            {info}
+            {/* `info` / `error` are i18n keys — see useEmailAuth. */}
+            {t(info)}
           </Text>
         ) : null}
         {error ? (
           <Text style={styles.error} accessibilityLiveRegion="polite">
-            {error}
+            {t(error)}
           </Text>
         ) : null}
 

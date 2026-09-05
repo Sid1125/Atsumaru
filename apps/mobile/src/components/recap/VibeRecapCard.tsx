@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { useVibeRecap } from "../../features/events/hooks/useEvents";
-import { colors, radius, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
+import { NightCard } from "../ui/NightCard";
+import { colors, radius, spacing, timings, type, useReducedMotion } from "../../theme";
 
 interface VibeRecapCardProps {
   eventId: string;
@@ -40,10 +41,10 @@ export function VibeRecapCard({ eventId, enabled }: VibeRecapCardProps) {
 
   return (
     <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(320)}
-      style={styles.card}
+      entering={reducedMotion ? undefined : FadeInDown.duration(timings.enter.duration)}
       accessibilityLiveRegion="polite"
     >
+      <NightCard style={styles.card}>
       <Text style={styles.kicker}>{t("recap.title")}</Text>
       <Text style={styles.recap}>{recap}</Text>
 
@@ -58,18 +59,15 @@ export function VibeRecapCard({ eventId, enabled }: VibeRecapCardProps) {
       ) : null}
 
       <Text style={styles.privacy}>{t("recap.privacyNote")}</Text>
+      </NightCard>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.night,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  kicker: { ...sectionHeader, color: colors.neon },
+  // Surface chrome comes from `NightCard`; this only sets the internal rhythm.
+  card: { gap: spacing.sm },
+  kicker: { ...type.kicker, color: colors.citrus },
   recap: { ...type.title3, color: colors.nightText },
   traits: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   trait: {

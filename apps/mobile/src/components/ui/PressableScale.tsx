@@ -15,6 +15,13 @@ interface PressableScaleProps {
   children: ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
+  /**
+   * Fires on press-*down*, before the press resolves. Added for prefetching a
+   * destination's data at the moment a navigation becomes likely — the ~100-150ms
+   * head start is often the difference between the next screen mounting with
+   * content and mounting on a spinner.
+   */
+  onPressIn?: () => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   /** How far it compresses. Big surfaces move less than small ones. */
@@ -45,6 +52,7 @@ export function PressableScale({
   children,
   onPress,
   onLongPress,
+  onPressIn,
   disabled,
   style,
   scaleTo = 0.97,
@@ -74,12 +82,14 @@ export function PressableScale({
   });
 
   const handlePressIn = useCallback(() => {
+    onPressIn?.();
+
     if (reducedMotion) {
       pressed.value = 1;
       return;
     }
     pressed.value = withSpring(1, springs.snappy);
-  }, [pressed, reducedMotion]);
+  }, [pressed, reducedMotion, onPressIn]);
 
   const handlePressOut = useCallback(() => {
     if (reducedMotion) {

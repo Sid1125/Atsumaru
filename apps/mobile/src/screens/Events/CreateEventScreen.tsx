@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/common/Button";
@@ -16,7 +15,7 @@ import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMet
 import { eventsApi } from "../../services/api/events";
 import type { ResolvedPlace } from "../../services/places";
 import { useLocationStore } from "../../store";
-import { colors, sectionHeader, spacing, type, useReducedMotion } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "CreateEvent">;
@@ -38,7 +37,6 @@ export function CreateEventScreen() {
   const navigation = useNavigation<Nav>();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
 
   // The one-shot fix Discover already took (shared via the store), so the venue search
   // looks around the member's district/province rather than Japan-wide. Null on a
@@ -92,7 +90,7 @@ export function CreateEventScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
+      <View>
         <Text style={styles.kicker}>{t("createEvent.hostKicker")}</Text>
         <Text style={styles.kickerHint}>{t("createEvent.hostHint")}</Text>
 
@@ -179,7 +177,7 @@ export function CreateEventScreen() {
           disabled={!canSubmit}
           style={styles.cta}
         />
-      </Animated.View>
+      </View>
     </ScrollView>
   );
 }
@@ -187,11 +185,11 @@ export function CreateEventScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.page, gap: spacing.md },
-  kicker: { ...type.overline, color: colors.primary },
+  kicker: { ...type.overline, color: colors.primaryInk },
   kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
 
   card: { gap: spacing.sm },
-  cardKicker: { ...sectionHeader, color: colors.textMuted },
+  cardKicker: { ...type.overline, color: colors.textMuted },
   fieldLabel: { ...type.footnote, color: colors.textMuted },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   error: { ...type.footnote, color: colors.danger },

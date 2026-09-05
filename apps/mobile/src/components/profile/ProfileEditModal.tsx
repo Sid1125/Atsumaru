@@ -21,7 +21,7 @@ import { InterestEditor, PersonalityEditor } from "./TagEditor";
 import { onboardingApi } from "../../services/api/onboarding";
 import { usersApi } from "../../services/api/users";
 import { useAuthStore } from "../../store";
-import { colors, radius, sectionHeader, spacing, type } from "../../theme";
+import { colors, radius, spacing, type } from "../../theme";
 import type { User } from "../../types/api";
 
 /**
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.xxs,
   },
-  kicker: { ...type.overline, color: colors.primary },
+  kicker: { ...type.overline, color: colors.primaryInk },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   group: { gap: spacing.sm },
-  groupLabel: { ...sectionHeader, color: colors.textMuted },
+  groupLabel: { ...type.overline, color: colors.textMuted },
   ok: { ...type.caption, color: colors.accent, fontWeight: "600" },
   taken: { ...type.caption, color: colors.danger, fontWeight: "600" },
   error: { ...type.footnote, color: colors.danger, textAlign: "center" },
