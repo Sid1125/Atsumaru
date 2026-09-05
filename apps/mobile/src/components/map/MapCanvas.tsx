@@ -29,17 +29,55 @@ import {
  * Palette is deliberately low-contrast — a map is a backdrop for the pins, so it
  * has to be detailed without competing for attention (skill §16, Simplicity).
  */
+
+/**
+ * The city's own palette, gathered rather than inlined across twenty `fill=`
+ * attributes.
+ *
+ * These are illustration values, not semantic tokens: cartography needs a ramp of
+ * near-identical warm greys that no interface role would ever ask for, and naming
+ * each one `surfaceQuaternary` would be a fiction. What matters is that the whole
+ * ramp is derived from Champagne Glow, so the city is the *page ground with
+ * streets drawn on it* rather than a differently-coloured rectangle sitting in the
+ * middle of the app.
+ *
+ * `water` stays blue — warmed and desaturated so it does not fight the citrus
+ * world, but a warm-orange river would stop reading as water, and legibility of a
+ * map feature outranks palette purity.
+ */
+const CITY = {
+  groundFrom: "#F5E5CC",
+  groundTo: "#EDDBBD",
+  waterFrom: "#BFD4D2",
+  waterTo: "#A9C2C0",
+  block: "#EBD9BC",
+  park: "#D9DEB9",
+  parkEdge: "#C4CBA1",
+  /** Streets are drawn casing-then-fill, so each width has a dark/light pair. */
+  minor: "#E0CFB0",
+  minorFill: "#F9EFDC",
+  secondary: "#D6C3A2",
+  secondaryFill: "#FDF6E8",
+  primary: "#C7B08A",
+  primaryFill: "#FFFBF2",
+  rail: "#A8927A",
+  railTie: "#FFFBF2",
+  stationFill: "#FFFBF2",
+  stationCore: "#A8927A",
+  labelDistrict: "#6B6053",
+  label: "#867A67",
+} as const;
 export const MapCanvas = memo(function MapCanvas() {
   return (
     <Svg width={WORLD} height={WORLD} viewBox={`0 0 ${WORLD} ${WORLD}`}>
       <Defs>
         <LinearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#F7F1E8" />
-          <Stop offset="1" stopColor="#F1E9DC" />
+          <Stop offset="0" stopColor={CITY.groundFrom} />
+          <Stop offset="1" stopColor={CITY.groundTo} />
         </LinearGradient>
         <LinearGradient id="water" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#CFE0E6" />
-          <Stop offset="1" stopColor="#BCD3DC" />
+          <Stop offset="0" stopColor={CITY.waterFrom} />
+          <Stop offset="1" stopColor={CITY.waterTo} />
         </LinearGradient>
       </Defs>
 
@@ -56,7 +94,7 @@ export const MapCanvas = memo(function MapCanvas() {
             width={block.w}
             height={block.h}
             rx={3}
-            fill="#EDE3D4"
+            fill={CITY.block}
           />
         ))}
       </G>
@@ -72,10 +110,10 @@ export const MapCanvas = memo(function MapCanvas() {
 
       {/* Green space */}
       <G>
-        <Path d={PARK} fill="#DCE7D5" />
-        <Path d={PARK} fill="none" stroke="#CBD9C2" strokeWidth={2} />
-        <Path d={PLAZA} fill="#DCE7D5" />
-        <Path d={PLAZA} fill="none" stroke="#CBD9C2" strokeWidth={2} />
+        <Path d={PARK} fill={CITY.park} />
+        <Path d={PARK} fill="none" stroke={CITY.parkEdge} strokeWidth={2} />
+        <Path d={PLAZA} fill={CITY.park} />
+        <Path d={PLAZA} fill="none" stroke={CITY.parkEdge} strokeWidth={2} />
       </G>
 
       {/* Streets, painted back-to-front so arterials sit on top of side roads.
@@ -88,7 +126,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r2-${index}`}
               d={street.d}
-              stroke="#E3D8C6"
+              stroke={CITY.minor}
               strokeWidth={5}
               strokeLinecap="round"
               fill="none"
@@ -100,7 +138,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r2f-${index}`}
               d={street.d}
-              stroke="#FAF5EC"
+              stroke={CITY.minorFill}
               strokeWidth={3}
               strokeLinecap="round"
               fill="none"
@@ -115,7 +153,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r1-${index}`}
               d={street.d}
-              stroke="#DFD1BA"
+              stroke={CITY.secondary}
               strokeWidth={11}
               strokeLinecap="round"
               fill="none"
@@ -127,7 +165,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r1f-${index}`}
               d={street.d}
-              stroke="#FFFCF6"
+              stroke={CITY.secondaryFill}
               strokeWidth={7.5}
               strokeLinecap="round"
               fill="none"
@@ -142,7 +180,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r0-${index}`}
               d={street.d}
-              stroke="#D9C7AB"
+              stroke={CITY.primary}
               strokeWidth={20}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -155,7 +193,7 @@ export const MapCanvas = memo(function MapCanvas() {
             <Path
               key={`r0f-${index}`}
               d={street.d}
-              stroke="#FFFDF8"
+              stroke={CITY.primaryFill}
               strokeWidth={14}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -167,7 +205,7 @@ export const MapCanvas = memo(function MapCanvas() {
       {/* Rail corridor — dashed, above the roads it crosses */}
       <Path
         d={RAIL}
-        stroke="#B9AA95"
+        stroke={CITY.rail}
         strokeWidth={7}
         strokeLinecap="round"
         fill="none"
@@ -175,7 +213,7 @@ export const MapCanvas = memo(function MapCanvas() {
       />
       <Path
         d={RAIL}
-        stroke="#FFFDF8"
+        stroke={CITY.primaryFill}
         strokeWidth={3}
         strokeDasharray="12 10"
         strokeLinecap="round"
@@ -184,16 +222,16 @@ export const MapCanvas = memo(function MapCanvas() {
 
       {/* The scramble crossing — the one landmark worth drawing explicitly */}
       <G>
-        <Circle cx={700} cy={665} r={26} fill="#FFFDF8" />
+        <Circle cx={700} cy={665} r={26} fill={CITY.stationFill} />
         <Circle
           cx={700}
           cy={665}
           r={26}
           fill="none"
-          stroke="#D9C7AB"
+          stroke={CITY.primary}
           strokeWidth={3}
         />
-        <Circle cx={700} cy={665} r={7} fill="#C9B79B" />
+        <Circle cx={700} cy={665} r={7} fill={CITY.stationCore} />
       </G>
 
       {/* Labels last so nothing paints over them */}
@@ -203,7 +241,7 @@ export const MapCanvas = memo(function MapCanvas() {
             key={label.text}
             x={label.x}
             y={label.y}
-            fill={label.size === "district" ? "#94836C" : "#A2937E"}
+            fill={label.size === "district" ? CITY.labelDistrict : CITY.label}
             fontSize={
               label.size === "district" ? 27 : label.size === "area" ? 18 : 14
             }

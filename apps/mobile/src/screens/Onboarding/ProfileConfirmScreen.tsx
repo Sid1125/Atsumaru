@@ -2,21 +2,15 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "../../components/common/Button";
 import { Chip } from "../../components/common/Chip";
+import { ScreenHeader } from "../../components/common/ScreenHeader";
 import { TextField } from "../../components/common/TextField";
 import { InterestEditor, PersonalityEditor } from "../../components/profile/TagEditor";
 import { onboardingApi } from "../../services/api/onboarding";
 import { useAuthStore, useOnboardingDraft, useUiStore } from "../../store";
-import {
-  colors,
-  sectionHeader,
-  spacing,
-  type,
-  useReducedMotion,
-} from "../../theme";
+import { colors, spacing, type } from "../../theme";
 
 /**
  * The extraction, made editable before it becomes a profile. Sections are
@@ -29,7 +23,6 @@ export function ProfileConfirmScreen() {
   const draft = useOnboardingDraft();
   const language = useUiStore((s) => s.language);
   const setUser = useAuthStore((s) => s.setUser);
-  const reducedMotion = useReducedMotion();
 
   const [handles, setHandles] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -101,9 +94,11 @@ export function ProfileConfirmScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Animated.View entering={reducedMotion ? undefined : FadeInDown.duration(280)}>
-        <Text style={styles.kicker}>{t("onboarding.confirmTitle")}</Text>
-        <Text style={styles.title}>{t("onboarding.confirmLede")}</Text>
+      <View style={styles.body}>
+        <ScreenHeader
+          kicker={t("onboarding.confirmTitle")}
+          title={t("onboarding.confirmLede")}
+        />
 
       {/* Interests and personality are proposals from the AI — editable here, so
           the model's extraction is a starting point, never a decision. */}
@@ -120,8 +115,6 @@ export function ProfileConfirmScreen() {
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{t("onboarding.handle")}</Text>
 
-        {/* Interest-derived suggestions are the starting point; once the user edits the
-            handle they are replaced by alphanumeric variants of what was typed. */}
         {/* Interest-derived suggestions are the starting point; once the user edits the
             handle they are replaced by alphanumeric variants of what was typed. */}
         {!draft.handle ? (
@@ -200,18 +193,27 @@ export function ProfileConfirmScreen() {
         haptic="success"
         style={styles.cta}
       />
-      </Animated.View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.page, gap: spacing.lg },
-  kicker: { ...type.overline, color: colors.primary },
-  title: { ...type.title1, color: colors.text, marginTop: -spacing.sm },
+  content: { padding: spacing.page },
+  /**
+   * Grouping rhythm, not one uniform gap. The header and the field groups are
+   * separate regions (32pt apart); a group's own label and control are one thing
+   * (8pt, set on `group`). The old single `gap: spacing.lg` on the scroll content
+   * spaced everything identically, which is the same as grouping nothing — and it
+   * forced `title` to carry a `marginTop: -spacing.sm` to claw back the gap it did
+   * not want. Negative margins fighting a parent gap are always this bug.
+   */
+  body: { gap: spacing.xl },
   group: { gap: spacing.sm },
-  groupLabel: { ...sectionHeader, color: colors.textMuted },
+  // `overline`, not a section kicker: this labels the field beneath it and is
+  // attached to it. Section kickers announce a region and are rationed.
+  groupLabel: { ...type.overline, color: colors.textMuted },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   ok: { ...type.caption, color: colors.accent, fontWeight: "600" },
   taken: { ...type.caption, color: colors.danger, fontWeight: "600" },

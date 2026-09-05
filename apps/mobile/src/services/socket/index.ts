@@ -20,6 +20,21 @@ type ServerEvents = {
   "member:joined": (payload: { event_id: string; user: User }) => void;
   "match:unlocked": (connection: Connection) => void;
   typing: (payload: { room_id: string; user_id: string }) => void;
+  /**
+   * The server has emitted this on every rejected send since the socket layer
+   * was written — `INVALID_MESSAGE`, `RATE_LIMITED`, `SEND_FAILED`,
+   * `NOT_A_MEMBER`, `NO_CONNECTION` — but it was missing from this map, so
+   * nothing could subscribe and every rejection was swallowed: the composer
+   * cleared, no bubble appeared, and no error was shown (docs/RULES.md §10, §14).
+   *
+   * Exactly one of `event_id` / `connection_id` is present, matching the room
+   * the failure came from.
+   */
+  error: (payload: {
+    code: string;
+    event_id?: string;
+    connection_id?: string;
+  }) => void;
 };
 
 let socket: Socket | null = null;

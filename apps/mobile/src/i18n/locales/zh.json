@@ -9,7 +9,11 @@
     "submit": "提交",
     "cancel": "取消",
     "reconnecting": "正在重新连接...",
-    "send": "发送"
+    "send": "发送",
+    "you": "你",
+    "sending": "发送中…",
+    "sendFailed": "消息未发送，请重试",
+    "rateLimited": "发送太快了，请稍等片刻"
   },
   "auth": {
     "tagline": "不是约会软件——先做朋友。",
@@ -34,7 +38,12 @@
     "backToLogin": "返回登录",
     "confirmSent": "已发送确认邮件，确认后即可登录。",
     "resetSent": "如果该邮箱有账户，重置链接已在路上。",
-    "passwordUpdated": "密码已更新，请用新密码登录。"
+    "passwordUpdated": "密码已更新，请用新密码登录。",
+    "humanVerification": "人机验证",
+    "loginFailed": "登录失败",
+    "signupFailed": "注册失败",
+    "resetFailed": "无法发送重置邮件",
+    "resetCompleteFailed": "无法更新密码"
   },
   "onboarding": {
     "title": "先聊聊你吧。",
@@ -67,7 +76,8 @@
       "adventurous": "爱冒险",
       "creative": "有创意",
       "easygoing": "好相处"
-    }
+    },
+    "step": "{{current}}/{{total}}"
   },
   "discover": {
     "subtitle": "发现附近的同好",
@@ -99,7 +109,8 @@
       "ongoing": "进行中",
       "completed": "已结束"
     },
-    "recenter": "回到我的位置"
+    "recenter": "回到我的位置",
+    "emptyNearby": "附近还没有活动。来当第一个发起人吧。"
   },
   "meetup": {
     "yourGroup": "你的小组",
@@ -110,7 +121,8 @@
     "openChat": "打开聊天",
     "messagePlaceholder": "给小组发消息...",
     "chatEmpty": "还没有消息，打个招呼吧",
-    "groupFitLabel": "小组契合度"
+    "groupFitLabel": "小组契合度",
+    "chatNew": "新消息"
   },
   "feedback": {
     "title": "这次聚会怎么样？",
@@ -190,7 +202,8 @@
     "noInterests": "还没有兴趣 — 添加几个吧。",
     "addInterest": "添加兴趣",
     "addInterestPlaceholder": "例如：拉面",
-    "personalityCap": "性格标签最多 {{max}} 个。"
+    "personalityCap": "性格标签最多 {{max}} 个。",
+    "removeTag": "移除 {{tag}}"
   },
   "createEvent": {
     "title": "发起聚会",

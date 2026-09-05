@@ -24,6 +24,7 @@ import {
   SHEET_MAX_EXPOSURE,
 } from "./framing";
 import {
+  colors,
   projectDecay,
   rubberband,
   springs,
@@ -448,7 +449,10 @@ export const InteractiveMap = forwardRef<MapSurfaceHandle, InteractiveMapProps>(
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, overflow: "hidden", backgroundColor: "#F1E9DC" },
+  // The ground behind the city, for the frame between the container laying out
+  // and the SVG painting. A token, not a literal: it has to be the page ground or
+  // that frame flashes a colour the app does not otherwise contain.
+  container: { flex: 1, overflow: "hidden", backgroundColor: colors.background },
   canvasHost: { flex: 1 },
   canvas: {
     position: "absolute",

@@ -5,25 +5,20 @@ import { colors, spacing, type } from "../../theme";
 /**
  * Circle avatar. With a photo (`uri`), the image fills the circle; without one,
  * the initial on a handle-derived colour is the fallback — the same user always
- * gets the same colour, and two users in a group stay visually distinct. The
- * initial carries the meaning; colour is decoration (DESIGN.md §10).
+ * gets the same colour, and two users in a group stay visually distinct.
+ *
+ * The initial is the *meaning* here, not decoration, so the ground and the ink
+ * travel together as a `{ bg, on }` pair from `colors.avatar` and every pair
+ * clears WCAG AA. The previous local palette hard-coded six hexes, two of them
+ * category colours, and put white on gold at ~1.9:1.
  */
 
-const AVATAR_COLORS = [
-  "#E8634D", // coral
-  "#7A9E7E", // sage
-  "#E4C25C", // gold
-  "#8B7EC8", // purple
-  "#FF2E93", // hotpink
-  "#00B4D8", // cyan
-];
-
-function colorForId(id: string): string {
+function pairForId(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = (hash * 31 + id.charCodeAt(i)) | 0;
   }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]!;
+  return colors.avatar[Math.abs(hash) % colors.avatar.length]!;
 }
 
 const SIZES = {
@@ -49,13 +44,14 @@ export function Avatar({
   style?: any;
 }) {
   const s = SIZES[size];
+  const pair = pairForId(id);
 
   return (
     <View
       style={[
         styles.container,
         { width: s.container, height: s.container, borderRadius: s.container / 2 },
-        { backgroundColor: colorForId(id) },
+        { backgroundColor: pair.bg },
         style,
       ]}
     >
@@ -66,7 +62,7 @@ export function Avatar({
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <Text style={[styles.text, { fontSize: s.text }]}>
+        <Text style={[styles.text, { fontSize: s.text, color: pair.on }]}>
           {label.slice(0, 1).toUpperCase()}
         </Text>
       )}
@@ -81,7 +77,6 @@ const styles = StyleSheet.create({
   },
   text: {
     ...type.headline,
-    color: colors.textOnColor,
     fontWeight: "700",
   },
 });

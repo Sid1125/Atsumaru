@@ -9,6 +9,13 @@ task is in flight; read it first if one is.
 Product loop: AI onboarding → nearby meetup on a map → 4–6 person group → group chat →
 private post-meetup feedback → mutual-only 1:1 unlock → better future matching.
 
+**Group chat and post-meetup feedback are their own destinations, not sections of the
+meetup screen** (`docs/DESIGN.md` §5). `MeetupScreen` carries a `GroupChatCard` preview
+directly under the hero which pushes `GroupChat` (`meetup/:eventId/chat`), and a
+`WrapUpRow` which presents `Feedback` as a modal. The embedded thread it replaced put
+the composer ~780pt down a ~740pt viewport, un-virtualized and with no keyboard
+handling. Do not move either back inline.
+
 ## Layout
 
 ```text
@@ -211,13 +218,33 @@ exists so the meetup loop is demonstrable before Supabase is provisioned.
 The UI follows Apple's fluid-interface and typography guidance. Import tokens from
 `src/theme` — never a raw hex, spacing number, or ad-hoc animation constant.
 
-- **Type** (`theme/typography.ts`): use the `type` roles. Tracking and leading are
-  **size-specific** — display sizes carry negative tracking, caption sizes positive.
-  Never reuse one letterSpacing across sizes. `typography` is the deprecated old scale,
-  kept only until the last caller migrates. `type.kicker` / `sectionHeader` are the
-  site's mono editorial labels (system fixed face, uppercase, wide-tracked).
+- **Palette** (`theme/tokens.ts`, sourced from `assets/color pal.jpeg`): Champagne
+  Glow `#F5E5CC` ground, warm ink `#1E1710`, **Orange Zest `#CE4503` as THE action
+  colour**, Neon Citrus `#FF9E0F` as the electric/highlight register, Citrus Fizz
+  `#FFCC99` as the mid tint, Berry Pop `#7D0000` as destructive. `accent` is an
+  olive `#4F6B3A` — the only hue not from the palette, because five analogous warm
+  swatches cannot express "success" as distinct from "action".
+  **`primary` is a fill, not an ink**: Orange Zest as small text is 3.79:1 on the
+  ground and 3.82:1 on night. Use `primaryInk` for text on light, `citrus` for text
+  on night, `accentInk` for text on `accentSoft`. The file header carries the
+  measured ratio for every pair; when adding a colour, solve it against the real
+  ground rather than assuming a value that passed on the old cream still passes.
+
+- **Type** (`theme/typography.ts`): **Inter, bundled** via `@expo-google-fonts/inter`
+  and loaded by `useFonts()` in `App.tsx` — five weights, each its own `fontFamily`
+  string because RN has no synthetic weights (`fontWeight` is ignored once a concrete
+  face is named). Noto Sans JP is deliberately *not* bundled: the OS substitutes a
+  Japanese face per glyph and that was verified correct on device.
+  Tracking and leading are **size-specific** — display sizes carry negative tracking,
+  caption sizes positive. Never reuse one letterSpacing across sizes, and never
+  override a role's `fontSize` at a call site (that breaks the pairing the scale
+  exists to enforce). `typography` is the deprecated old scale.
+  **Two mono roles only**: `type.kicker` names a screen/section, `type.overline` labels
+  a datum. At most **one kicker per three sections** — a third role plus unrationed use
+  had put 39 tracked-caps labels across ~12 screens.
 - **Sticker palette** (`theme/colors.sticker`): category colours are **data-encoded** —
-  one `{ bg, on }` per category, keyed to the site's electric band, shared by card, map
+  one `{ bg, on }` per category, deliberately kept *outside* the warm ramp (nine
+  categories need nine distinguishable hues), shared by card, map
   pin, filter chip and meetup hero via `src/categoryMeta.ts` (the single glyph/colour
   source — never add a per-screen category map). Colour always pairs with glyph + label
   text. `components/ui/Sticker` renders the site's hard offset vinyl shadow as a plain
@@ -237,8 +264,19 @@ The UI follows Apple's fluid-interface and typography guidance. Import tokens fr
 - **Reduced motion** (`useReducedMotion`) means a gentler equivalent, not no feedback.
   Note the Android emulator usually reports it **on**.
 - **Materials**: `components/ui/Material` for translucent chrome with content passing
-  underneath. Blur is iOS-only by design; Android and reduced-transparency get a tinted
-  solid, which reads better than weak fake glass.
+  underneath, and `components/ui/ScrollEdge` to fade that material in as content scrolls
+  beneath a sticky bar (Apple's scroll edge effect — never a permanently drawn divider).
+  Blur is iOS-only by design; Android and reduced-transparency get a tinted solid, which
+  reads better than weak fake glass. Never stack a light material on another.
+- **Vinyl**: `components/ui/VinylShadow` is the single implementation of the hard offset
+  shadow under every sticker, tape and vinyl button. It draws **outside** its parent's
+  bounds, so an ancestor with `overflow: "hidden"` clips it away entirely.
+- **Shared surfaces**: `common/ScreenHeader` (kicker + title + trailing),
+  `common/EditorialRow` ("opens a destination"), `ui/NightCard` (`flat`/`raised`/
+  `payoff`), `events/ScoreMark`. Reach for these before hand-rolling a surface — each
+  one replaced between three and five independent copies.
+- **Spacing carries grouping**: 8–12pt within a group, 32–48pt between. One uniform gap
+  down a screen is the same as grouping nothing.
 - Every user-facing state must survive colour-blindness: emoji and colour always pair
   with text (`docs/DESIGN.md` §10).
 

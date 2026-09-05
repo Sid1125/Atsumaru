@@ -124,7 +124,7 @@ export function VenuePicker({
 
       {picked ? (
         <View style={styles.statusRow}>
-          <IconLocate size={13} color={colors.primary} />
+          <IconLocate size={13} color={colors.primaryInk} />
           <Text style={styles.picked} numberOfLines={1}>
             {picked.address || t("createEvent.venuePicked")}
           </Text>

@@ -8,16 +8,22 @@ import {
 } from "react-native";
 
 import { PressableScale } from "../ui/PressableScale";
+import { VinylShadow } from "../ui/VinylShadow";
 import { colors, MIN_TARGET, radius, spacing, type } from "../../theme";
 
 interface ButtonProps {
   label: string;
   onPress: () => void;
   /**
-   * `neon` is the electric CTA on night surfaces — the site's neon pill with a
-   * hard offset vinyl shadow. `primary` is the coral pill with a coral glow.
+   * `vinyl` is the CTA for night surfaces: the same action fill as `primary`, but
+   * carried on a hard offset shadow instead of a soft glow — a sticker pressed
+   * onto the dark ground rather than a button floating above it.
+   *
+   * It was called `neon` while it painted itself in a `colors.neon` that had
+   * decayed into an alias of `primary`. The variant names a *finish*, not a hue,
+   * which is the only part of it that was ever actually different.
    */
-  variant?: "primary" | "secondary" | "tinted" | "plain" | "neon";
+  variant?: "primary" | "secondary" | "tinted" | "plain" | "vinyl";
   size?: "regular" | "large";
   disabled?: boolean;
   loading?: boolean;
@@ -39,7 +45,7 @@ export function Button({
   haptic = "light",
 }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const onNeon = variant === "neon";
+  const onVinyl = variant === "vinyl";
 
   const surface = (
     <PressableScale
@@ -55,14 +61,16 @@ export function Button({
         size === "large" && styles.large,
         styles[variant],
         isDisabled && styles.disabled,
-        onNeon && styles.neon,
+        onVinyl && styles.vinyl,
         style,
       ]}
     >
       <View style={styles.content}>
         {loading ? (
           <ActivityIndicator
-            color={onNeon ? colors.neonText : variant === "primary" ? colors.primaryText : colors.text}
+            color={
+              onVinyl || variant === "primary" ? colors.primaryText : colors.text
+            }
           />
         ) : (
           <>
@@ -70,11 +78,9 @@ export function Button({
             <Text
               style={[
                 styles.label,
-                onNeon
-                  ? styles.labelOnNeon
-                  : variant === "primary"
-                    ? styles.labelOnColor
-                    : styles.labelOnSurface,
+                onVinyl || variant === "primary"
+                  ? styles.labelOnColor
+                  : styles.labelOnSurface,
                 variant === "tinted" && styles.labelTinted,
                 isDisabled && styles.labelDisabled,
               ]}
@@ -88,17 +94,13 @@ export function Button({
     </PressableScale>
   );
 
-  // The neon CTA is vinyl: a hard offset shadow under the pill, exactly the
-  // site's sticker-badge look on dark surfaces. The underlay is a plain shifted
-  // View because RN elevation cannot do hard shadows.
-  if (variant === "neon") {
+  // The vinyl CTA: a hard offset shadow under the pill, exactly the site's
+  // sticker-badge look on dark surfaces. The underlay is a plain shifted View
+  // because RN elevation cannot do hard shadows.
+  if (variant === "vinyl") {
     return (
       <View>
-        <View
-          pointerEvents="none"
-          accessibilityElementsHidden
-          style={[styles.vinylShadow, { top: 3, left: 3 }]}
-        />
+        <VinylShadow offset={3} borderRadius={radius.pill} />
         {surface}
       </View>
     );
@@ -123,10 +125,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
+  /**
+   * The glow is iOS-only, and that is a decision rather than an omission.
+   *
+   * The intent is the site's `shadow-accent/20` — the CTA reading as *lit* in its
+   * own colour. iOS `shadowColor` does exactly that. Android's `elevation` cannot
+   * take a colour through RN style, so what it actually drew was a grey shadow —
+   * and worse, a **rectangular** one: the elevation outline ignored the pill radius,
+   * so a hard-cornered grey box sat behind every primary button. On a warm champagne
+   * ground a grey shadow also greys the paper around it.
+   *
+   * A flat pill is better than a wrong shadow. Android gets its depth from the
+   * `vinyl` variant, which is the app's own idiom and renders identically on both
+   * platforms.
+   */
   primary: {
     backgroundColor: colors.primary,
-    // Coral glow — the site's `shadow-accent/20` lifted: the CTA reads as lit,
-    // not just floated.
     ...Platform.select({
       ios: {
         shadowColor: colors.primary,
@@ -134,7 +148,7 @@ const styles = StyleSheet.create({
         shadowRadius: 16,
         shadowOffset: { width: 0, height: 6 },
       },
-      default: { elevation: 4 },
+      default: {},
     }),
   },
   secondary: {
@@ -144,16 +158,8 @@ const styles = StyleSheet.create({
   },
   tinted: { backgroundColor: colors.primarySoft },
   plain: { backgroundColor: "transparent" },
-  /** Neon keeps no soft shadow — the hard underlay is its shadow. */
-  neon: { backgroundColor: colors.primary },
-  vinylShadow: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(9,9,11,0.9)",
-  },
-  labelOnNeon: { color: colors.neonText },
+  /** Vinyl keeps no soft shadow — the hard underlay is its shadow. */
+  vinyl: { backgroundColor: colors.primary },
   /**
    * Disabled state is expressed in colour, not opacity. Opacity is owned by the
    * press animation on the same element, so a translucent "disabled" look was
@@ -171,5 +177,5 @@ const styles = StyleSheet.create({
   label: { ...type.headline },
   labelOnColor: { color: colors.primaryText },
   labelOnSurface: { color: colors.text },
-  labelTinted: { color: colors.primary },
-});
+  labelTinted: { color: colors.primaryInk },
+});

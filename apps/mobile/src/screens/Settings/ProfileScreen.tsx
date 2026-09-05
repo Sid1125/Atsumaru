@@ -12,6 +12,7 @@ import { Card } from "../../components/ui/Card";
 import { IconChevronRight, IconGlobe } from "../../components/ui/Icons";
 import { Marker } from "../../components/ui/Marker";
 import { PressableScale } from "../../components/ui/PressableScale";
+import { VinylShadow } from "../../components/ui/VinylShadow";
 import { traitLabel } from "../../onboardingPersonality";
 import { authApi } from "../../services/api/auth";
 import { usersApi } from "../../services/api/users";
@@ -19,7 +20,7 @@ import { useConnections } from "../../features/connections/hooks/useConnections"
 import { useMyEvents } from "../../features/events/hooks/useEvents";
 import { disconnectSocket } from "../../services/socket";
 import { useAuthStore, useUiStore } from "../../store";
-import { colors, radius, sectionHeader, spacing, type } from "../../theme";
+import { colors, radius, spacing, type } from "../../theme";
 import type { Language } from "../../types/api";
 
 const LANGUAGES: { code: Language; label: string }[] = [
@@ -103,11 +104,7 @@ export function ProfileScreen() {
 
       {/* Stats — one lime vinyl strip, not three figures on hairline rules */}
       <View style={styles.statsWrap}>
-        <View
-          pointerEvents="none"
-          accessibilityElementsHidden
-          style={styles.statsShadow}
-        />
+        <VinylShadow offset={4} borderRadius={radius.lg} />
         <View style={styles.stats}>
           <Stat value={`${rep}`} label={t("settings.repLabel")} />
           <View style={styles.statRule} />
@@ -254,7 +251,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.xs,
   },
-  heroKicker: { ...type.overline, color: colors.neon },
+  heroKicker: { ...type.overline, color: colors.citrus },
   handle: { ...type.display, marginTop: spacing.sm },
   name: { ...type.callout, color: colors.nightMuted },
 
@@ -263,19 +260,10 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.page,
     marginTop: -spacing.sm,
   },
-  statsShadow: {
-    position: "absolute",
-    top: 4,
-    left: 4,
-    right: 0,
-    bottom: 0,
-    borderRadius: radius.lg,
-    backgroundColor: "rgba(9,9,11,0.9)",
-  },
   stats: {
     flexDirection: "row",
     alignItems: "stretch",
-    backgroundColor: colors.lime,
+    backgroundColor: colors.citrus,
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
     transform: [{ rotate: "-0.8deg" }],
@@ -283,11 +271,11 @@ const styles = StyleSheet.create({
   stat: { flex: 1, alignItems: "center", gap: spacing.xxs },
   statRule: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: colors.limeInk,
+    backgroundColor: colors.citrusInk,
     opacity: 0.25,
   },
-  statValue: { ...type.title2, color: colors.limeInk, fontWeight: "800" },
-  statLabel: { ...type.overline, color: colors.limeInk, opacity: 0.62 },
+  statValue: { ...type.title2, color: colors.citrusInk, fontWeight: "800" },
+  statLabel: { ...type.overline, color: colors.citrusInk, opacity: 0.62 },
 
   blockCard: { marginHorizontal: spacing.page, gap: spacing.sm },
   groupHeader: {
@@ -295,7 +283,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.xs,
   },
-  groupLabel: { ...sectionHeader, color: colors.textMuted },
+  groupLabel: { ...type.overline, color: colors.textMuted },
 
   interestRow: {
     flexDirection: "row",
@@ -305,7 +293,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  interestIndex: { ...type.overline, color: colors.primary },
+  interestIndex: { ...type.overline, color: colors.primaryInk },
   interestText: { ...type.callout, color: colors.text },
   personalityChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
 
@@ -334,9 +322,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
   },
-  segmentSelected: { backgroundColor: colors.lime },
+  /**
+   * Selection is ink, not the electric band.
+   *
+   * This was Neon Citrus (lime, before the palette moved), and a language picker
+   * is not a marker, a tape badge or a payoff figure — the three places
+   * docs/VISUAL_OVERHAUL.md restricts that register to. Using it here made a
+   * fourth selection state in an app that should have two: the category sticker
+   * where a `{bg, on}` pair exists, and ink everywhere else (the same rule `Chip`
+   * now follows).
+   */
+  segmentSelected: { backgroundColor: colors.text },
   segmentLabel: { ...type.subhead, color: colors.textMuted, fontWeight: "600" },
-  segmentLabelSelected: { color: colors.limeInk },
+  segmentLabelSelected: { color: colors.textOnColor },
 
   signOutLabel: { color: colors.danger },
 

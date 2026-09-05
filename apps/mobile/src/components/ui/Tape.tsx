@@ -1,12 +1,13 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
+import { VinylShadow } from "./VinylShadow";
 import { colors, radius, spacing, type } from "../../theme";
 
-export type TapeTone = "lime" | "coral" | "night";
+export type TapeTone = "citrus" | "action" | "night";
 
 const TONES: Record<TapeTone, { bg: string; on: string }> = {
-  lime: { bg: colors.lime, on: colors.limeInk },
-  coral: { bg: colors.primary, on: colors.primaryText },
+  citrus: { bg: colors.citrus, on: colors.citrusInk },
+  action: { bg: colors.primary, on: colors.primaryText },
   night: { bg: colors.nightRaised, on: colors.nightMuted },
 };
 
@@ -15,10 +16,14 @@ const TONES: Record<TapeTone, { bg: string; on: string }> = {
  * slightly-rotated sticker sitting on a hard offset shadow. Where `Sticker`
  * carries category data, tape carries status/register — open, happening,
  * finished, "host" — in the electric band.
+ *
+ * `citrus` is the default electric register, `action` the Orange Zest fill, `night`
+ * the quiet one. The tones are named for the register they carry, not for a hue —
+ * `lime` and `coral` had to be renamed the moment the palette moved.
  */
 export function Tape({
   label,
-  tone = "lime",
+  tone = "citrus",
   rotate = -2,
   offset = 2,
   style,
@@ -39,11 +44,7 @@ export function Tape({
         style,
       ]}
     >
-      <View
-        pointerEvents="none"
-        accessibilityElementsHidden
-        style={[styles.underlay, { top: offset, left: offset }]}
-      />
+      <VinylShadow offset={offset} borderRadius={radius.sm} />
       <View style={[styles.tape, { backgroundColor: t.bg }]}>
         <Text style={[styles.label, { color: t.on }]} numberOfLines={1}>
           {label}
@@ -54,15 +55,6 @@ export function Tape({
 }
 
 const styles = StyleSheet.create({
-  underlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: radius.sm,
-    backgroundColor: "rgba(9,9,11,0.9)",
-  },
   tape: {
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm + 2,
@@ -70,11 +62,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  label: {
-    ...type.kicker,
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 1.8,
-    fontWeight: "800",
-  },
+  // `overline` rather than `kicker` with three overrides. Tape carries a status,
+  // not a section heading — and the old version re-declared size, leading, tracking
+  // and weight, which is a new role wearing another role's name.
+  label: { ...type.overline, fontSize: 10, lineHeight: 13, letterSpacing: 2.2 },
 });

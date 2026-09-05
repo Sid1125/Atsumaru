@@ -227,7 +227,7 @@ with a freshly minted session against the live Render API. **The app does not cr
 - **Discover / Mapbox surface** — release build loads the real Mapbox renderer ("Powered by Mapbox
   Maps" present), shows seeded meetup cards at their map pins with match % (42%) group fit.
 - **match-preview** opens for a meetup.
-- **Join group** — "Nigga's Hideout" via `join_event`; now 2/6, "You are already in this group",
+- **Join group** — a live test meetup via `join_event`; now 2/6, "You are already in this group",
   members `@drivinggaming` + `@hiker`. GROUP CHAT section renders.
 - **Connections tab** — empty state "No connections yet. They unlock after a meetup." (correct
   pre-meetup gating for the mutual 1:1 unlock).
@@ -250,6 +250,22 @@ effectively unreachable through the UI on this build. The REST chat path works f
 is an inset/insets-bug, not a backend gap. Fix on the mobile side: consume `SafeAreaInsets` bottom
 (and the IME) for the chat screen composer.
 
+> **Closed 2026-09-05** by `components/chat/ChatScreenShell.tsx`, which both chat surfaces now go
+> through. Two defects were stacked, and only fixing one would have left it broken:
+> (a) no bottom inset at all — `DmScreen` used a flat `padding: spacing.page` (20pt), which does not
+> clear a 48dp three-button nav bar; (b) `KeyboardAvoidingView` is a **no-op under Android
+> edge-to-edge**, because the window is no longer resized and the IME arrives as an inset — so
+> `DmScreen`'s `behavior={Platform.OS === "ios" ? "padding" : undefined}` did literally nothing on
+> the exact platform where the bug was reported. The shell reads the IME through Reanimated's
+> `useAnimatedKeyboard()` and pads by `Math.max(keyboard.height, insets.bottom, spacing.sm)` on the
+> UI thread — one code path, both platforms, no new dependency. `app.json` now also declares
+> `android.softwareKeyboardLayoutMode: "resize"` explicitly.
+>
+> **Still unverified on a release build.** Everything above was exercised in Expo Go, and this bug
+> only manifests on the release APK. The `uiautomator dump` check in the plan's §7 — composer and
+> Send node bounds above the nav bar, keyboard down *and* up, on gesture-nav and 3-button profiles —
+> has not been run. Treat this as code-complete, not proven.
+
 **Live API battery — everything else held:**
 - **Turnstile re-confirmed bypassed on a real auth** (same Medium as §5i): a fabricated
   `turnstile_token` on `/auth/session` minted a **valid session** (no `CAPTCHA_FAILED`).
@@ -264,10 +280,18 @@ is an inset/insets-bug, not a backend gap. Fix on the mobile side: consume `Safe
   interests / personality / reputation_score) — **no `real_name`, no email** (`PUBLIC_USER_COLUMNS`
   held). Intended social read, not a leak.
 
-**Seed-data note (not a security defect):** the seeded demo events/accounts use the display name
-"Nigga" ("Nigga's Hideout", "Official nigga"). It is live test data the project owner created
-(visible in this user's own join flow), not a PII breach, but brand-reputational for any public
-demo. Recommend renaming the seed rows before any showcase.
+**Content-moderation finding (not a security defect):** a live account and two live events carry a
+racial slur as their display name / titles. Corrected characterisation: this is **not seed data** —
+`apps/mobile/src/services/api/demo/world.ts` and `server/scripts/seed.ts` are both clean, so
+`npm run seed -- --reset` will NOT remove it. The rows were created through the app's own
+onboarding and Create-Event flows against the live Supabase project, so they need a direct
+`UPDATE`/`DELETE` via `scripts/sql.mjs`.
+
+The underlying defect is that **there was no content moderation on `display_name`, `handle` or
+`event.title`** — server-side zod validated length only. Closed by `server/src/utils/moderation.ts`
+(`containsBlockedTerm`), wired into onboarding complete, profile patch and event create. The live
+rows still require the manual SQL cleanup above; it is blocked here because `server/.env` does not
+exist on this machine.
 
 No code was changed in this pass; all live scratch state (profile mutation, chat message) was left
 as ordinary test data under the test account.
@@ -1483,7 +1507,7 @@ premium tier.
 | `docs/API_STRUCTURE.md` §5–6 | Still references the old OTP screens; `TRD.md` §17 says OAuth is canonical, and the code follows TRD |
 | Two extra endpoints | `POST /auth/session` and `POST /users/me/push-token` are not in the contract; both are documented in README and CLAUDE.md |
 | Demo mode | `EXPO_PUBLIC_DEMO_MODE=1` runs the app against an in-app stand-in for the API (`src/services/api/demo/`). It duplicates the match formula from `server/src/modules/matching/score.ts` — the two must not drift. `apps/mobile/.env` now ships with `0`, so the app talks to the real API |
-| Demo layer gaps | `demo/index.ts` has no `/users/:id` handler, so the Connections list shows `@…` forever in demo mode (confirmed on device, §1d); and connect-picks for unrated members are dropped. Real API mode is unaffected |
+| Demo layer gaps | `/users/:id` **closed 2026-09-05** — added to `demo/index.ts`, matched on a full path segment rather than a prefix so it cannot swallow `/users/me/notifications`. Connections rows now resolve (`@harucafe / Haru ☕`, verified on device) and the DM they open gets its header and placeholder, which had been blank for the same reason. Connect-picks for unrated members are still dropped. Real API mode was never affected |
 | Route-level auth tests | `requireAuth` / `requireMembership` / `requireConnection` throw the right 401/403/404/409 every place they run, but only the pure `canAccessConnection` predicate + auth limiters are under automation. Route-level `User A cannot X` tests need a `db()` injection seam — `mock.module` is unavailable on the installed `node:test`, so a handle in `db/queries.ts` is the next step |
 | Event member list | `GET /events/:id(/members)` returns the full member list + public profiles to any authenticated user (member or not). Required for discovery/match-preview pre-join; the tradeoff is an authenticated attacker can map attendance by iterating event ids. Add a §19 browse limiter if scraping appears |
 | Chat/DM send limits | **Closed 2026-09-02** — per-user budgets on REST + socket (chat 300/hr, DM 120/hr) and event-create 30/day. `/nearby` read-volume limiter still optional (§19.1 altitude methods) |
@@ -1493,3 +1517,177 @@ premium tier.
 | Vibe recap in demo mode | `EXPO_PUBLIC_DEMO_MODE=1` always takes the `source: "template"` path — there is no Groq offline. The card, traits and privacy line are real; nothing pretends a model ran |
 | Avatar upload | Code-complete (base64 → Supabase Storage `avatars` bucket → `avatar_url`), **never run against live Storage** — bucket creation, public URL and the Expo Go picker flow need a live round-trip |
 
+---
+
+## 6. Palette re-anchor + chat/feedback isolation, 2026-09-05
+
+Driven by two asks: isolate chat from the meetup screen, and re-theme the app on the
+reference palette in `assets/color pal.jpeg`. Everything below was walked on the Pixel
+emulator in Expo Go, demo mode, and rendered colours were **sampled from the screenshots**
+rather than eyeballed.
+
+### Palette
+
+Champagne Glow ground, warm ink, Orange Zest action, Neon Citrus highlight, Citrus Fizz
+tint, Berry Pop destructive; olive `accent` added because five analogous warm swatches
+cannot express "success" as distinct from "action". Full rationale and the was/now table
+are in `docs/VISUAL_OVERHAUL.md`; the measured ratio for every pair is in the
+`theme/tokens.ts` header.
+
+- **The reference image contradicts itself and the swatch wins.** Sampling the JPEG showed
+  four of five swatches match their printed hex exactly, and **Orange Zest's printed
+  `#5E2638` does not** — that hex is a dark plum; its swatch reads `#CE4503`.
+- **A naive swap would have shipped two silent AA failures.** Champagne is a full step
+  darker than the cream it replaced, so `textMuted` at its old `#77716A` measures
+  **3.90:1** on it (now `#6B6053`, 4.96:1). And `accent` on `accentSoft` was **4.07:1**
+  *already*, before any of this — the match card's "group fit" label and reason bullets
+  had been below AA the whole time. Fixed by adding `accentInk`, the same split
+  `primary`/`primaryInk` makes.
+- **`primary` is a fill, not an ink** — 3.79:1 as small text on the ground, 3.82:1 on
+  night. Eleven text/small-glyph sites moved to `primaryInk`; `EventCard`'s score mark
+  became dark-aware, and takes Citrus **Fizz** on night rather than Neon Citrus so a
+  read-only number is not the same colour as the one CTA on that surface.
+- **Renames, because the old names had become lies.** `neon`/`neonText` deleted (`neon`
+  had decayed into a plain alias of `primary`); `lime`/`limeInk` → `citrus`/`citrusInk`;
+  `washCoral`/`washSage` → `washPrimary`/`washAccent`; `Button variant="neon"` → `"vinyl"`
+  (it names a finish, not a hue); `TapeTone "lime" | "coral"` → `"citrus" | "action"`.
+- **The vector city was retuned, not left behind** — twenty inline `fill=` literals became
+  one `CITY` constant derived from Champagne Glow. Water stays blue; map legibility
+  outranks palette purity.
+- **The category band was re-pitched, not re-hued** — nine categories still need nine
+  distinguishable colours, but the screen-neons read as radioactive on champagne. Two
+  pairs (`music`, `sports`) had to move because they did not clear AA.
+- Outside `theme/`, the only raw colours left in `src/` are Google's brand hexes in
+  `BrandLogos.tsx`.
+
+### Bugs found while verifying, all pre-existing
+
+- **Switch toggles were Android-default blue.** `NotificationPrefsCard` set `trackColor`
+  but not `thumbColor`, so every notification toggle was a blue dot on an orange track.
+- **The mutual-connection celebration had no horizontal padding** — `paddingVertical`
+  only, so the privacy note ran flush into the 2pt border on both sides — and rendered
+  `textMuted` on `night`, which is **2.92:1**. The one card whose job is to reassure
+  someone their picks stayed private had an illegible privacy note.
+- **`connection.mutualBody` was rendered by nothing**, in all three locales, though
+  `docs/DESIGN.md` §5 requires it. Now rendered, with the handle resolved off `members`
+  (the roster excludes the caller, so whichever side of the connection appears in it is
+  the other party — no need to thread the current user id in).
+- **`FeedbackScreen` opened the DM with no handle**, so the thread it replaced into had a
+  blank header and a `Message @…` placeholder — exactly the flash `Dm.handle` exists to
+  prevent.
+- **`StatusBar` was rendered twice**, in `App.tsx` and `RootNavigator`, and the `App.tsx`
+  copy was stage-blind (`style="dark"`) while the navigator's flips to `light` for the
+  night-ground auth screens. Which one won came down to mount order. Removed.
+- **The language segmented control used the electric band as a selection state** (P1-7) —
+  now ink, matching `Chip`.
+
+### Known, not fixed
+
+- **A white band across the status bar on the two chat routes, in Expo Go only.**
+  `useAnimatedKeyboard` switches the Android window to `setDecorFitsSystemWindows(false)`;
+  the native header then stops painting that strip and the RN root is itself inset below
+  it, so the band is outside the React tree and no style can reach it. It is
+  `android:windowBackground` — now set via `app.json` `expo.android.backgroundColor`, which
+  takes effect in a dev/release build and not in Expo Go. Measured (`#FFFFFF` there,
+  `#F5E5CC` on every other screen), **not verified fixed**.
+- §5j's release-build `uiautomator` check is still not run.
+- The live Supabase slur rows still need the manual SQL cleanup; blocked on a missing
+  `server/.env`.
+
+### Follow-ups worth logging
+
+- Optimistic send reconciles on `sender_id` + identical text. A `client_id` threaded
+  through the socket payload would make dedupe a clean id match.
+- Message pagination (`onEndReached`) is now possible, since chat owns a full screen.
+- Real unread counts need a `message_reads` table and a mark-as-read path. The interim
+  `useChatSeenStore` is session-scoped and deliberately renders a binary "New", never a
+  number — a count would imply read tracking that does not exist.
+- `settings.*` → `profile.*` namespace drift (P1-15) and the primitives/migration work
+  (plan phases 8–10) are untouched.
+
+---
+
+## 7. Editorial premium pass, 2026-09-06
+
+Typography, materials and motion, on top of the palette re-anchor. Everything below was
+walked on the Pixel emulator in Expo Go and **measured from the rendered pixels** rather
+than judged by eye.
+
+### Four things that were never rendering
+
+The most useful output of this pass was finding code that claimed an effect and produced
+nothing. Each was confirmed by sampling the screenshot, not by reading the source.
+
+1. **The vinyl offset shadow had never rendered — anywhere.** All five implementations
+   (`Sticker`, `Tape`, `Button`, `DiscoverScreen.hostShadow`, `ProfileScreen.statsShadow`)
+   wrote `top: offset, left: offset, right: 0, bottom: 0`, which *insets* the underlay
+   and leaves it flush at the bottom-right — entirely behind the opaque body, which is
+   painted after it. Magnifying a rendered sticker showed flat colour. The signature
+   idiom of the design language, described at length in three docs, was invisible.
+   Now one primitive (`ui/VinylShadow`) with `right/bottom: -offset`.
+2. **`FeTurbulence` has no Android implementation** in `react-native-svg` 15.15.4.
+   `android/src/main/java/com/horcrux/svg/` has Blend, ColorMatrix, Composite, Flood,
+   GaussianBlur, Merge and Offset — no turbulence. The package exports it from its
+   TypeScript surface, so a film-grain overlay built on it **typechecks and renders
+   nothing**: the ground measured 0.00 standard deviation, one distinct level.
+3. **A tiled-PNG grain did not render either.** `resizeMode="repeat"` on an
+   `absoluteFill` `Image` produced the same 0.00 variance. Ruled out a stale reload by
+   probing with a bright background colour, which *did* apply. **Grain was removed
+   rather than shipped as a no-op** — the whole point of this pass is not to leave code
+   that claims an effect it does not have. Noted as an open idea, not a feature.
+4. **`Material` had zero importers** and the Discover comment claiming "the map scrolls
+   underneath it" sat above two opaque `nightRaised` discs. It now backs the identity
+   islands, the sheet's scroll edge and the meetup nav bar.
+
+### Other defects found and fixed
+
+- **Android drew a rectangular grey shadow behind every primary button.** `elevation: 4`
+  cannot take a colour through RN style, so the intended coral glow became a grey box
+  whose outline ignored the pill radius — and grey on champagne greys the paper. The
+  glow is now iOS-only; Android gets depth from the `vinyl` variant instead.
+- **Discover ordered by distance while printing a fit score.** The promoted card read
+  30% directly above a row reading 38%. Now the best-scoring meetup is pulled to the top
+  as the recommendation and the rest stay in distance order, which is what
+  `docs/DESIGN.md` §4 asked for ("Recommended meetup" then "Nearby meetup list").
+- **`MeetupScreen`'s category kicker had no `color` at all** — the platform default,
+  near-black, at 9pt on the near-black hero.
+- **`Marker` stretched full width.** A `<Text>` in a column stretches, so the highlighter
+  band ran the width of the screen with the words at one end.
+- **Login's floating stickers landed on the copy** — 114–156pt discs at fixed offsets,
+  one of them rendering the word "FIRST." on top of a pink circle. Re-measured against
+  the actual text bounds (dp 291–394 on a 411×923dp handset) and moved into the two
+  bands that hold no text.
+- **`sectionHeader` was a third mono role** at a third size doing `kicker`'s job. The
+  three together were **39 tracked-caps labels across ~12 screens**. Now 6 kickers +
+  28 overlines, and the alias is deleted.
+- Negative-margin hacks fighting parent gaps removed from `ProfileConfirmScreen` and
+  `MeetupScreen` — both were symptoms of one uniform gap that no region wanted.
+- `IconProfile` / `IconGear` deleted (0 usages).
+
+### Added
+
+- **Inter, bundled** (5 weights) + a display tier (`displayLarge` 56/−2.6,
+  `display` 44/−2.2) and `tabular-nums` on caption. Noto Sans JP deliberately not
+  bundled — the OS CJK substitution was checked on device and is correct.
+- **Primitives**: `VinylShadow`, `ScrollEdge`, `NightCard`, `ScreenHeader`,
+  `EditorialRow`, `ScoreMark`. Each replaced 3–5 independent copies.
+- **The collapsing meetup hero** — the category sticker lifts, shrinks and
+  counter-rotates as the page scrolls, handing the title off to a nav bar that fades in
+  behind it. Verified numerically: the sticker's top edge moved **53px**, against a
+  prediction of 14dp translate + 5.8dp of scale = 52px.
+- **Discover card family** (featured / standard / compact), staggered list entrance
+  (40ms step, first paint only), and an empty state with a Host action.
+- **The typing dots now actually animate.** They were three static `View`s at fixed
+  opacities under a docblock describing "animated typing dots".
+
+### Still open
+
+- Grain (see above) — no working approach found on Android without a new dependency.
+- `Skeleton`, `SegmentedControl`, `ChatBubble`, `ChatInput`, `Button size="small"` were
+  planned and **not built**; the chat surfaces still hand-roll their bubbles and composer.
+- Coherence pass unfinished on Connections, EmailAuth, CreateEvent, Profile, Dm, Feedback.
+- `settings.*` → `profile.*` i18n namespace still not renamed.
+- Exit animations still absent app-wide.
+- The map pin is still a round bubble rather than the die-cut shape (P1-11).
+- Everything from §6 that was open remains open (release-build `uiautomator` check, the
+  Expo-Go status-bar band on chat routes, the live Supabase slur cleanup).

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 
+import { VinylShadow } from "./VinylShadow";
 import { radius } from "../../theme";
 
 /**
@@ -40,16 +41,7 @@ export function Sticker({
         rotate ? { transform: [{ rotate: `${rotate}deg` }] } : null,
       ]}
     >
-      {shadow ? (
-        <View
-          pointerEvents="none"
-          accessibilityElementsHidden
-          style={[
-            styles.underlay,
-            { borderRadius, top: offset, left: offset },
-          ]}
-        />
-      ) : null}
+      {shadow ? <VinylShadow offset={offset} borderRadius={borderRadius} /> : null}
       <View
         style={[
           styles.body,
@@ -64,14 +56,6 @@ export function Sticker({
 }
 
 const styles = StyleSheet.create({
-  underlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(9,9,11,0.9)",
-  },
   body: {
     flex: 1,
     alignItems: "center",

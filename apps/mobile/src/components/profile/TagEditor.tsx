@@ -16,13 +16,23 @@ import { colors, radius, spacing, type } from "../../theme";
 const MAX_INTERESTS = 30;
 const MAX_PERSONALITY = 8;
 
-/** A chip wearing a × — tap to remove the tag. */
+/**
+ * A chip whose tap REMOVES the tag.
+ *
+ * The close glyph is the only visual signal of that, so it cannot be the only
+ * signal full stop: without an explicit label a screen reader announces
+ * "Ramen, selected, button", which reads as "choose this" — the opposite of what
+ * tapping does (docs/DESIGN.md §10).
+ */
 function RemovableChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const { t } = useTranslation();
+
   return (
     <Chip
       label={label}
       selected
       onPress={onRemove}
+      accessibilityLabel={t("profile.removeTag", { tag: label })}
       icon={<IconClose size={12} />}
     />
   );

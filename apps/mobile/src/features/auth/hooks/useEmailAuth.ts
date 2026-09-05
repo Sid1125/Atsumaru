@@ -13,6 +13,14 @@ export type EmailAuthMode = "login" | "signup" | "reset" | "resetComplete";
  * token from exactly one endpoint. Signup sends a confirmation email (no tokens);
  * "sent: true" just means the email was dispatched — the user must confirm, then log in.
  */
+/**
+ * Email auth.
+ *
+ * `error` and `info` are **i18n keys**, not sentences: this hook is not a
+ * component so it has no `t`, and returning English here violated
+ * docs/RULES.md §12 ("all user-facing text must come from translation
+ * resources"). The screen translates them.
+ */
 export function useEmailAuth() {
   const [pending, setPending] = useState<EmailAuthMode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +40,7 @@ export function useEmailAuth() {
         await signIn(session.access_token, session.user);
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Sign-in failed.");
+        setError("auth.loginFailed");
       } finally {
         setPending(null);
       }
@@ -47,9 +55,9 @@ export function useEmailAuth() {
     try {
       const turnstileToken = await acquireTurnstileToken();
       await authApi.signup(email, password, turnstileToken);
-      setInfo("A confirmation email has been sent. Confirm it, then sign in.");
+      setInfo("auth.confirmSent");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-up failed.");
+      setError("auth.signupFailed");
     } finally {
       setPending(null);
     }
@@ -62,9 +70,9 @@ export function useEmailAuth() {
     try {
       const turnstileToken = await acquireTurnstileToken();
       await authApi.requestPasswordReset(email, turnstileToken);
-      setInfo("If that email has an account, a reset link is on its way.");
+      setInfo("auth.resetSent");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send the reset email.");
+      setError("auth.resetFailed");
     } finally {
       setPending(null);
     }
@@ -76,9 +84,9 @@ export function useEmailAuth() {
     setInfo(null);
     try {
       await authApi.completePasswordReset(tokenHash, password);
-      setInfo("Password updated. Sign in with your new password.");
+      setInfo("auth.passwordUpdated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update the password.");
+      setError("auth.resetCompleteFailed");
     } finally {
       setPending(null);
     }

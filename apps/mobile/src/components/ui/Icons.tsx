@@ -48,27 +48,6 @@ export function IconConnections(props: IconProps) {
   );
 }
 
-/** A single profile — head + shoulders. */
-export function IconProfile(props: IconProps) {
-  return (
-    <Base {...props}>
-      <Circle cx="12" cy="8" r="4" />
-      <Path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
-    </Base>
-  );
-}
-
-/** Settings — a gear with teeth, distinct from profile. */
-export function IconGear(props: IconProps) {
-  return (
-    <Base {...props}>
-      <Circle cx="12" cy="12" r="3.1" />
-      <Path d="M12 2.5v2.8M12 18.7v2.8M2.5 12h2.8M18.7 12h2.8M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
-    </Base>
-  );
-}
-
-/** A right chevron for disclosure rows. */
 export function IconChevronRight(props: IconProps) {
   return (
     <Base {...props}>

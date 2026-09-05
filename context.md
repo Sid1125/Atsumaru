@@ -1264,3 +1264,104 @@ unembedded users.
 - Not verified live: **Supabase Storage round-trip** (bucket creation, public
   URL, Expo Go picker → upload) and the **new pairwise scores against the live
   DB**. Same standing as the Mapbox path — code complete, needs a live run.
+
+---
+
+## Palette re-anchor on `assets/color pal.jpeg` (2026-09-05)
+
+Continuation of the chat/feedback isolation work, plus the user's ask to re-theme on the
+reference palette. Detail lives in `docs/VISUAL_OVERHAUL.md` (was/now table + rationale),
+`docs/DESIGN.md` §1 (the rules), `TRACKER.md` §6 (what was found and what is unverified),
+and the `theme/tokens.ts` header (every measured ratio). What is recorded here is the
+reasoning that would otherwise be lost.
+
+**The palette was sampled, not read.** Four swatches match their printed hex; Orange Zest's
+printed `#5E2638` is a plum that has nothing to do with its own burnt-orange swatch
+(`#CE4503`). Taking the labels on trust would have put a dark plum in the action slot.
+
+**Why `accent` is olive and not a sixth citrus.** The reference is five analogous warm
+swatches — a brand palette, not an interface system. It states ground, tint, highlight,
+action, destructive. It cannot state "success as distinct from action", which the product
+needs for match scores, the AI host and the "good" rating. One non-palette hue, chosen to
+sit under the citrus ramp (the classic complement to burnt orange on cream), is a smaller
+compromise than collapsing that distinction.
+
+**Why `primary` split into `primary` + `primaryInk`.** Orange Zest carries white at 4.69:1,
+so it is a fine button. As 11pt text it is 3.79:1 on the ground and 3.82:1 on night. The
+same split was then forced on `accent` — and *that* one exposed a pre-existing failure:
+`accent` on `accentSoft` was already 4.07:1, so the match card's labels had been below AA
+before any of this started.
+
+**Why the category band did not become warm.** It encodes nine categories. Nine
+distinguishable hues is the whole point; folding them into the ramp would destroy it. What
+was actually wrong was register — screen-neons chosen against a near-white ground read as
+radioactive on champagne — so each moved to pigment weight at the same hue.
+
+**Why tokens got renamed rather than re-pointed.** `neon` had become a plain alias of
+`primary`: two names, one colour, nothing to choose between them. `lime` named a hue the
+palette does not contain. `washCoral`/`washSage` and `TapeTone "lime" | "coral"` had to be
+renamed the moment the palette moved, which is the argument against colour-named tokens —
+the replacements are role names (`washPrimary`, `"citrus" | "action"`, `variant="vinyl"`).
+
+**The Login washes were a subtle trap.** Each gradient's transparent stop still encoded the
+*old* hue (`rgba(255,67,42,0)`), so a wash of the new colour was fading through a hue the
+palette no longer has — most visible exactly where it is full-bleed. Both stops now derive
+from the same token.
+
+**One thing that could not be fixed from JS, and is not claimed to be.** On the two chat
+routes, in Expo Go, a white band shows across the status bar. `useAnimatedKeyboard` puts
+the Android window into `setDecorFitsSystemWindows(false)`; the native header stops
+painting that strip and the RN root is inset below it, so it is outside the React tree.
+Three attempts — a `headerBackground` view, painting the provider root, checking every
+other screen for comparison — confirmed it. It is `android:windowBackground`, set in
+`app.json`, effective only in a dev/release build. Recorded as measured-but-unverified
+rather than fixed.
+
+---
+
+## Editorial premium pass (2026-09-06)
+
+Detail is in `TRACKER.md` §7. What is recorded here is the reasoning.
+
+**The most valuable thing this pass did was measure instead of look.** Four separate
+pieces of code claimed a visual effect and produced nothing, and none of them would have
+been caught by reading the source or glancing at a screenshot — the vinyl offset shadow
+(five implementations, all with inset geometry, invisible since the day it was written),
+`FeTurbulence` (exported by `react-native-svg`'s TypeScript surface, unimplemented on
+Android), a tiled-PNG fallback for the same effect, and `Material` (zero importers under
+a comment describing what it would have done). Cropping and magnifying a rendered sticker
+found the first; sampling pixel standard deviation across a "textured" ground found the
+next two. **Screenshot-and-sample should be the default verification for anything
+visual**, the same way the palette pass verified colour.
+
+**Grain was removed rather than shipped.** Two implementations, both measuring 0.00
+variance, with the reload pipeline proven live by a bright-colour probe. Shipping it at
+0.035 opacity would have been undetectable *and* wrong — a component whose whole
+justification is a texture nobody can point at is exactly the code this pass exists to
+delete. It is logged as an open idea.
+
+**On Inter, against `taste-skill`.** That skill bans Inter as a default, and the ban is
+right about the failure mode it names — Inter at default tracking is the most common AI
+tell in a generated interface. It does not apply here for two reasons: the marketing site
+is already Inter, so this is brand continuity rather than an unconsidered pick; and the
+display tier runs 44–56pt at −2.2/−2.6 tracking at weight 800, which is the opposite of
+the default. The tell is the tracking, not the typeface.
+
+**On Noto Sans JP.** The plan staged it deliberately: ship Inter, look at a Japanese
+string on a real device, then decide. The system substitution turned out to be correct
+beside Inter, so several megabytes were saved by not pre-committing. Worth repeating as a
+pattern — the decision cost one screenshot.
+
+**Where the spec was already right and the code was not.** Discover printed a fit score
+on every row while ordering by distance, so the promoted card read 30% above a row
+reading 38%. `docs/DESIGN.md` §4 had specified "Recommended meetup" *then* "Nearby meetup
+list" all along. The fix was to read the doc, not to invent a ranking: pull the best
+scorer to the top, leave the rest in distance order, and do **not** reorder `events`
+itself because the map pins and the `previews` array are keyed to its indices.
+
+**The one bold move, and why it is that one.** Rather than adding a visual language
+(gyro parallax, mesh gradients, a bespoke shared-element transition — all considered and
+all rejected), the pass made the app's *existing* distinctive object real: the die-cut
+vinyl sticker, drawn once, with a genuine offset shadow, and given a single moment of
+physicality as the meetup hero collapses. It is identifiable in a screenshot and it costs
+one `useAnimatedScrollHandler`.

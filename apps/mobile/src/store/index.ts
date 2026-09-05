@@ -65,6 +65,37 @@ export const useLocationStore = create<LocationState>((set) => ({
   setLastFix: (lastFix) => set({ lastFix }),
 }));
 
+/**
+ * When each thread was last opened, so a chat row can show whether anything has
+ * arrived since.
+ *
+ * This is deliberately NOT an unread count. `messages` has no read state
+ * server-side — no `last_read_at`, no receipts — so a number would imply
+ * tracking that does not exist. A binary "new since you last looked" is the
+ * strongest claim the data actually supports.
+ *
+ * Session-scoped on purpose: AsyncStorage is not a dependency and SecureStore is
+ * for secrets, so the marker resets on a cold start. That is a truthful
+ * degradation; adding a storage dependency to fake durability would be worse.
+ */
+interface ChatSeenState {
+  /** threadId → the `created_at` of the newest message seen there. */
+  seen: Record<string, string>;
+  markSeen: (threadId: string, createdAt: string) => void;
+}
+
+export const useChatSeenStore = create<ChatSeenState>((set) => ({
+  seen: {},
+  markSeen: (threadId, createdAt) =>
+    set((state) =>
+      // Never move the marker backwards: leaving a stale thread must not
+      // re-mark newer messages as read.
+      (state.seen[threadId] ?? "") >= createdAt
+        ? state
+        : { seen: { ...state.seen, [threadId]: createdAt } }
+    ),
+}));
+
 interface UiState {
   language: Language;
   selectedCategory: string | null;

@@ -6,8 +6,12 @@ import { colors, spacing } from "../../theme";
 /**
  * The site's highlighter mark (site/globals.css `.marker`): a lime band painted
  * behind short display text — the wordmark, a handle — so a key phrase reads as
- * hand-highlighted rather than set in a box. Ink flips to `limeInk` on the band.
+ * hand-highlighted rather than set in a box. Ink flips to `citrusInk` on the band.
  * Use sparingly: the mark is the loudest move in the vocabulary.
+ *
+ * `alignSelf: "flex-start"` is load-bearing. A `<Text>` in a column stretches to
+ * the container width, so without it the band ran the full width of the screen
+ * with the words at one end — a highlighter stroke that missed.
  */
 export function Marker({
   children,
@@ -21,8 +25,9 @@ export function Marker({
 
 const styles = StyleSheet.create({
   marker: {
-    backgroundColor: colors.lime,
-    color: colors.limeInk,
+    alignSelf: "flex-start",
+    backgroundColor: colors.citrus,
+    color: colors.citrusInk,
     paddingHorizontal: spacing.xs + 1,
     borderRadius: 4,
     transform: [{ rotate: "-1.2deg" }],
