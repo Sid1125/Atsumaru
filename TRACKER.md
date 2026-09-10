@@ -532,8 +532,7 @@ sit on top.
 - [x] Migration `007_notifications.sql` + `schema.sql` mirror, applied live 2026-09-03 with
       `notify pgrst, 'reload schema'`. **006 had to be applied first — it never had been**,
       which means `enforceQuota` had been failing open on live all along
-- [ ] Real delivery. Still needs `eas init`, FCM credentials and a dev build; nothing below
-      `pushTargets` has ever run. `expo-notifications` is now in `app.json` plugins
+- [~] Real delivery. `eas.json` added (fixed: removed broken `gradleCommand` with `:_app` typo, cleaned submit placeholders). `extra.eas.projectId` in `app.json` set to `null` — replace with the real id from `eas init`/Expo dashboard before `eas build`. FCM credentials and a dev build still needed; nothing below `pushTargets` has ever run. `expo-notifications` is now in `app.json` plugins
 - [ ] `@socket.io/redis-adapter` so presence is not per-process (see Known gaps)
 
 Verification: `npm run typecheck` clean, `npm test` 95/95, API boots, both new routes

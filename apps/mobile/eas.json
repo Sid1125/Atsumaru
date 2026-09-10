@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 3.0.0"
+  },
+  "build": {
+    "development": {
+      "distribution": "internal",
+      "developmentClient": {
+        "enabled": true
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "ios": {
+        "workflow": "managed",
+        "simulator": false
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountPath": ""
+      },
+      "ios": {}
+    }
+  }
+}

@@ -13,8 +13,6 @@ import {
   feedbackMessage,
   meetupSoonMessage,
   reengagementMessage,
-  pushTargets,
-  sendPush,
 } from "../services/push.js";
 import { dbError } from "../utils/response.js";
 
@@ -349,10 +347,11 @@ async function remind(event: SweepEvent): Promise<number> {
   if (members.length < 2) return 0;
 
   const pending = membersMissingFeedback(members, await submitterIds(event.id));
-  const targets = await pushTargets(pending);
 
-  return sendPush(
-    targets.map((target) => feedbackMessage(target.token, event.id, target.language))
+  if (pending.length === 0) return 0;
+
+  return await notify("feedback", pending, (target) =>
+    feedbackMessage(target.token, event.id, target.language)
   );
 }
 
