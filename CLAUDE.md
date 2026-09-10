@@ -425,13 +425,15 @@ picked place (`VenuePicker`); the fixed Shibuya point survives only as the fallb
 no Mapbox token is configured, and the screen says when that is what happened. There is still
 no drag-a-pin fine-tune — the picked place's coordinates are taken as-is.
 
-**No push notification has ever been delivered.** `push_tokens` is empty, `app.json` has no
-`extra.eas.projectId`, and there are no FCM credentials, so `getExpoPushTokenAsync()` throws
-and `usePushRegistration` swallows it — by design. Everything from the trigger down to
-`pushTargets` is verified live; nothing below `sendPush` has run. The *routing* half
-(`notificationRouting.ts` + the `linking.ts` override) is testable today with
-`scheduleNotificationAsync` without any of that. Getting real delivery needs `eas init`, a
-Firebase project, and a dev build on a device with Google Play services.
+**No push notification has ever been delivered to a real device.** `app.json` now has an
+`extra.eas.projectId` placeholder and `eas.json` is present, but it still needs the real
+EAS project id from the Expo dashboard, FCM credentials, and a dev build on a device with
+Google Play services. `getExpoPushTokenAsync()` will throw without the real id, and
+`usePushRegistration` now logs that error instead of swallowing it silently. Everything
+from the trigger down to `pushTargets` is verified live; nothing below `sendPush` has
+run. The *routing* half (`notificationRouting.ts` + the `linking.ts` override) is testable
+today with `scheduleNotificationAsync` without any of that. Getting real delivery needs
+the real EAS project id set in `app.json`, `eas build`, and a device.
 
 **Chat presence is per-process.** `onlineUserIds` (`socket/presence.ts`) asks
 `fetchSockets()`, which only sees this instance, so a second API instance would push to

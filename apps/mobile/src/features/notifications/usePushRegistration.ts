@@ -85,8 +85,21 @@ export function usePushRegistration() {
           Platform.OS === "ios" ? "ios" : "android"
         );
         registered.current = user.id;
-      } catch {
+      } catch (error) {
         // A denied prompt, a missing EAS project id, or no native module at all.
+        // Log the error so the missing-EAS-projectId failure (the most common
+        // cause of push not working) is diagnosable instead of silent.
+        const message = error instanceof Error ? error.message : String(error);
+        const easProjectId = Constants?.expoConfig?.extra?.eas?.projectId;
+        if (!easProjectId || easProjectId === "REQUIRED-EAS-PROJECT-ID") {
+          console.warn(
+            "[PushRegistration] Expo push token could not be obtained — " +
+              "app.json is missing extra.eas.projectId. " +
+              "Run `eas init` and set the id in app.json + eas.json."
+          );
+        } else {
+          console.warn("[PushRegistration] Token registration failed:", message);
+        }
       }
     })();
 
