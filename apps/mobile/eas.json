@@ -8,17 +8,11 @@
       "developmentClient": {
         "enabled": true
       },
-      "android": {
-        "gradleCommand": ":_app:assembleDebug"
-      },
       "ios": {
         "simulator": true
       }
     },
     "production": {
-      "android": {
-        "gradleCommand": ":_app:assembleRelease"
-      },
       "ios": {
         "workflow": "managed",
         "simulator": false
@@ -28,12 +22,9 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountPath": "google-play-service-account.json"
+        "serviceAccountPath": ""
       },
-      "ios": {
-        "appleId": "APPLE_ID",
-        "ascProviderId": "PROVIDER_ID"
-      }
+      "ios": {}
     }
   }
 }

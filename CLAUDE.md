@@ -426,14 +426,15 @@ no Mapbox token is configured, and the screen says when that is what happened. T
 no drag-a-pin fine-tune — the picked place's coordinates are taken as-is.
 
 **No push notification has ever been delivered to a real device.** `app.json` now has an
-`extra.eas.projectId` placeholder and `eas.json` is present, but it still needs the real
-EAS project id from the Expo dashboard, FCM credentials, and a dev build on a device with
-Google Play services. `getExpoPushTokenAsync()` will throw without the real id, and
-`usePushRegistration` now logs that error instead of swallowing it silently. Everything
-from the trigger down to `pushTargets` is verified live; nothing below `sendPush` has
-run. The *routing* half (`notificationRouting.ts` + the `linking.ts` override) is testable
-today with `scheduleNotificationAsync` without any of that. Getting real delivery needs
-the real EAS project id set in `app.json`, `eas build`, and a device.
+`extra.eas.projectId` set to `null` and `eas.json` is present, but the real id from
+`eas init`/the Expo dashboard must be filled in before `eas build` runs. Without it,
+`getExpoPushTokenAsync()` throws, and `usePushRegistration` now logs that error instead
+of swallowing it silently. Everything from the trigger down to `pushTargets` is verified
+live; nothing below `sendPush` has run. The *routing* half (`notificationRouting.ts` +
+the `linking.ts` override) is testable today with `scheduleNotificationAsync` without any
+of that. Getting real delivery needs the real EAS project id set in `app.json`, FCM
+credentials, and a dev build on a device with Google Play services (Expo Go cannot
+receive Android push since SDK 53).
 
 **Chat presence is per-process.** `onlineUserIds` (`socket/presence.ts`) asks
 `fetchSockets()`, which only sees this instance, so a second API instance would push to

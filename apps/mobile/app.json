@@ -30,7 +30,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "REQUIRED-EAS-PROJECT-ID"
+        "projectId": null
       }
     },
     "plugins": [
