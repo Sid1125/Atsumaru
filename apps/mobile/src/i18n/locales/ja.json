@@ -153,7 +153,8 @@
     "subtitle": "お互いに選んだ相手です。",
     "titleKicker": "CONNECTIONS",
     "empty": "まだつながりはありません。集まりのあとに解放されます。",
-    "messagePlaceholder": "@{{handle}} にメッセージ..."
+    "messagePlaceholder": "@{{handle}} にメッセージ...",
+    "moreInterests": "+{{count}} 個more"
   },
   "settings": {
     "title": "設定",

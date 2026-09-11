@@ -49,3 +49,55 @@ export function matchReasons(language: Language, input: ReasonInput): string[] {
 
   return reasons;
 }
+
+/** Human-readable reasons for a 1:1 connection compatibility score. */
+const CONNECTION_REASONS: Record<
+  Language,
+  {
+    shared: (list: string) => string;
+    compatible: string;
+    noVector: string;
+  }
+> = {
+  en: {
+    shared: (list) => `Shared interests: ${list}`,
+    compatible: "Great match",
+    noVector: "Finish onboarding for a sharper match",
+  },
+  ja: {
+    shared: (list) => `共通の興味: ${list}`,
+    compatible: "相性抜群",
+    noVector: "オンボーディングを終えると精度が上がります",
+  },
+  zh: {
+    shared: (list) => `共同兴趣：${list}`,
+    compatible: "非常契合",
+    noVector: "完成引导后匹配会更准确",
+  },
+};
+
+/**
+ * Reasons for the 1:1 connection compatibility score. Mirrors `matchReasons` but
+ * is scoped to a single pair rather than a group, so there is no "group balance"
+ * line — only shared tags and the vector/cold-start note.
+ */
+export function connectionReasons(
+  language: Language,
+  input: {
+    sharedInterests: string[];
+    hasPreferenceVector: boolean;
+  }
+): string[] {
+  const text = CONNECTION_REASONS[language] ?? CONNECTION_REASONS.en;
+  const reasons: string[] = [];
+
+  if (input.sharedInterests.length > 0) {
+    reasons.push(text.shared(input.sharedInterests.join(", ")));
+  }
+
+  if (!input.hasPreferenceVector) reasons.push(text.noVector);
+
+  if (reasons.length === 0) reasons.push(text.compatible);
+
+  return reasons;
+}

@@ -86,6 +86,10 @@
   user_b: string
   mutual: boolean
   unlocked_at: string | null
+  // Enriched on GET /connections:
+  other_user: User            // public profile of the other side (no real_name)
+  compatibility_score: number  // 0–1, server-authoritative (docs/AI.md §5.1)
+  compatibility_reasons: string[] // "Shared interests: coffee, hiking" etc.
 }
 ```
 

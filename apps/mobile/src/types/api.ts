@@ -78,6 +78,18 @@ export interface Connection {
   unlocked_at: string | null;
 }
 
+/**
+ * A connection row with the other user's profile and the server-authoritative
+ * compatibility score attached — what the Connections screen renders.
+ * The score is computed server-side from preference vectors (docs/AI.md §5);
+ * the app never calculates its own.
+ */
+export interface ConnectionWithProfile extends Connection {
+  other_user: User;
+  compatibility_score: number;
+  compatibility_reasons: string[];
+}
+
 export interface MatchPreview {
   match_score: number;
   why: string[];

@@ -13,12 +13,13 @@ import { usersApi } from "../../services/api/users";
 import { useAuthStore } from "../../store";
 import { colors, elevation, radius, spacing, type } from "../../theme";
 import type { AppStackParamList } from "../../app/navigation/types";
-import type { Connection } from "../../types/api";
+import type { ConnectionWithProfile } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "Connections">;
 
-function otherUserId(connection: Connection, me: string): string {
-  return connection.user_a === me ? connection.user_b : connection.user_a;
+/** The other user of a connection row. */
+function otherUser(connection: ConnectionWithProfile, me: string) {
+  return connection.other_user;
 }
 
 function ConnectionRow({
@@ -26,19 +27,14 @@ function ConnectionRow({
   meId,
   onOpen,
 }: {
-  connection: Connection;
+  connection: ConnectionWithProfile;
   meId: string;
   onOpen: (handle?: string) => void;
 }) {
   const { t } = useTranslation();
-  const otherId = otherUserId(connection, meId);
-
-  const profile = useQuery({
-    queryKey: ["users", otherId],
-    queryFn: () => usersApi.byId(otherId),
-  });
-
-  const handle = profile.data?.user.handle;
+  const user = otherUser(connection, meId);
+  const handle = user.handle;
+  const score = Math.round(connection.compatibility_score * 100);
 
   return (
     <PressableScale
@@ -48,21 +44,66 @@ function ConnectionRow({
       style={styles.row}
     >
       <Avatar
-        id={otherId}
-        label={(handle ?? "?").slice(0, 1)}
-        uri={profile.data?.user.avatar_url}
-        size="md"
+        id={user.id}
+        label={handle?.slice(0, 1) ?? "?"}
+        uri={user.avatar_url}
+        size="lg"
       />
       <View style={styles.rowBody}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.displayName}>
+            {user.display_name || handle || "…"}
+          </Text>
+          <Text style={styles.score}>{score}%</Text>
+        </View>
         <Text style={styles.handle}>{handle ? `@${handle}` : "…"}</Text>
-        <Text style={styles.meta}>
-          {profile.data?.user.display_name ?? t("common.loading")}
-        </Text>
+        <CompatRow
+          interests={user.interests}
+          personality={user.personality}
+        />
+        {connection.compatibility_reasons.length > 0 && (
+          <Text style={styles.reasons}>
+            {connection.compatibility_reasons.join(" • ")}
+          </Text>
+        )}
       </View>
       <View style={styles.chevronWrap}>
         <IconChevronRight size={16} color={colors.textMuted} />
       </View>
     </PressableScale>
+  );
+}
+
+/** Renders up to two tag-style chips for interests and personality. */
+function CompatRow({
+  interests,
+  personality,
+}: {
+  interests: string[];
+  personality: string[];
+}) {
+  const { t } = useTranslation();
+  const chips: string[] = [];
+  if (interests.length > 0) chips.push(interests[0]!);
+  if (personality.length > 0) chips.push(personality[0]!);
+
+  if (chips.length === 0) return null;
+
+  return (
+    <View style={styles.compatRow}>
+      {chips.map((label, i) => (
+        <View key={i} style={styles.chip}>
+          <Text style={styles.chipText} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+      ))}
+      {interests.length > 1 && (
+        <Text style={styles.moreText}>
+          {t("connection.moreInterests", { count: interests.length - 1 })}
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -121,11 +162,27 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md - 2,
-    ...elevation.low,
+    ...elevation.card,
   },
-  rowBody: { flex: 1, gap: spacing.xxs },
-  handle: { ...type.bodyEmphasized, color: colors.text },
-  meta: { ...type.footnote, color: colors.textMuted },
+  rowBody: { flex: 1, gap: spacing.xs },
+  rowHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  displayName: { ...type.bodyEmphasized, color: colors.text },
+  handle: { ...type.footnote, color: colors.textMuted },
+  score: { ...type.captionEmphasized, color: colors.accentInk },
+  compatRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  chip: {
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  chipText: { ...type.caption, color: colors.textMuted },
+  moreText: { ...type.caption, color: colors.textMuted },
+  reasons: { ...type.caption, color: colors.textMuted },
   chevronWrap: {
     width: 28,
     height: 28,

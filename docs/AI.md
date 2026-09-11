@@ -101,10 +101,31 @@ Why:
 
 The API contract exposes `/events/:id/match-preview` with `match_score` and `why`. fileciteturn0file0L137-L143
 
+## 5b. Connection Compatibility
+
+When two members mutually unlock after feedback, `GET /connections` returns a
+per-connection compatibility score so the app can surface "why these two":
+
+```text
+connection_compatibility = cosine(caller_vector, other_vector)      # both embedded
+                        = tag_overlap(caller_tags, other_tags)      # cold-start fallback
+```
+
+The score is on the same 0–1 scale as `match_score`, so the two are comparable.
+Reasons are language-localised via `connectionReasons()`:
+
+```text
+91% fit · Shared interests: coffee, hiking
+```
+
+**Scope:** this is a *descriptive* signal computed after a mutual pick has already
+happened — it never gates or influences whether a connection unlocks. Unlocking is a
+private, symmetrical product rule driven by feedback alone (`docs/RULES.md` §6), not by
+AI.
+
 ## 6. Feedback Learning
 
 Ratings:
-
 ```text
 fire → positive preference signal
 good → mild positive signal
