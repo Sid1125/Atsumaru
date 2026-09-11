@@ -156,6 +156,10 @@
     "messagePlaceholder": "给 @{{handle}} 发消息...",
     "moreInterests": "+{{count}} 个更多"
   },
+  "pastMeetups": {
+    "title": "过去的聚会",
+    "empty": "还没有过去的聚会。"
+  },
   "settings": {
     "title": "设置",
     "language": "语言",

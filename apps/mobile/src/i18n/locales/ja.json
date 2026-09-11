@@ -156,6 +156,10 @@
     "messagePlaceholder": "@{{handle}} にメッセージ...",
     "moreInterests": "+{{count}} 個more"
   },
+  "pastMeetups": {
+    "title": "過去の集まり",
+    "empty": "まだ過去の集まりはありません。"
+  },
   "settings": {
     "title": "設定",
     "language": "言語",

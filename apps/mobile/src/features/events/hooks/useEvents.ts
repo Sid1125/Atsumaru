@@ -32,6 +32,18 @@ export function useMyEvents() {
   });
 }
 
+/**
+ * Completed meetups the user hosted or joined, newest-first.
+ * Used by the Past Meetups screen (clock button on the Discover top chrome).
+ */
+export function useMyPastEvents() {
+  return useQuery({
+    queryKey: ["events", "history"],
+    queryFn: () => eventsApi.history(),
+    staleTime: 60_000,
+  });
+}
+
 export function useEvent(id: string) {
   return useQuery({
     queryKey: ["events", id],

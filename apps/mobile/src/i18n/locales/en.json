@@ -156,6 +156,10 @@
     "messagePlaceholder": "Message @{{handle}}...",
     "moreInterests": "+{{count}} more"
   },
+  "pastMeetups": {
+    "title": "Past meetups",
+    "empty": "No past meetups yet."
+  },
   "settings": {
     "title": "Settings",
     "language": "Language",
