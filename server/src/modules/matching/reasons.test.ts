@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { matchReasons } from "./reasons.js";
+import { matchReasons, connectionReasons } from "./reasons.js";
 
 const base = {
   sharedInterests: ["ramen"],
@@ -33,4 +33,24 @@ test("match reasons drop empty overlap and add state hints", () => {
     "You are already in this group",
     "Finish onboarding for a sharper match",
   ]);
+});
+
+test("connection reasons answer in the member's language", () => {
+  const withShared = connectionReasons("en", {
+    sharedInterests: ["ramen", "coffee"],
+    hasPreferenceVector: true,
+  });
+  assert.deepEqual(withShared, ["Shared interests: ramen, coffee"]);
+
+  const noShared = connectionReasons("ja", {
+    sharedInterests: [],
+    hasPreferenceVector: true,
+  });
+  assert.deepEqual(noShared, ["相性抜群"]);
+
+  const noVector = connectionReasons("zh", {
+    sharedInterests: [],
+    hasPreferenceVector: false,
+  });
+  assert.deepEqual(noVector, ["完成引导后匹配会更准确"]);
 });

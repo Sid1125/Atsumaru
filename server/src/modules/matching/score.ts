@@ -193,3 +193,28 @@ export function applyReputation(current: number, delta: number): number {
 
 /** `good` is a mild positive signal, so it moves the vector at half rate. */
 export const GOOD_RATING_LR_FACTOR = 0.5;
+
+/**
+ * Compatibility score for a mutual 1:1 connection, on the same 0–1 scale as the
+ * group `matchScore`. Driven by the same preference vectors that group matching
+ * uses — cosine when both sides have one, tag-overlap otherwise — so a connection
+ * score and a group-fit score stay comparable (docs/AI.md §5, §6).
+ *
+ * Unlike `pairwiseFit` (which averages one side against a *set* of members), this
+ * is a single symmetric comparison between two people who already chose each other.
+ */
+export function connectionCompatibility(input: {
+  userVector: number[] | null;
+  otherVector: number[] | null;
+  userTags: string[];
+  otherTags: string[];
+}): number {
+  const { userVector, otherVector, userTags, otherTags } = input;
+
+  if (userVector && otherVector && userVector.length > 0 && otherVector.length > 0) {
+    return Math.max(0, cosineSimilarity(userVector, otherVector));
+  }
+
+  // Cold-start fallback: tag-overlap similarity over interests + personality.
+  return tagSimilarity(userTags, otherTags);
+}

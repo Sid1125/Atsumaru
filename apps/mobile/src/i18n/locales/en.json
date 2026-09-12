@@ -153,7 +153,8 @@
     "subtitle": "People you both chose to stay in touch with.",
     "titleKicker": "CONNECTIONS",
     "empty": "No connections yet. They unlock after a meetup.",
-    "messagePlaceholder": "Message @{{handle}}..."
+    "messagePlaceholder": "Message @{{handle}}...",
+    "moreInterests": "+{{count}} more"
   },
   "settings": {
     "title": "Settings",

@@ -153,7 +153,8 @@
     "subtitle": "你们互相选择的人。",
     "titleKicker": "CONNECTIONS",
     "empty": "还没有联系人。聚会之后才会解锁。",
-    "messagePlaceholder": "给 @{{handle}} 发消息..."
+    "messagePlaceholder": "给 @{{handle}} 发消息...",
+    "moreInterests": "+{{count}} 个更多"
   },
   "settings": {
     "title": "设置",

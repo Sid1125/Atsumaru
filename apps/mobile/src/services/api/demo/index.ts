@@ -108,6 +108,48 @@ const REASONS: Record<Language, {
   },
 };
 
+/** 1:1 connection compatibility reasons — mirrors `connectionReasons` on the server. */
+const CONNECTION_REASONS: Record<
+  Language,
+  {
+    shared: (list: string) => string;
+    compatible: string;
+    noVector: string;
+  }
+> = {
+  en: {
+    shared: (list) => `Shared interests: ${list}`,
+    compatible: "Great match",
+    noVector: "Finish onboarding for a sharper match",
+  },
+  ja: {
+    shared: (list) => `共通の興味: ${list}`,
+    compatible: "相性抜群",
+    noVector: "オンボーディングを終えると精度が上がります",
+  },
+  zh: {
+    shared: (list) => `共同兴趣：${list}`,
+    compatible: "非常契合",
+    noVector: "完成引导后匹配会更准确",
+  },
+};
+
+function connectionReasonTexts(
+  language: Language,
+  sharedInterests: string[]
+): string[] {
+  const text = CONNECTION_REASONS[language] ?? CONNECTION_REASONS.en;
+  const reasons: string[] = [];
+
+  if (sharedInterests.length > 0) {
+    reasons.push(text.shared(sharedInterests.join(", ")));
+  }
+
+  if (reasons.length === 0) reasons.push(text.compatible);
+
+  return reasons;
+}
+
 function matchReasons(user: User, event: EventSeed): string[] {
   const world = getWorld();
   const text = REASONS[user.language] ?? REASONS.en;
@@ -902,14 +944,44 @@ export async function demoRequest<T>(
   }
 
   // ── connections ─────────────────────────────────────────────────────────
-  if (path === "/connections" && method === "GET") {
-    const user = requireUser();
-    return settle({
-      connections: world.connections.filter(
+    if (path === "/connections" && method === "GET") {
+      const user = requireUser();
+      const world = getWorld();
+
+      const raw = world.connections.filter(
         (c) => c.mutual && (c.user_a === user.id || c.user_b === user.id)
-      ),
-    } as T);
-  }
+      );
+
+      const connections = raw.map((c) => {
+        const otherId = c.user_a === user.id ? c.user_b : c.user_a;
+        const other = world.users.get(otherId);
+        if (!other) return c;
+
+        const callerTags = [...user.interests, ...user.personality];
+        const otherTags = [...other.interests, ...other.personality];
+
+        // Mirrors connectionCompatibility in server/src/modules/matching/score.ts.
+        const score = similarity(callerTags, otherTags);
+
+        const shared: string[] = [];
+        for (const tag of callerTags) {
+          if (otherTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+            shared.push(tag);
+          }
+        }
+
+        const reasons = connectionReasonTexts(user.language, shared);
+
+        return {
+          ...c,
+          other_user: other,
+          compatibility_score: Math.round(score * 100) / 100,
+          compatibility_reasons: reasons,
+        };
+      });
+
+      return settle({ connections } as T);
+    }
 
   if (seg[0] === "connections" && seg[1] && seg[2] === "messages") {
     const connectionId = seg[1];

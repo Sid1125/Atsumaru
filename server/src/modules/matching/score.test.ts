@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   applyReputation,
   centroid,
+  connectionCompatibility,
   cosineSimilarity,
   groupBalance,
   matchScore,
@@ -115,4 +116,31 @@ test("reputation moves by rating and stays inside 0..100", () => {
   assert.equal(applyReputation(99, 3), 100);
   assert.equal(applyReputation(1, -5), 0);
   assert.equal(applyReputation(50, 2), 52);
+});
+
+test("connection compatibility uses cosine when both vectors exist, tag overlap otherwise", () => {
+  // Identical vectors → perfect score.
+  assert.equal(connectionCompatibility({
+    userVector: [1, 0],
+    otherVector: [1, 0],
+    userTags: ["hiking"],
+    otherTags: ["hiking", "coffee"],
+  }), 1);
+
+  // Orthogonal vectors → 0 (clamped from negative cosine).
+  assert.equal(connectionCompatibility({
+    userVector: [1, 0],
+    otherVector: [0, 1],
+    userTags: ["hiking"],
+    otherTags: ["hiking"],
+  }), 0);
+
+  // Missing caller vector → falls back to tag similarity.
+  const tagScore = connectionCompatibility({
+    userVector: null,
+    otherVector: [1, 0],
+    userTags: ["hiking", "coffee"],
+    otherTags: ["hiking", "ramen"],
+  });
+  assert.ok(tagScore > 0 && tagScore <= 1);
 });

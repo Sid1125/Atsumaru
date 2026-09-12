@@ -4,15 +4,13 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { asyncRoute } from "../../middleware/errorHandler.js";
 import {
-  CONNECTION_COLUMNS,
-  db,
   insertMessage,
+  listConnectionsWithProfiles,
   listMessages,
   requireConnection,
-  type ConnectionRow,
 } from "../../db/queries.js";
 import { notifyDmMessage } from "../../services/chatNotice.js";
-import { dbError, HttpError, ok } from "../../utils/response.js";
+import { HttpError, ok } from "../../utils/response.js";
 import { pageParams, uuidParam } from "../../utils/request.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { enforceReadLimit } from "../../utils/readLimit.js";
@@ -34,21 +32,9 @@ connectionsRouter.get(
     await enforceReadLimit(req, res);
 
     const userId = req.userId!;
+    const connections = await listConnectionsWithProfiles(userId);
 
-    const { data, error } = await db()
-      .from("connections")
-      .select(CONNECTION_COLUMNS)
-      .eq("mutual", true)
-      // `.or()` takes a raw PostgREST filter string rather than a bound parameter, which
-      // makes this the one interpolated value in the codebase. `requireAuth` asserts the
-      // uuid shape of `userId` before any route sees it, so there is nothing here a filter
-      // separator could ride in on.
-      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
-      .order("unlocked_at", { ascending: false });
-
-    if (error) throw dbError(error);
-
-    return ok(res, { connections: (data ?? []) as unknown as ConnectionRow[] });
+    return ok(res, { connections });
   })
 );
 

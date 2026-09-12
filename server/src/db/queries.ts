@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { authClient, supabase } from "./supabase.js";
 import { dbError, HttpError } from "../utils/response.js";
 import { parseVector } from "../utils/vector.js";
+import { connectionCompatibility } from "../modules/matching/score.js";
+import { connectionReasons } from "../modules/matching/reasons.js";
 import type { Language } from "../types.js";
 
 /** Public columns only — `real_name` is private and never leaves the server. */
@@ -47,6 +49,13 @@ export interface ConnectionRow {
   user_b: string;
   mutual: boolean;
   unlocked_at: string | null;
+}
+
+/** A mutual connection row enriched with the other user's public profile and a compatibility score. */
+export interface ConnectionWithProfile extends ConnectionRow {
+  other_user: PublicUser;
+  compatibility_score: number;
+  compatibility_reasons: string[];
 }
 
 export function db(): SupabaseClient {
@@ -249,6 +258,105 @@ export async function preferenceVector(userId: string): Promise<number[] | null>
   if (error) throw dbError(error);
 
   return parseVector(data?.preference_vector);
+}
+
+/**
+ * Walks the caller's mutual connections, fetches each other user's public profile,
+ * and derives a compatibility score from preference vectors (or tag overlap).
+ * The score is server-authoritative — the app only displays it (docs/AI.md §5).
+ */
+export async function listConnectionsWithProfiles(
+  userId: string
+): Promise<ConnectionWithProfile[]> {
+  const { data: connections, error: connError } = await db()
+    .from("connections")
+    .select(CONNECTION_COLUMNS)
+    .eq("mutual", true)
+    // `.or()` takes a raw PostgREST filter string rather than a bound parameter,
+    // which makes this the one interpolated value in the codebase. `requireAuth`
+    // asserts the uuid shape of `userId` before any route sees it, so there is
+    // nothing here a filter separator could ride in on.
+    .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+    .order("unlocked_at", { ascending: false });
+
+  if (connError) throw dbError(connError);
+
+  const rows = (connections ?? []) as ConnectionRow[];
+  if (rows.length === 0) return [];
+
+  const otherIds = rows
+    .map((c) => (c.user_a === userId ? c.user_b : c.user_a))
+    .filter(Boolean);
+
+  // One batch fetch for all other users' public profiles.
+  const { data: users, error: usersError } = await db()
+    .from("users")
+    .select(PUBLIC_USER_COLUMNS)
+    .in("id", otherIds);
+
+  if (usersError) throw dbError(usersError);
+
+  const userMap = new Map<string, PublicUser>();
+  for (const u of users ?? []) userMap.set(u.id, u);
+
+  // The caller's own profile (for language, tags) and vector — fetched once.
+  const caller = await publicUser(userId);
+  const callerTags = [...caller.interests, ...caller.personality];
+  const callerVector = await preferenceVector(userId);
+  const callerLanguage = caller.language;
+
+  // All other-user vectors in one batch query.
+  const { data: vectors, error: vecError } = await db()
+    .from("users")
+    .select("id, preference_vector")
+    .in("id", otherIds);
+
+  if (vecError) throw dbError(vecError);
+
+  const vectorMap = new Map<string, number[] | null>();
+  for (const row of vectors ?? []) {
+    vectorMap.set(row.id, parseVector(row.preference_vector));
+  }
+
+  const result: ConnectionWithProfile[] = [];
+  for (const conn of rows) {
+    const otherId = conn.user_a === userId ? conn.user_b : conn.user_a;
+    const other = userMap.get(otherId);
+    if (!other) continue;
+
+    const otherVector = vectorMap.get(otherId) ?? null;
+    const otherTags = [...other.interests, ...other.personality];
+
+    const score = connectionCompatibility({
+      userVector: callerVector,
+      otherVector,
+      userTags: callerTags,
+      otherTags,
+    });
+
+    const sharedInterests = callerTags.filter(
+      (tag) => otherTags.some((t) => t.toLowerCase() === tag.toLowerCase())
+    );
+
+    const reasons = connectionReasons(callerLanguage, {
+      sharedInterests,
+      hasPreferenceVector: callerVector !== null && otherVector !== null,
+    });
+
+    result.push({
+      id: conn.id,
+      event_id: conn.event_id,
+      user_a: conn.user_a,
+      user_b: conn.user_b,
+      mutual: conn.mutual,
+      unlocked_at: conn.unlocked_at,
+      other_user: other,
+      compatibility_score: Math.round(score * 100) / 100,
+      compatibility_reasons: reasons,
+    });
+  }
+
+  return result;
 }
 
 export interface DeviceKey {
