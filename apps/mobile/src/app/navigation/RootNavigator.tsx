@@ -19,6 +19,7 @@ import { FeedbackScreen } from "../../screens/Meetup/FeedbackScreen";
 import { ConnectionsScreen } from "../../screens/Connections/ConnectionsScreen";
 import { DmScreen } from "../../screens/Connections/DmScreen";
 import { CreateEventScreen } from "../../screens/Events/CreateEventScreen";
+import { PastMeetupsScreen } from "../../screens/Events/PastMeetupsScreen";
 import { ProfileScreen } from "../../screens/Settings/ProfileScreen";
 import { useAuthStore } from "../../store";
 import { colors, fonts, type } from "../../theme";
@@ -176,6 +177,11 @@ export function RootNavigator() {
             name="Connections"
             component={ConnectionsScreen}
             options={{ title: t("connection.title") }}
+          />
+          <AppStack.Screen
+            name="PastMeetups"
+            component={PastMeetupsScreen}
+            options={{ title: t("pastMeetups.title") }}
           />
           <AppStack.Screen
             name="Dm"

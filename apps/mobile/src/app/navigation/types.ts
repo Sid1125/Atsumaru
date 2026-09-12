@@ -20,6 +20,8 @@ export type AppStackParamList = {
   /** Post-meetup feedback, presented as a modal. */
   Feedback: { eventId: string };
   Connections: undefined;
+  /** Shows the user's past (completed) meetups. */
+  PastMeetups: undefined;
   /** `handle` is passed for the title so the thread does not flash an empty header. */
   Dm: { connectionId: string; handle?: string };
   CreateEvent: undefined;

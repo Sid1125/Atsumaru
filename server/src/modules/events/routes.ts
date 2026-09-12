@@ -305,6 +305,36 @@ async function memberProfiles(eventId: string) {
   }));
 }
 
+/**
+ * Past meetups — completed events the caller hosted or joined, newest-first.
+ * The sweep writes `status = 'completed'` on settle, so `event_status()` here
+ * just reads the stored value (docs/RULES.md: never recompute). `events_for_user`
+ * already returns completed rows; this wraps it with the `completed` filter so
+ * the Discover sheet's "Your Meetups" section only shows outstanding feedback.
+ */
+eventsRouter.get(
+  "/history",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    await enforceReadLimit(req, res);
+
+    const { data, error } = await db().rpc("events_for_user", {
+      p_user_id: req.userId!,
+    });
+
+    if (error) throw dbError(error);
+
+    const past = ((data ?? []) as EventRow[])
+      .filter((row) => row.status === "completed")
+      .sort(
+        (a, b) =>
+          new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
+      );
+
+    return ok(res, { events: past.map(toApiEvent) });
+  })
+);
+
 eventsRouter.get(
   "/:id/match-preview",
   requireAuth,

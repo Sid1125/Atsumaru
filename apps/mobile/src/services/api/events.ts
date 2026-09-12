@@ -21,6 +21,9 @@ export const eventsApi = {
 
   mine: () => api.get<{ events: MeetupEvent[] }>("/events/mine"),
 
+  /** Past meetups the user hosted or joined — completed, newest-first. */
+  history: () => api.get<{ events: MeetupEvent[] }>("/events/history"),
+
   create: (payload: {
     title: string;
     category: string;

@@ -708,6 +708,23 @@ export async function demoRequest<T>(
     return settle({ events } as T);
   }
 
+  if (path === "/events/history" && method === "GET") {
+    const user = requireUser();
+    const past = listEvents()
+      .filter(
+        (seed) =>
+          seed.host_id === user.id || memberIds(seed.id).includes(user.id)
+      )
+      .map(toApiEvent)
+      .filter((event) => event.status === "completed")
+      .sort(
+        (a, b) =>
+          new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
+      );
+
+    return settle({ events: past } as T);
+  }
+
   if (path === "/events" && method === "POST") {
     const user = requireUser();
     const location = body.location as { lat: number; lng: number };

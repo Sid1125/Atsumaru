@@ -21,6 +21,7 @@ import { EventCard } from "../../components/events/EventCard";
 import { MapSurface } from "../../components/map/MapSurface";
 import {
   IconConnections,
+  IconClock,
   IconLocate,
 } from "../../components/ui/Icons";
 import {
@@ -171,7 +172,10 @@ export function DiscoverScreen() {
 
   const mine = useMyEvents();
   const myEvents = mine.data?.events ?? [];
-  const needsFeedback = myEvents.filter((e) => e.status === "completed");
+  // Completed meetups now live in the PastMeetups screen (clock button on the
+  // top chrome). "Your Meetups" only surfaces meetups that are still in flight —
+  // the feedback reminder push handles the completed-but-needs-feedback case.
+  const needsFeedback: MeetupEvent[] = [];
 
   const previews = useQueries({
     queries: events.map((event) => ({
@@ -364,6 +368,15 @@ export function DiscoverScreen() {
           </Material>
 
           <Material tone="night" weight="thin" style={styles.identityActions}>
+            <PressableScale
+              accessibilityLabel={t("pastMeetups.title")}
+              onPress={() => navigation.navigate("PastMeetups")}
+              style={styles.railAction}
+              scaleTo={0.92}
+            >
+              <IconClock size={22} color={colors.nightText} />
+            </PressableScale>
+
             <PressableScale
               accessibilityLabel={t("connection.title")}
               onPress={() => navigation.navigate("Connections")}

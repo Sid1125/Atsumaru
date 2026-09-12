@@ -311,3 +311,17 @@ export function IconWave(props: IconProps) {
     </Base>
   );
 }
+
+/**
+ * History / past meetups — a clock face with hands at 3 and 9, the universal
+ * shorthand for "time" and "what happened before."
+ */
+export function IconClock(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Circle cx="12" cy="12" r="8.5" />
+      <Path d="M12 7v5l3 3" />
+      <Path d="M12 12H8" />
+    </Base>
+  );
+}
