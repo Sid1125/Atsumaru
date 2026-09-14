@@ -120,6 +120,43 @@ export function IconSend(props: IconProps) {
   );
 }
 
+/** Calendar — a small grid of days for the date picker. */
+export function IconCalendar(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Path d="M3 6.5h18" />
+      <Path d="M3 6.5V4a1 1 0 0 1 1-1h2.5" />
+      <Path d="M17.5 3H19a1 1 0 0 1 1 1v2.5" />
+      <Path d="M6.5 2H8a1 1 0 0 1 1 1v2.5" />
+      <Path d="M15.5 2H17a1 1 0 0 1 1 1V6.5" />
+      <Path d="M3 10.5h18" />
+      <Path d="M8 14.5h1v1" />
+      <Path d="M12 14.5h1v1" />
+      <Path d="M16 14.5h1v1" />
+    </Base>
+  );
+}
+
+/** Clock — a simple face with two hands for the time picker. */
+export function IconClock(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Circle cx="12" cy="12" r="8.5" />
+      <Path d="M12 7v5l3 1.5" />
+      <Circle cx="12" cy="12" r="1" />
+    </Base>
+  );
+}
+
+/** Pencil — for the "Other" category affordance. */
+export function IconPencil(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Path d="M12 2l8 8-9 9-8 2 1-9z" />
+      <Path d="M12 2l3 3" />
+    </Base>
+  );
+}
 /** Globe — a language/locale marker. */
 export function IconGlobe(props: IconProps) {
   return (

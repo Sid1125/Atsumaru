@@ -40,11 +40,11 @@
   id: string
   host_id: string
   title: string
-  category: string               // "outdoor" | "food" | "gaming" | "arts" | ...
+  category: string               // "outdoor" | "food" | "gaming" | "arts" | ... or a custom name typed by the member ("Other")
   description: string
   venue_name: string
   location: { lat: number, lng: number }
-  start_time: string
+  start_time: string             // ISO-8601 UTC — the screen picks date then time separately
   max_size: number               // 4-6
   current_size: number
   status: "open" | "full" | "ongoing" | "completed"
@@ -164,7 +164,7 @@
 |--------|------|------|---------|
 | GET | `/events/nearby` | `?lat&lng&radius=5000&category?` | `{ events[] }` — for map pins |
 | GET | `/events/:id` | — | `{ event, members[] }` |
-| POST | `/events` | `{ title, category, venue_name, location, start_time, max_size }` | `{ event }` |
+|| POST | `/events` | `{ title, category, venue_name, location, start_time, max_size }` — `start_time` is an ISO-8601 UTC timestamp; the "Host a Meetup" screen picks date then time separately | `{ event }` |
 | GET | `/events/mine` | — | `{ events[] }` — joined + hosted |
 
 ### 3.5 Join & Groups

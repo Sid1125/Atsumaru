@@ -955,7 +955,7 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 
 ### 3. Mobile — P1 features
 
-- [x] Create-event screen (FR-13) — posts a fixed Shibuya point; a venue picker is still to do
+|- [x] Create-event screen (FR-13) — date+time picker replaces the "starts in (hours)" text input; the picked date+time is sent as an ISO-8601 UTC `start_time`; category chips now include an "Other" option that opens an inline text field for a custom category name (up to 40 chars). Venue picker still TBD.
 - [x] **Profile page (2026-09-01)** replaces the old Settings screen: hero (avatar/kicker/handle/name), stats row (rep/connections/meetups), numbered interests index, language override → `PATCH /users/me`, sign out. Editorial grammar (whitespace + hairline rules, no rounded settings cards). Old `SettingsScreen`/`Settings` route removed → `Profile`
 - [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
 - [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `LoadingSkeleton` (docs/DESIGN.md §7)
