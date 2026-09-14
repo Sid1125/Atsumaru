@@ -12,7 +12,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, {
-  type DateTimePickerEvent,
+  type DateTimePickerChangeEvent,
 } from "@react-native-community/datetimepicker";
 
 import { Button } from "../../components/common/Button";
@@ -20,7 +20,8 @@ import { Card } from "../../components/ui/Card";
 import { Chip } from "../../components/common/Chip";
 import { TextField } from "../../components/common/TextField";
 import { VenuePicker } from "../../components/events/VenuePicker";
-import { IconCalendar, IconClock, IconPencil } from "../../components/ui/Icons";
+import { ScreenHeader } from "../../components/common/ScreenHeader";
+import { IconCalendar, IconClock, IconClose, IconPencil } from "../../components/ui/Icons";
 import { PressableScale } from "../../components/ui/PressableScale";
 import {
   CATEGORY_ORDER,
@@ -92,29 +93,41 @@ export function CreateEventScreen() {
     venue.trim().length > 0 &&
     startDateTime.getTime() > Date.now() + 30_000; // at least 30s in the future
 
-  function onDateChange(_: DateTimePickerEvent, selected?: Date) {
-    setPickerMode(null);
-    setShowIOSDate(false);
-    if (selected) {
-      const merged = new Date(selected);
-      merged.setHours(
-        startDateTime.getHours(),
-        startDateTime.getMinutes(),
-        0,
-        0
-      );
-      setStartDateTime(merged);
-    }
+  /**
+   * `onValueChange` / `onDismiss`, **not** `onChange`.
+   *
+   * `@react-native-community/datetimepicker` 9 deprecated `onChange` and splits it
+   * into `onValueChange` (a value was chosen), `onDismiss` (cancelled) and
+   * `onNeutralButtonPress`. The screen was still on `onChange`, which logs
+   * "DateTimePicker: `onChange` is deprecated" at runtime and — the reported
+   * symptom — did not reliably deliver the confirmed value: the clock dialog
+   * closed on OK and the field kept its old time, so no same-day future meetup
+   * could be published through the UI at all.
+   *
+   * The two callbacks also remove the guesswork the old handler needed: a dismiss
+   * can no longer be mistaken for a confirm, because it arrives on a different
+   * function.
+   */
+  function commitDate(_: DateTimePickerChangeEvent, selected: Date) {
+    closePickers();
+    // Keep the time the user already set; only the calendar day moves.
+    const merged = new Date(selected);
+    merged.setHours(startDateTime.getHours(), startDateTime.getMinutes(), 0, 0);
+    setStartDateTime(merged);
   }
 
-  function onTimeChange(_: DateTimePickerEvent, selected?: Date) {
+  function commitTime(_: DateTimePickerChangeEvent, selected: Date) {
+    closePickers();
+    // Keep the day; only the clock moves.
+    const merged = new Date(startDateTime);
+    merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+    setStartDateTime(merged);
+  }
+
+  function closePickers() {
     setPickerMode(null);
+    setShowIOSDate(false);
     setShowIOSTime(false);
-    if (selected) {
-      const merged = new Date(startDateTime);
-      merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-      setStartDateTime(merged);
-    }
   }
 
   function openPicker(mode: "date" | "time") {
@@ -153,13 +166,46 @@ export function CreateEventScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+      contentContainerStyle={[
+        styles.content,
+        {
+          // The route runs with `headerShown: false`, so nothing above this screen
+          // reserves the status bar any more — without `insets.top` the title sits
+          // under the clock. The page padding is added on top of the inset rather
+          // than replacing it, so the header keeps the same optical gap from the
+          // bar that every other screen has from its navigation header.
+          paddingTop: insets.top + spacing.page,
+          paddingBottom: insets.bottom + spacing.xxl,
+        },
+      ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
       <View>
-        <Text style={styles.kicker}>{t("createEvent.hostKicker")}</Text>
-        <Text style={styles.kickerHint}>{t("createEvent.hostHint")}</Text>
+        {/*
+          The screen's own header, because the route runs with `headerShown: false`.
+
+          A modal is dismissed rather than popped, so the way out is a close control
+          on the title's own row — not a back chevron in a bar that implies there is
+          a page behind this one to return to. It also puts the title in the
+          editorial tier the rest of the app uses.
+        */}
+        <ScreenHeader
+          title={t("createEvent.title")}
+          subtitle={t("createEvent.hostHint")}
+          trailing={
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={t("common.cancel")}
+              onPress={() => navigation.goBack()}
+              style={styles.close}
+              scaleTo={0.92}
+            >
+              <IconClose size={18} color={colors.textMuted} />
+            </PressableScale>
+          }
+          style={styles.header}
+        />
 
         {/* Details card */}
         <Card style={styles.card}>
@@ -301,7 +347,8 @@ export function CreateEventScreen() {
           mode={pickerMode}
           is24Hour={false}
           display="default"
-          onChange={pickerMode === "date" ? onDateChange : onTimeChange}
+          onValueChange={pickerMode === "date" ? commitDate : commitTime}
+          onDismiss={closePickers}
         />
       ) : null}
 
@@ -312,7 +359,8 @@ export function CreateEventScreen() {
             value={startDateTime}
             mode="date"
             display="spinner"
-            onChange={onDateChange}
+            onValueChange={commitDate}
+            onDismiss={closePickers}
           />
           <PressableScale
             accessibilityLabel={t("common.submit")}
@@ -330,7 +378,8 @@ export function CreateEventScreen() {
             value={startDateTime}
             mode="time"
             display="spinner"
-            onChange={onTimeChange}
+            onValueChange={commitTime}
+            onDismiss={closePickers}
           />
           <PressableScale
             accessibilityLabel={t("common.submit")}
@@ -358,9 +407,22 @@ function twelveHoursAhead(): Date {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.page, gap: spacing.md },
-  kicker: { ...type.overline, color: colors.primaryInk },
-  kickerHint: { ...type.footnote, color: colors.textMuted, marginTop: -spacing.xs },
+  content: { paddingHorizontal: spacing.page, gap: spacing.md },
+  header: { marginBottom: spacing.sm },
+  /**
+   * 44pt, not the 18pt glyph. The icon is small because a close control should be
+   * quiet; the target is full size because a mis-tap here loses a filled-in form.
+   */
+  close: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    // Pulled toward the edge so the *glyph* lines up with the page margin while
+    // the target still overhangs it.
+    marginRight: -spacing.sm,
+  },
 
   card: { gap: spacing.sm },
   cardKicker: { ...type.overline, color: colors.textMuted },

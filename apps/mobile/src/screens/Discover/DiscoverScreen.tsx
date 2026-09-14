@@ -28,6 +28,7 @@ import {
   BottomSheet,
   type BottomSheetHandle,
   useBottomSheetScrollable,
+  type SheetDetent,
 } from "../../components/ui/BottomSheet";
 import { PressableScale } from "../../components/ui/PressableScale";
 import { Material } from "../../components/ui/Material";
@@ -41,7 +42,6 @@ import {
 } from "../../features/events/hooks/useEvents";
 import { eventsApi } from "../../services/api/events";
 import { usePersistLocation } from "../../features/location/usePersistLocation";
-import { EXPOSED_FRACTION } from "../../components/map/framing";
 import type { MapSurfaceHandle } from "../../components/map/MapSurface";
 import { useAuthStore, useLocationStore, useUiStore } from "../../store";
 import {
@@ -68,6 +68,27 @@ const FALLBACK_COORDS: Coords = { lat: 35.6595, lng: 139.7005 };
  * three agree, so changing one means changing all three.
  */
 const NEARBY_RADIUS_KM = 5;
+
+/**
+ * Height of the floating identity rail, in points: a 44pt action plus the 4pt of
+ * padding its material carries above and below. Used only as the filter row's
+ * first-frame fallback before `onLayout` reports the real value.
+ */
+const RAIL_HEIGHT = 52;
+
+/**
+ * How much of the screen sits below each sheet detent, as a fraction.
+ *
+ * Mirrors the `detents` table in `components/ui/BottomSheet.tsx` (0.12 / 0.52 /
+ * 0.8 measured from the top). The map control is anchored to `bottom: <this>%` so
+ * it rides just above whichever edge the sheet is actually resting at. If the
+ * sheet's detents move, move these with them.
+ */
+const SHEET_TOP: Record<SheetDetent, number> = {
+  full: 1 - 0.12,
+  half: 1 - 0.52,
+  peek: 1 - 0.8,
+};
 
 /**
  * Map-first discovery.
@@ -109,6 +130,17 @@ export function DiscoverScreen() {
   const [pannedTo, setPannedTo] = useState<Coords | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bandBottom, setBandBottom] = useState(0);
+
+  /**
+   * Where the sheet is resting, so the map control can sit above its *actual* edge.
+   *
+   * The control used to be pinned to `bottom: 48%` — the half detent — which put it
+   * at the exact vertical centre of the screen and left it stranded there when the
+   * sheet moved: drag the sheet down to peek and the control still floated
+   * mid-screen with empty map beneath it. Tracking the detent keeps it attached to
+   * the boundary it belongs to.
+   */
+  const [detent, setDetent] = useState<SheetDetent>("half");
   const map = useRef<MapSurfaceHandle>(null);
   const sheet = useRef<BottomSheetHandle>(null);
 
@@ -348,19 +380,26 @@ export function DiscoverScreen() {
           heavy chrome that hides the thing the screen is about; splitting it lets
           the map read between them, which is the point of floating chrome at all.
         */}
-        <View style={styles.identityRow}>
+        <View
+          style={styles.identityRow}
+          /**
+           * Measured on the **row**, not on either island inside it.
+           *
+           * It was on the handle pill, which is only text plus padding (~30pt),
+           * while the actions island beside it wraps 44pt buttons. The filter row
+           * was therefore positioned below the *shorter* of the two, and the
+           * chips overlapped the clock/connections/avatar island by the
+           * difference. The row's own height is the max of its children, which is
+           * the number this actually needs.
+           */
+          onLayout={(e) =>
+            setBandBottom(e.nativeEvent.layout.height + insets.top + spacing.sm)
+          }
+        >
           <Material
             tone="night"
             weight="thin"
             style={styles.identityPill}
-            // Measured on the rail itself, not on a child. The filter row below is
-            // positioned from this, and reading it off an inner view gave a
-            // near-zero offset — so the chips rendered on top of the handle.
-            onLayout={(e) =>
-              setBandBottom(
-                e.nativeEvent.layout.height + insets.top + spacing.sm
-              )
-            }
           >
             <Text style={styles.identityHandle} numberOfLines={1}>
               @{user?.handle ?? ""}
@@ -406,7 +445,10 @@ export function DiscoverScreen() {
       {/* Map controls — right-hand side, above the sheet's resting edge. Deliberately not
           bottom-left: that corner is where Mapbox pins its attribution and wordmark, which
           are a licence condition and cannot be covered. */}
-      <View style={styles.mapControls} pointerEvents="box-none">
+      <View
+        style={[styles.mapControls, { bottom: `${SHEET_TOP[detent] * 100}%` }]}
+        pointerEvents="box-none"
+      >
         <PressableScale
           accessibilityLabel={t("discover.recenter")}
           accessibilityState={{ disabled: !coords }}
@@ -424,7 +466,16 @@ export function DiscoverScreen() {
 
       {/* Category filters float over the map, below the identity chrome */}
       <View
-        style={[styles.filterRail, { top: bandBottom + spacing.xs }]}
+        style={[
+          styles.filterRail,
+          // `bandBottom` is 0 until the identity rail reports its layout, and a
+          // `top: 4` filter row lands directly on top of the handle and the
+          // profile/connections/past-meetups island (U3). The fallback is the
+          // rail's own known height — a 44pt action plus its padding — so the
+          // first painted frame is already clear of it and measurement only
+          // refines the number.
+          { top: (bandBottom || insets.top + spacing.sm + RAIL_HEIGHT) + spacing.xs },
+        ]}
         pointerEvents="box-none"
       >
         <ScrollView
@@ -457,6 +508,7 @@ export function DiscoverScreen() {
       <BottomSheet
         ref={sheet}
         initial="half"
+        onDetentChange={setDetent}
         dark
         header={<SheetHeader onHost={() => navigation.navigate("CreateEvent")} />}
       >
@@ -692,7 +744,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
   },
+  /**
+   * `minHeight` matches the actions island beside it. Without it the handle pill
+   * was ~30pt against the island's 44, so the two floating chips read as different
+   * sizes and the row's height depended on which one you measured.
+   */
   identityPill: {
+    minHeight: RAIL_HEIGHT - spacing.sm,
+    justifyContent: "center",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
@@ -738,13 +797,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
+  /**
+   * `bottom` is supplied at the call site from the live detent — see `SHEET_TOP`.
+   * Only the side inset and the gap above the sheet edge live here.
+   */
   mapControls: {
     position: "absolute",
     right: spacing.md,
-    // Just above where the sheet rests at its default detent, so the control never sits
-    // under it and never fights the meetup list for the same pixels.
-    bottom: `${(1 - EXPOSED_FRACTION) * 100}%`,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   filterRail: { position: "absolute", left: 0, right: 0 },

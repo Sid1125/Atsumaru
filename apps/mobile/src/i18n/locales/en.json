@@ -43,7 +43,10 @@
     "loginFailed": "Sign-in failed",
     "signupFailed": "Sign-up failed",
     "resetFailed": "Could not send the reset email",
-    "resetCompleteFailed": "Could not update the password"
+    "resetCompleteFailed": "Could not update the password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "signOutConfirm": "Sign out of Atsumaru? You will need to log in again."
   },
   "onboarding": {
     "title": "Let's get to know you.",
@@ -221,7 +224,6 @@
     "descriptionPlaceholder": "Come hungry. Beginners welcome.",
     "category": "Category",
     "size": "Group size",
-    "startsIn": "Starts in (hours)",
     "when": "When",
     "date": "Date",
     "time": "Time",
@@ -232,7 +234,6 @@
     "categoryOther": "Other",
     "categoryOtherPlaceholder": "Custom category name",
     "submit": "Create meetup",
-    "hostKicker": "HOST A MEETUP",
     "hostHint": "Fill in the details and post it to the board.",
     "detailsKicker": "DETAILS",
     "groupKicker": "GROUP",

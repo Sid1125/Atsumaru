@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +20,7 @@ import { useConnections } from "../../features/connections/hooks/useConnections"
 import { useMyEvents } from "../../features/events/hooks/useEvents";
 import { disconnectSocket } from "../../services/socket";
 import { useAuthStore, useUiStore } from "../../store";
+import { tagLabel } from "../../tagLabel";
 import { colors, radius, spacing, type } from "../../theme";
 import type { Language } from "../../types/api";
 
@@ -58,6 +59,22 @@ export function ProfileScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
     }
+  }
+
+  /**
+   * Signing out clears SecureStore, so a mis-tap costs the whole session and a
+   * full re-login. The row sat one tap from a destructive, unrecoverable action
+   * with no confirmation — the one place in this screen that warrants a prompt.
+   *
+   * `Alert` rather than a bespoke sheet: it is a two-option destructive
+   * confirmation, which is exactly what the platform dialog is for, and it gets
+   * the native destructive styling and back-button handling for free.
+   */
+  function confirmSignOut() {
+    Alert.alert(t("auth.signOut"), t("auth.signOutConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("auth.signOut"), style: "destructive", onPress: () => void handleSignOut() },
+    ]);
   }
 
   async function handleSignOut() {
@@ -137,7 +154,7 @@ export function ProfileScreen() {
               <Text style={styles.interestIndex}>
                 {String(index + 1).padStart(2, "0")}
               </Text>
-              <Text style={styles.interestText}>{interest}</Text>
+              <Text style={styles.interestText}>{tagLabel(interest)}</Text>
             </View>
           ))}
         </Card>
@@ -196,12 +213,13 @@ export function ProfileScreen() {
       <Card style={styles.blockCard}>
         <Text style={styles.groupLabel}>{t("profile.accountGroup")}</Text>
         <PressableScale
-          onPress={handleSignOut}
+          onPress={confirmSignOut}
           disabled={busy}
           scaleTo={0.98}
           style={styles.row}
           accessibilityRole="button"
           accessibilityLabel={t("auth.signOut")}
+          accessibilityHint={t("auth.signOutConfirm")}
         >
           <Text style={[styles.rowLabel, styles.signOutLabel]}>
             {t("auth.signOut")}

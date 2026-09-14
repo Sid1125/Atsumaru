@@ -43,7 +43,10 @@
     "loginFailed": "登录失败",
     "signupFailed": "注册失败",
     "resetFailed": "无法发送重置邮件",
-    "resetCompleteFailed": "无法更新密码"
+    "resetCompleteFailed": "无法更新密码",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
+    "signOutConfirm": "要退出 Atsumaru 吗？你需要重新登录。"
   },
   "onboarding": {
     "title": "先聊聊你吧。",
@@ -221,7 +224,6 @@
     "descriptionPlaceholder": "空着肚子来，欢迎新手。",
     "category": "分类",
     "size": "小组人数",
-    "startsIn": "距开始（小时）",
     "when": "何时",
     "date": "日期",
     "time": "时间",
@@ -232,7 +234,6 @@
     "categoryOther": "其他",
     "categoryOtherPlaceholder": "输入自定义分类名称",
     "submit": "创建聚会",
-    "hostKicker": "HOST A MEETUP",
     "hostHint": "填写详细信息并发布到活动板。",
     "detailsKicker": "DETAILS",
     "groupKicker": "GROUP",

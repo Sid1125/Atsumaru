@@ -137,7 +137,14 @@ export function IconCalendar(props: IconProps) {
   );
 }
 
-/** Clock — a simple face with two hands for the time picker. */
+/**
+ * Clock — a face with an hour and minute hand and a centre pin.
+ *
+ * One icon, two callers: the "starts at" time picker and the past-meetups entry on
+ * Discover. Two merges each landed their own `IconClock` and git took both without
+ * reporting a conflict, which bundled as `Identifier 'IconClock' has already been
+ * declared`. If a third caller wants a clock, reuse this one.
+ */
 export function IconClock(props: IconProps) {
   return (
     <Base {...props}>
@@ -350,15 +357,35 @@ export function IconWave(props: IconProps) {
 }
 
 /**
- * History / past meetups — a clock face with hands at 3 and 9, the universal
- * shorthand for "time" and "what happened before."
+ * Eye — reveal a masked password. Paired with `IconEyeOff` below, which is the same
+ * eye with a stroke through it so the two read as one control in two states rather
+ * than two unrelated glyphs.
  */
-export function IconClock(props: IconProps) {
+export function IconEye(props: IconProps) {
   return (
     <Base {...props}>
-      <Circle cx="12" cy="12" r="8.5" />
-      <Path d="M12 7v5l3 3" />
-      <Path d="M12 12H8" />
+      <Path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" />
+      <Circle cx="12" cy="12" r="3" />
+    </Base>
+  );
+}
+
+/** Eye with a slash — the password is currently visible, tap to hide it. */
+export function IconEyeOff(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Path d="M2 12s3.6-6 10-6c1.7 0 3.2.4 4.5 1M22 12s-3.6 6-10 6c-1.7 0-3.2-.4-4.5-1" />
+      <Path d="M10 10a3 3 0 004 4" />
+      <Path d="M3 3l18 18" />
+    </Base>
+  );
+}
+
+/** Plus — add another of something. */
+export function IconPlus(props: IconProps) {
+  return (
+    <Base {...props}>
+      <Path d="M12 5v14M5 12h14" />
     </Base>
   );
 }

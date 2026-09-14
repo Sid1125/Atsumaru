@@ -43,7 +43,10 @@
     "loginFailed": "サインインできませんでした",
     "signupFailed": "登録できませんでした",
     "resetFailed": "再設定メールを送信できませんでした",
-    "resetCompleteFailed": "パスワードを更新できませんでした"
+    "resetCompleteFailed": "パスワードを更新できませんでした",
+    "showPassword": "パスワードを表示",
+    "hidePassword": "パスワードを非表示",
+    "signOutConfirm": "Atsumaru からサインアウトしますか？もう一度ログインが必要になります。"
   },
   "onboarding": {
     "title": "あなたのことを教えてください。",
@@ -221,7 +224,6 @@
     "descriptionPlaceholder": "お腹を空かせてきてね。初心者歓迎。",
     "category": "カテゴリー",
     "size": "グループの人数",
-    "startsIn": "開始まで（時間）",
     "when": "いつ",
     "date": "日付",
     "time": "時間",
@@ -232,7 +234,6 @@
     "categoryOther": "その他",
     "categoryOtherPlaceholder": "カテゴリ名を入力",
     "submit": "集まりをつくる",
-    "hostKicker": "HOST A MEETUP",
     "hostHint": "詳細を入力してボードに投稿してください。",
     "detailsKicker": "DETAILS",
     "groupKicker": "GROUP",
