@@ -136,9 +136,7 @@ export function ConnectionsScreen() {
             <ConnectionRow
               connection={item}
               meId={me?.id ?? ""}
-              onOpen={(handle) =>
-                navigation.navigate("Dm", { connectionId: item.id, handle })
-              }
+              onOpen={() => navigation.navigate("ConnectionProfile", { connectionId: item.id })}
             />
           )}
         />

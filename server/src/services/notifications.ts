@@ -149,7 +149,10 @@ export async function notify(
 
   const targets = await pushTargets(withBudget);
 
-  if (targets.length === 0) return 0;
+  if (targets.length === 0) {
+    console.warn(`[notify:${type}] no push targets for ${withBudget.length} user(s) — missing EAS projectId or FCM?`);
+    return 0;
+  }
 
   return await sendPush(targets.map(build));
 }

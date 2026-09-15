@@ -46,6 +46,8 @@ giving one-word answers, ask a lighter, more concrete question to draw them
 out (e.g. "board games or hiking?" beats "what are your hobbies?"). If the
 user stays unengaged or unresponsive for several turns, wrap up early with
 whatever you've got rather than pushing further.
+If you didn't catch something, don't say "Sorry, could you say that again?" — acknowledge
+what they said and ask a concrete follow-up instead (e.g. "Nice — are you more into cozy cafés or night markets?").
 
 Once you know some of their interests, spend one clear turn asking them to
 describe their own personality (their "vibe"), and offer concrete options
@@ -120,11 +122,11 @@ const extractionSchema = z.object({
 export type OnboardingTurn = { role: "user" | "assistant"; content: string };
 export type OnboardingResult = z.infer<typeof extractionSchema>;
 
-/** Shown when the model returns something unusable, in the user's own language. */
+/** Shown when the model returns something unusable — keep conversation moving, not looping. */
 const RETRY_REPLY: Record<Language, string> = {
-  en: "Sorry, could you say that again?",
-  ja: "すみません、もう一度お願いできますか？",
-  zh: "抱歉，可以再说一次吗？",
+  en: "Got it — tell me more about what you enjoy doing on weekends?",
+  ja: "ありがとう！休日はどんなことをして過ごすのが好きですか？",
+  zh: "收到啦！周末你喜欢做什么呢？",
 };
 
 let groq: Groq | null = null;
@@ -167,16 +169,27 @@ export async function onboardingChat(
 
   // Model output is untrusted: malformed JSON must not surface as a 500.
   let raw: unknown;
+  const content = completion.choices[0]?.message?.content ?? "{}";
   try {
-    raw = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
+    raw = JSON.parse(content);
   } catch {
+    // Salvage: model sometimes wraps JSON in markdown or truncates — try to extract the reply.
+    const m = content.match(/"reply"\s*:\s*"([^"]+)"/);
+    if (m) return { reply: m[1]!, done: false };
     return retry;
   }
 
   const parsed = extractionSchema.safeParse(raw);
 
-  // Never forward unvalidated model output to the client.
-  return parsed.success ? parsed.data : retry;
+  // Try to salvage a reply even if other fields fail validation — keep the chat moving.
+  if (!parsed.success) {
+    const maybe = raw as Record<string, unknown>;
+    if (typeof maybe.reply === "string" && maybe.reply.trim().length > 0) {
+      return { reply: maybe.reply.trim(), done: false };
+    }
+    return retry;
+  }
+  return parsed.data;
 }
 
 /**

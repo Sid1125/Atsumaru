@@ -7,6 +7,7 @@ import {
   insertMessage,
   listConnectionsWithProfiles,
   listMessages,
+  publicUser,
   requireConnection,
 } from "../../db/queries.js";
 import { notifyDmMessage } from "../../services/chatNotice.js";
@@ -35,6 +36,19 @@ connectionsRouter.get(
     const connections = await listConnectionsWithProfiles(userId);
 
     return ok(res, { connections });
+  })
+);
+
+// Gated profile: only a mutual connection's other participant may view it.
+connectionsRouter.get(
+  "/:id/profile",
+  requireAuth,
+  asyncRoute(async (req: AuthedRequest, res) => {
+    await enforceReadLimit(req, res);
+    const conn = (await requireConnection(uuidParam(req, "id"), req.userId!))!;
+    const otherId = conn.user_a === req.userId! ? conn.user_b : conn.user_a;
+    const profile = await publicUser(otherId);
+    return ok(res, { profile });
   })
 );
 

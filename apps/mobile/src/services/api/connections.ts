@@ -4,6 +4,8 @@ import type { Connection, ConnectionWithProfile, Message, MessagePage } from "..
 export const connectionsApi = {
   list: () => api.get<{ connections: ConnectionWithProfile[] }>("/connections"),
 
+  profile: (id: string) => api.get<{ profile: import("../../types/api").User }>(`/connections/${id}/profile`),
+
   messages: (id: string, page = 1, limit = 30) =>
     api.get<MessagePage>(`/connections/${id}/messages`, {
       page,

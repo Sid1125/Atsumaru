@@ -19,6 +19,7 @@ import { GroupChatScreen } from "../../screens/Meetup/GroupChatScreen";
 import { FeedbackScreen } from "../../screens/Meetup/FeedbackScreen";
 import { ConnectionsScreen } from "../../screens/Connections/ConnectionsScreen";
 import { DmScreen } from "../../screens/Connections/DmScreen";
+import { ConnectionProfileScreen } from "../../screens/Connections/ConnectionProfileScreen";
 import { CreateEventScreen } from "../../screens/Events/CreateEventScreen";
 import { PastMeetupsScreen } from "../../screens/Events/PastMeetupsScreen";
 import { ProfileScreen } from "../../screens/Settings/ProfileScreen";
@@ -255,6 +256,11 @@ export function RootNavigator() {
             options={({ route }) => ({
               title: route.params.handle ? `@${route.params.handle}` : "",
             })}
+          />
+          <AppStack.Screen
+            name="ConnectionProfile"
+            component={ConnectionProfileScreen}
+            options={{ title: "" }}
           />
           <AppStack.Screen
             name="CreateEvent"

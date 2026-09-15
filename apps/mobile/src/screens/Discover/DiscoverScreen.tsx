@@ -60,6 +60,9 @@ type Nav = NativeStackNavigationProp<AppStackParamList, "Discover">;
 
 const FALLBACK_COORDS: Coords = { lat: 35.6595, lng: 139.7005 };
 
+const RADIUS_OPTIONS_KM = [5, 10, 30, 60] as const;
+type RadiusKm = (typeof RADIUS_OPTIONS_KM)[number];
+
 /**
  * The radius the ring draws, in kilometres.
  *
@@ -67,7 +70,7 @@ const FALLBACK_COORDS: Coords = { lat: 35.6595, lng: 139.7005 };
  * `radius: 5000` and the server defaults to the same. The ring is only honest while those
  * three agree, so changing one means changing all three.
  */
-const NEARBY_RADIUS_KM = 5;
+const NEARBY_RADIUS_KM: RadiusKm = 5;
 
 /**
  * Height of the floating identity rail, in points: a 44pt action plus the 4pt of
@@ -130,6 +133,7 @@ export function DiscoverScreen() {
   const [pannedTo, setPannedTo] = useState<Coords | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bandBottom, setBandBottom] = useState(0);
+  const [radiusKm, setRadiusKm] = useState<RadiusKm>(NEARBY_RADIUS_KM);
 
   /**
    * Where the sheet is resting, so the map control can sit above its *actual* edge.
@@ -199,7 +203,7 @@ export function DiscoverScreen() {
     if (hasRealFix && coords) setLastFix(coords);
   }, [coords, hasRealFix, setLastFix]);
 
-  const query = useNearbyEvents(pannedTo ?? coords, category);
+  const query = useNearbyEvents(pannedTo ?? coords, category, radiusKm * 1000);
   const events = query.data?.events ?? [];
 
   const mine = useMyEvents();
@@ -354,7 +358,7 @@ export function DiscoverScreen() {
         // Only drawn around a real fix. Ringing the Shibuya fallback would draw a
         // confident 5 km circle around somewhere the member may never have been.
         userLocation={hasRealFix ? coords : null}
-        radiusKm={NEARBY_RADIUS_KM}
+        radiusKm={radiusKm}
       />
 
       {/*
@@ -442,9 +446,7 @@ export function DiscoverScreen() {
         </View>
       </View>
 
-      {/* Map controls — right-hand side, above the sheet's resting edge. Deliberately not
-          bottom-left: that corner is where Mapbox pins its attribution and wordmark, which
-          are a licence condition and cannot be covered. */}
+      {/* Map controls — right: locate. Left: radius selector (opposite side, same height). */}
       <View
         style={[styles.mapControls, { bottom: `${SHEET_TOP[detent] * 100}%` }]}
         pointerEvents="box-none"
@@ -462,6 +464,29 @@ export function DiscoverScreen() {
             color={coords ? colors.nightText : colors.nightMuted}
           />
         </PressableScale>
+      </View>
+
+      {/* Radius selector — opposite side from locate (left), same vertical band. */}
+      <View
+        style={[styles.radiusControls, { bottom: `${SHEET_TOP[detent] * 100}%` }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.radiusPill}>
+          {RADIUS_OPTIONS_KM.map((km) => (
+            <PressableScale
+              key={km}
+              accessibilityLabel={`${km}km`}
+              accessibilityState={{ selected: radiusKm === km }}
+              onPress={() => setRadiusKm(km)}
+              style={[styles.radiusBtn, radiusKm === km && styles.radiusBtnActive]}
+              scaleTo={0.92}
+            >
+              <Text style={[styles.radiusText, radiusKm === km && styles.radiusTextActive]}>
+                {km}km
+              </Text>
+            </PressableScale>
+          ))}
+        </View>
       </View>
 
       {/* Category filters float over the map, below the identity chrome */}
@@ -806,6 +831,37 @@ const styles = StyleSheet.create({
     right: spacing.md,
     marginBottom: spacing.sm,
     gap: spacing.sm,
+  },
+  radiusControls: {
+    position: "absolute",
+    left: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  radiusPill: {
+    flexDirection: "row",
+    backgroundColor: colors.materialNightRegular,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.nightSeparator,
+    borderRadius: radius.pill,
+    overflow: "hidden",
+  },
+  radiusBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radiusBtnActive: {
+    backgroundColor: colors.citrus,
+  },
+  radiusText: {
+    ...type.captionEmphasized,
+    color: colors.nightText,
+  },
+  radiusTextActive: {
+    color: colors.citrusInk,
   },
   filterRail: { position: "absolute", left: 0, right: 0 },
   filterRow: {

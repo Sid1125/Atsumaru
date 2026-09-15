@@ -157,7 +157,9 @@
     "titleKicker": "CONNECTIONS",
     "empty": "No connections yet. They unlock after a meetup.",
     "messagePlaceholder": "Message @{{handle}}...",
-    "moreInterests": "+{{count}} more"
+    "moreInterests": "+{{count}} more",
+    "openDm": "Open chat",
+    "compatibility": "Reputation"
   },
   "pastMeetups": {
     "title": "Past meetups",

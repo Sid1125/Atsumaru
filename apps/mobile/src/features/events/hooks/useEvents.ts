@@ -4,14 +4,19 @@ import { eventsApi } from "../../../services/api/events";
 import { ApiError } from "../../../services/api/errors";
 import type { Coords } from "../../../types/api";
 
-export function useNearbyEvents(coords: Coords | null, category?: string | null) {
+export function useNearbyEvents(
+  coords: Coords | null,
+  category?: string | null,
+  radius?: number
+) {
   return useQuery({
-    queryKey: ["events", "nearby", coords?.lat, coords?.lng, category],
+    queryKey: ["events", "nearby", coords?.lat, coords?.lng, category, radius],
     enabled: !!coords,
     queryFn: () =>
       eventsApi.nearby({
         lat: coords!.lat,
         lng: coords!.lng,
+        radius,
         category: category ?? undefined,
       }),
     staleTime: 60_000,

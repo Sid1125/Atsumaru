@@ -157,7 +157,9 @@
     "titleKicker": "CONNECTIONS",
     "empty": "まだつながりはありません。集まりのあとに解放されます。",
     "messagePlaceholder": "@{{handle}} にメッセージ...",
-    "moreInterests": "+{{count}} 個more"
+    "moreInterests": "+{{count}} 個more",
+    "openDm": "チャットを開く",
+    "compatibility": "信頼スコア"
   },
   "pastMeetups": {
     "title": "過去の集まり",

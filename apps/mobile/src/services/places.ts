@@ -1,4 +1,5 @@
 import { MAPBOX_PUBLIC_TOKEN } from "../config/env";
+import i18n from "../i18n";
 import type { Coords } from "../types/api";
 
 /**
@@ -40,18 +41,18 @@ const COUNTRY = "jp";
 const FIXED_AREA_RADIUS_DEG = 1;
 
 /**
- * Always Japanese, **not** the member's UI language, and this is measured rather than
- * assumed: Mapbox only returns POIs for a Japanese query when `language=ja`. With `en` or
- * `zh` the same search comes back with wards and neighbourhoods and no venues at all —
- * "shibuya cafe" yields `Shibuya-ku` instead of six cafés. Japan's POI index is
- * Japanese-language, so asking in anything else quietly turns a venue picker into an
- * administrative-area picker.
- *
- * The names that come back are frequently Latin-script anyway ("Yōjiya Cafe Shibuya Hikarie
- * ShinQs"), so this costs the member nothing. Do not "fix" this by threading `i18n.language`
- * through — that is the change that breaks it.
+ * Venue search language now follows the app language (en/ja/zh) so the heading and the
+ * address line stay in the same language. Previously hardcoded to `ja` because Japan's POI
+ * index returned wards for `en` queries ("shibuya cafe" → `Shibuya-ku`); with Search Box
+ * v1 + proximity+radius bias that no longer reproduces, and the hardcoded `ja` left
+ * English UI showing `Starbucks` + `東京都渋谷区…` (U-heading English, address Japanese).
  */
-const SEARCH_LANGUAGE = "ja";
+function getSearchLanguage(): string {
+  const lang = (i18n.language || "en").split("-")[0].toLowerCase();
+  if (lang === "ja") return "ja";
+  if (lang === "zh") return "zh";
+  return "en";
+}
 
 /** Six is what the handle suggester shows, and it is about what fits without scrolling. */
 const LIMIT = 6;
@@ -107,7 +108,7 @@ export async function suggestPlaces(
 
   const params = new URLSearchParams({
     q: query.trim(),
-    language: SEARCH_LANGUAGE,
+    language: getSearchLanguage(),
     limit: String(LIMIT),
     session_token: session,
     access_token: MAPBOX_PUBLIC_TOKEN,
@@ -166,6 +167,7 @@ export async function retrievePlace(
   if (!hasPlaceSearch()) return null;
 
   const params = new URLSearchParams({
+    language: getSearchLanguage(),
     session_token: session,
     access_token: MAPBOX_PUBLIC_TOKEN,
   });
