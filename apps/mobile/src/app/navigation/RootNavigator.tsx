@@ -1,5 +1,6 @@
 import { NavigationContainer, type Theme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,12 +66,68 @@ const headerOptions = {
   headerTintColor: colors.text,
   headerShadowVisible: false,
   headerStyle: { backgroundColor: colors.background },
-  headerTitleAlign: "left",
+  /**
+   * Left-aligned on iOS only.
+   *
+   * Android's native stack header already places the title immediately after the
+   * back button, which is both the platform convention and — crucially — laid out
+   * so the two cannot collide. Forcing `"left"` there puts the title view at the
+   * container's left edge instead, and a long title ("Log in or sign up", "How was
+   * Ramen Night?", "Host a meetup") starts underneath the chevron. Short titles
+   * ("Connections") happen to clear it, which is why this looked inconsistent
+   * across screens rather than like one broken setting.
+   *
+   * iOS defaults to centred and has no such collision, so the editorial left
+   * alignment is kept there.
+   */
+  headerTitleAlign: Platform.OS === "ios" ? ("left" as const) : undefined,
   headerTitleStyle: {
     ...type.headline,
     color: colors.text,
   },
   contentStyle: { backgroundColor: colors.background },
+} as const;
+
+/**
+ * How every modal in this stack arrives and leaves.
+ *
+ * ## Why not `slide_from_bottom`
+ *
+ * Both modals used it. On Android it resolves to `rns_slide_in_from_bottom.xml`,
+ * which is a bare `<translate fromYDelta="100%">` with **no interpolator declared**
+ * — a linear, full-screen-height slide. Linear motion is the one thing that always
+ * reads as mechanical, and moving the whole viewport height makes a modal feel like
+ * a page swap that happens to travel upward.
+ *
+ * ## Why `fade_from_bottom`
+ *
+ * It resolves to AOSP's own activity-open animation: alpha 0 → 1 over **210ms** on
+ * `decelerate_quint`, with a translate of only **8% of the height** over 350ms on
+ * the same curve. Opacity-led, a short rise, decelerating into rest — the same
+ * shape as the app's own `FadeIn` + 8pt entrances, so a modal now arrives the way
+ * everything else in the app does. The close animation is asymmetric and shorter
+ * (250ms, `accelerate_quint`), which is the enter/exit asymmetry `theme/motion.ts`
+ * models and no preset gave us before.
+ *
+ * `animationDuration` is deliberately absent: it is iOS-only, and these are fixed
+ * XML durations on Android, so writing one would imply a control that does not exist.
+ *
+ * ## Why not `formSheet`
+ *
+ * A `formSheet` was built, shipped to the emulator and measured — rounded corners,
+ * the map dimmed to 70% behind it, a 250ms decelerating settle, drag-to-dismiss. It
+ * was better than this in every way except one that disqualifies it: on Android the
+ * sheet is a `BottomSheetBehavior`, and it cannot share the vertical gesture with
+ * the form's `ScrollView`. **Scroll the form down, then drag down to scroll back up,
+ * and the sheet dismisses instead — discarding everything typed.** Verified from a
+ * freshly mounted sheet, with `nestedScrollEnabled` set on the ScrollView, at three
+ * drag speeds. `sheetExpandsWhenScrolledToEdge`, which exists for exactly this, is
+ * `@platform ios` in react-native-screens 4.26 — `Screen.kt` stores the field and
+ * nothing on Android reads it. A form you can lose by scrolling is not worth a
+ * nicer entrance.
+ */
+const MODAL_ANIMATION = {
+  animation: "fade_from_bottom",
 } as const;
 
 export function RootNavigator() {
@@ -101,10 +158,18 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer linking={linking} theme={navigationTheme}>
-      {/* The auth stage sits on the night ground, everything else on cream — the
-          status bar icons must flip with the surface or the login screen reads
-          as broken chrome on a dark background. */}
-      <StatusBar style={stage === "auth" ? "light" : "dark"} animated />
+      {/*
+        Dark icons, because almost every surface in the app is the champagne
+        ground. The exception opts out for itself: `LoginScreen` renders its own
+        `<StatusBar style="light" />` for its night ground.
+
+        This used to switch on the *stage* — `light` for the whole auth stage — but
+        the auth stage holds two different grounds. Login is night and EmailAuth is
+        champagne, so EmailAuth rendered white status-bar icons on a light ground
+        and the clock was effectively invisible (B2). Ground colour is a property of
+        a screen, not of a navigation stage.
+      */}
+      <StatusBar style="dark" animated />
       {stage === "auth" ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
@@ -167,10 +232,11 @@ export function RootNavigator() {
             options={{
               title: t("feedback.title"),
               presentation: "modal",
-              // Android has no native modal presentation, so without this the
-              // modal falls back to a push and the "a detour you can abandon"
-              // reading is lost.
-              animation: "slide_from_bottom",
+              // Android has no native modal presentation, so without an explicit
+              // animation the modal falls back to a push and the "a detour you can
+              // abandon" reading is lost. Shared with CreateEvent so the app's two
+              // modals arrive the same way.
+              ...MODAL_ANIMATION,
             }}
           />
           <AppStack.Screen
@@ -196,7 +262,17 @@ export function RootNavigator() {
             options={{
               title: t("createEvent.title"),
               presentation: "modal",
-              animation: "slide_from_bottom",
+              ...MODAL_ANIMATION,
+              /**
+               * The screen draws its own header.
+               *
+               * A modal is dismissed, not popped, so the affordance is a close
+               * control on the right of the screen's own `ScreenHeader` rather
+               * than a back chevron in a bar — and the title then sits in the
+               * editorial tier the rest of the app uses instead of the 17pt
+               * headline the native bar allows.
+               */
+              headerShown: false,
             }}
           />
           <AppStack.Screen

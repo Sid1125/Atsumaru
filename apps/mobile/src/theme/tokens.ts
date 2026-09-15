@@ -243,8 +243,16 @@ export const colors = {
    * and dark cases are different colours, not the same colour at two strengths.
    * These were the last two retired literals in `src/` — `rgba(250,247,242,…)`
    * and `rgba(26,22,19,…)`, both hues this palette no longer contains.
+   *
+   * The light one is 0.30 rather than the 0.18 it started at. Rendered on the
+   * champagne ground it composited to `rgb(206,192,166)` against `rgb(245,229,204)`
+   * — **1.35:1**, a grabber you have to look for. Champagne is a far lighter ground
+   * than the greys that alpha was picked against; 0.30 measures `rgb(180,167,147)`,
+   * ~1.7:1, which reads at a glance. It stays under WCAG 1.4.11's 3:1 on purpose —
+   * a grabber hints that a sheet can be dragged, and is never the only way to move
+   * or leave one — so it is held to a quiet affordance's weight, not a control's.
    */
-  grabber: "rgba(30,23,16,0.18)",
+  grabber: "rgba(30,23,16,0.30)",
   grabberNight: "rgba(245,229,204,0.20)",
 
   /** Scrim behind modal surfaces — dim to focus (skill §12). */

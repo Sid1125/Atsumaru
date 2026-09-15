@@ -95,6 +95,45 @@ that stopped being true on 2026-08-30.
 
 ## To do
 
+### 5r. Modal entrance motion — measured on the emulator (2026-09-15)
+
+"Add a smooth animation for when we open the host UI." Both modals (`CreateEvent`,
+`Feedback`) were on `presentation: "modal"` + `animation: "slide_from_bottom"`.
+
+- **`slide_from_bottom` is linear.** Android resolves it to `rns_slide_in_from_bottom.xml`,
+  a bare `<translate fromYDelta="100%">` with no interpolator — a full-viewport-height
+  slide at constant speed, which is why hosting read as a page swap that moved upward.
+- **Now `fade_from_bottom`**, shared by both modals from one `MODAL_ANIMATION` constant in
+  `RootNavigator`. It is AOSP's activity-open: alpha 0→1 over 210ms on `decelerate_quint`
+  plus an 8%-height rise over 350ms, with an asymmetric 250ms `accelerate_quint` close.
+  Verified frame-by-frame from a 60fps `screenrecord`: the title rises 312→239→225→223→222px
+  while the ground cross-fades, settling ~320ms after the first painted frame. Feedback
+  measured the same shape (267→208→205→200px).
+- **`formSheet` was built, measured and rejected.** It was better looking — 34pt corners, the
+  map dimmed to 70% behind it, a 250ms decelerating settle, interactive drag-to-dismiss — but
+  on Android the sheet is a `BottomSheetBehavior` that cannot share the vertical gesture with
+  the form's `ScrollView`: **scroll the form down, drag down to scroll back, and the sheet
+  dismisses, discarding everything typed.** Reproduced from a freshly mounted sheet, with
+  `nestedScrollEnabled` on the ScrollView, at three drag speeds.
+  `sheetExpandsWhenScrolledToEdge` exists for exactly this and is `@platform ios` in
+  react-native-screens 4.26 — `Screen.kt` stores the field and nothing on Android reads it.
+  Same for `sheetGrabberVisible`. And `ScreenStackFragment` skips the whole toolbar branch for
+  form sheets, so a `formSheet` on Android has **no header and no back button at all**.
+- **Kept from that work:** `CreateEvent` runs `headerShown: false` and draws its own
+  `ScreenHeader` with a 44pt close control, so the title sits in the editorial tier and a
+  modal is dismissed rather than popped. `insets.top + spacing.page` replaces the padding the
+  native header used to reserve. `createEvent.hostKicker` deleted from all three locales (it
+  duplicated the title); parity now 200/200/200.
+- `colors.grabber` raised 0.18 → 0.30: on champagne it measured `rgb(206,192,166)` on
+  `rgb(245,229,204)` — **1.35:1**. Now ~1.7:1.
+
+Verified on the Pixel emulator in demo mode with animation scales at 1: entrance, two-way
+scrolling inside the form (returns to the exact original offset), the date dialog opening over
+the modal and committing (Tue Sep 15 → Wed Sep 16 with the time preserved), the keyboard
+raising the content without covering the focused field, and the close control. `npm run
+typecheck` clean; `npm test` 105/106 — the one failure is the pre-existing `oauth.test.ts`
+`ERR_INVALID_URL` from the missing `server/.env`.
+
 ### 5h. Manual security review, 2026-09-04 — white-box audit, no critical/high findings
 
 Free manual review of `server/src` + live API (`https://atsumaru-6i3n.onrender.com/api`).
@@ -955,7 +994,7 @@ Done 2026-08-29 and walked end to end on a Pixel 9 emulator in demo mode
 
 ### 3. Mobile — P1 features
 
-- [x] Create-event screen (FR-13) — posts a fixed Shibuya point; a venue picker is still to do
+|- [x] Create-event screen (FR-13) — date+time picker replaces the "starts in (hours)" text input; the picked date+time is sent as an ISO-8601 UTC `start_time`; category chips now include an "Other" option that opens an inline text field for a custom category name (up to 40 chars). Venue picker still TBD.
 - [x] **Profile page (2026-09-01)** replaces the old Settings screen: hero (avatar/kicker/handle/name), stats row (rep/connections/meetups), numbered interests index, language override → `PATCH /users/me`, sign out. Editorial grammar (whitespace + hairline rules, no rounded settings cards). Old `SettingsScreen`/`Settings` route removed → `Profile`
 - [x] "Your meetups" section on Discover — a completed meetup had no UI route at all, so feedback was reachable only via a push the device cannot receive
 - [ ] Reusable components still inlined in screens: `Avatar`, `MemberRow`, `ChatBubble`, `ChatInput`, `RatingSelector`, `MatchScore`, `LoadingSkeleton` (docs/DESIGN.md §7)

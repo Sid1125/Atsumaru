@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { Chip } from "../common/Chip";
 import { TextField } from "../common/TextField";
+import { tagLabel } from "../../tagLabel";
 import { IconClose } from "../ui/Icons";
 import { PressableScale } from "../ui/PressableScale";
+import { IconPlus } from "../ui/Icons";
 import {
   PERSONALITY_KEYS,
   traitKeyFor,
@@ -73,7 +75,8 @@ export function InterestEditor({
           {tags.map((tag) => (
             <RemovableChip
               key={tag}
-              label={tag}
+              // The stored slug stays the value; only the label is humanized.
+              label={tagLabel(tag)}
               onRemove={() => onChange(tags.filter((existing) => existing !== tag))}
             />
           ))}
@@ -90,7 +93,7 @@ export function InterestEditor({
           placeholder={t("profile.addInterestPlaceholder")}
           onSubmitEditing={add}
           returnKeyType="done"
-          style={styles.addField}
+          containerStyle={styles.addField}
         />
         <PressableScale
           accessibilityLabel={t("profile.addInterest")}
@@ -99,7 +102,10 @@ export function InterestEditor({
           scaleTo={0.94}
           style={[styles.addButton, !draft.trim() && styles.addButtonDisabled]}
         >
-          <Text style={styles.addButtonText}>{t("onboarding.personalityAdd")}</Text>
+          <IconPlus
+            size={22}
+            color={draft.trim() ? colors.primaryText : colors.textMuted}
+          />
         </PressableScale>
       </View>
     </View>
@@ -166,7 +172,8 @@ export function PersonalityEditor({
           {strays.map((tag) => (
             <RemovableChip
               key={tag}
-              label={tag}
+              // The stored slug stays the value; only the label is humanized.
+              label={tagLabel(tag)}
               onRemove={() => onChange(tags.filter((existing) => existing !== tag))}
             />
           ))}
@@ -186,16 +193,28 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   empty: { ...type.caption, color: colors.textMuted },
   addRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  addField: { flex: 1, minHeight: 44 },
+  addField: { flex: 1, minWidth: 0, minHeight: 44 },
+  /**
+   * A fixed 44pt square, not a label.
+   *
+   * As a text button ("+ Add") its width came from a translated string, so the row
+   * was only ever as correct as the longest locale — and it already overflowed in
+   * English, pushing the control off the right edge of the screen where it could
+   * not be tapped at all (U6). A square removes the variable: the field takes
+   * whatever is left, and the target is exactly 44pt in every language.
+   *
+   * The glyph is not the only signal — `accessibilityLabel` still carries
+   * "Add interest", which is what a screen reader announces.
+   */
   addButton: {
-    minHeight: 44,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.xs,
+    flexShrink: 0,
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   addButtonDisabled: { backgroundColor: colors.border },
-  addButtonText: { ...type.subhead, color: colors.textOnColor, fontWeight: "600" },
   cap: { ...type.caption, color: colors.textMuted },
 });

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { StatusBar } from "expo-status-bar";
 
 import { TurnstileWidget } from "../../services/auth/TurnstileWidget";
 import { Button } from "../../components/common/Button";
@@ -53,6 +54,15 @@ export function EmailAuthScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/*
+        Dark icons for the champagne ground.
+        `LoginScreen` stays mounted underneath this push and had already applied
+        `style="light"` for its night ground, and `expo-status-bar` applies the
+        most recently mounted value — so without this, the clock and battery
+        rendered white on cream and were effectively invisible (B2).
+      */}
+      <StatusBar style="dark" animated />
+
       <ScrollView
         contentContainerStyle={[
           styles.content,

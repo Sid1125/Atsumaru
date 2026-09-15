@@ -41,6 +41,16 @@ export function MapPin({
           left: x - PIN_BOX.width / 2,
           top: y - PIN_POINT_Y,
           zIndex: selected ? 20 : 10,
+          /**
+           * `elevation` as well as `zIndex`, and this is the one that actually
+           * decides it on Android: elevation outranks zIndex in the view's draw
+           * order, and `PinBody` gives every pin the same `elevation.medium`. With
+           * the whole field tied, ordering fell back to source order — so a pin
+           * that happened to render later covered the *selected* pin's label, which
+           * is the only label on screen and the one thing the selection exists to
+           * show. Two pins near the same coordinate made it unreadable.
+           */
+          elevation: selected ? 20 : 10,
         },
       ]}
       pointerEvents="box-none"

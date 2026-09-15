@@ -82,11 +82,30 @@ export function EventCard({
 }: EventCardProps) {
   const { t, i18n } = useTranslation();
 
-  const when = new Date(event.start_time).toLocaleString(i18n.language, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  /**
+   * A weekday-and-clock for an upcoming meetup; a calendar date for one that has
+   * already happened.
+   *
+   * "Sat 7:00 PM" answers the only question that matters about a meetup you might
+   * still join. It answers nothing about one from three weeks ago — and on the past
+   * meetups screen every row rendered as "12:00 AM", because a completed meetup's
+   * `start_time` frequently carries a date-only timestamp that lands on midnight.
+   * Two rows both reading "12:00 AM" is not a formatting nicety, it is the row
+   * failing to identify itself.
+   */
+  const start = new Date(event.start_time);
+  const when =
+    event.status === "completed"
+      ? start.toLocaleDateString(i18n.language, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : start.toLocaleString(i18n.language, {
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        });
 
   const full = event.current_size >= event.max_size;
   const featured = variant === "featured";
@@ -145,7 +164,10 @@ export function EventCard({
             featured ? styles.titleFeatured : styles.title,
             dark ? styles.textDark : styles.text,
           ]}
-          numberOfLines={featured ? 2 : 1}
+          // Two lines on every variant except compact. The title is the name of
+          // the thing being chosen, and "Ramen Night ..." with half the row empty
+          // is the line cap clipping it, not the width.
+          numberOfLines={compact ? 1 : 2}
         >
           {event.title}
         </Text>

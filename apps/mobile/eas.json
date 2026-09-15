@@ -10,12 +10,27 @@
       },
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "0"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "0"
       }
     },
     "production": {
       "ios": {
         "workflow": "managed",
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "0"
       }
     }
   },

@@ -17,6 +17,7 @@ import Animated, {
 import { Button } from "../../components/common/Button";
 import { LineLogo, GoogleLogo } from "../../components/common/BrandLogos";
 import { IconMail } from "../../components/ui/Icons";
+import { StatusBar } from "expo-status-bar";
 import { Marker } from "../../components/ui/Marker";
 import { Sticker } from "../../components/ui/Sticker";
 import { CATEGORY_ORDER, categoryIcon, categorySticker } from "../../categoryMeta";
@@ -94,6 +95,10 @@ export function LoginScreen() {
 
   return (
     <View style={styles.root}>
+      {/* The one night-ground screen: its own light icons, so the rest of the app
+          does not have to know this screen exists. */}
+      <StatusBar style="light" animated />
+
       {/* Night ground — the site's dark hero section */}
       <LinearGradient
         colors={NIGHT_GROUND}

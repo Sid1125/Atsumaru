@@ -108,7 +108,10 @@ export function VenuePicker({
               scaleTo={0.98}
             >
               <View style={styles.rowText}>
-                <Text style={styles.rowName} numberOfLines={1}>
+                {/* Two lines. A venue name is the thing being chosen, and these
+                    were ellipsing to "Xian ..." / "Ramen ..." with most of the row
+                    empty — the clip was the line cap, not the width. */}
+                <Text style={styles.rowName} numberOfLines={2}>
                   {place.name}
                 </Text>
                 {place.address ? (
